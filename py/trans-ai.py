@@ -1,33 +1,50 @@
-# -*- coding: utf-8 -*-
 import json
 import datetime
+import time
 import requests
 import os
 from googletrans import Translator # googletrans 사용 시 필요
+from requests.exceptions import RequestException
 
-# --- 상수 정의 ---
-# (이전과 동일)
+
+
 OLLAMA_API_URL = "http://localhost:11434/api/generate"
 DEFAULT_OLLAMA_MODEL = "mistral:7b"
 LOG_DIR = "log"
 LOG_FILENAME = os.path.join(LOG_DIR, "interaction_log.jsonl")
 
 # --- 번역 함수 ---
-# (이전과 동일 - 생략)
-def translate_text(text, src_lang, dest_lang):
-    """텍스트 번역 함수 (googletrans 사용)"""
-    try:
-        translator = Translator()
-        translation = translator.translate(text, src=src_lang, dest=dest_lang)
-        if translation and hasattr(translation, 'text'):
-             return translation.text
+def translate_text(text, src_lang, dest_lang, retries=3, delay=1):
+    """텍스트 번역 함수 (googletrans 사용, 재시도 추가)"""
+    for attempt in range(retries):
+        try:
+            translator = Translator()
+            # 타임아웃 설정 추가 가능 (선택 사항)
+            # translator = Translator(timeout=httpx.Timeout(10.0))
+            translation = translator.translate(text, src=src_lang, dest=dest_lang)
+            if translation and hasattr(translation, 'text'):
+                return translation.text
+            else:
+                # 번역 객체는 있으나 text 속성이 없는 경우 등
+                error_msg = f"Translation failed (attempt {attempt+1}/{retries}). Input: '{text[:50]}...', Src: {src_lang}, Dest: {dest_lang}"
+                print(f"[Warning] {error_msg}") # 로그 대신 간단히 출력
+        except RequestException as e: # requests 관련 네트워크 오류
+            error_msg = f"Network error during translation (attempt {attempt+1}/{retries}): {type(e).__name__} - {e}"
+            print(f"[Warning] {error_msg}")
+        except Exception as e: # 그 외 googletrans 내부 오류 등
+             # googletrans의 특정 오류 타입 확인 필요 (예: AttributeError, JSONDecodeError 등)
+            error_msg = f"Error during translation (attempt {attempt+1}/{retries}): {type(e).__name__} - {e}"
+            print(f"[Warning] {error_msg}")
+
+        if attempt < retries - 1:
+            time.sleep(delay * (2 ** attempt)) # Exponential backoff
         else:
-             return f"Error: Translation failed. Input: '{text[:50]}...', Src: {src_lang}, Dest: {dest_lang}"
-    except Exception as e:
-        return f"Error during translation: {type(e).__name__} - {e}"
+            # 최종 실패
+            return f"Error: Translation failed after {retries} attempts. Input: '{text[:50]}...'"
+    return f"Error: Translation failed unexpectedly. Input: '{text[:50]}...'" # 루프 후 반환 (이론상 도달 안 함)
+
 
 # --- Ollama 쿼리 함수 ---
-# (이전과 동일 - 생략)
 def query_ollama(prompt, model=DEFAULT_OLLAMA_MODEL, url=OLLAMA_API_URL):
     """Ollama API에 쿼리를 보내는 함수"""
     headers = {"Content-Type": "application/json"}
@@ -225,8 +242,8 @@ def main():
         print("1. 요약 (summarize)")
         print("2. 메모 (memo)")
         print("3. 키워드 추출 (keyword)")
-        print("5. 관계성 평가 (comparison) [로그 선택 방식]") # 설명 수정
         print("4. 일반 대화 (chat)")
+        print("5. 관계성 평가 (comparison) [로그 선택 방식]") # 설명 수정
         print("exit: 종료")
 
         choice = input("선택: ").lower()
