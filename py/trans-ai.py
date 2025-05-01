@@ -12,7 +12,7 @@ import re # 점수 추출 등 필요
 
 # --- 상수 정의 ---
 OLLAMA_API_URL = "http://localhost:11434/api/generate"
-DEFAULT_OLLAMA_MODEL = "mistral:7b"
+DEFAULT_OLLAMA_MODEL = "llama3.1:8b"
 # 경로 설정 (스크립트 위치 기준 상대 경로 또는 필요시 절대 경로 사용)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__)) # 스크립트가 있는 디렉토리
 DOC_DIR = os.path.join(BASE_DIR, "Doc")      # 문서 디렉토리
@@ -193,13 +193,24 @@ Please respond with ONLY the most appropriate label in lowercase English (e.g., 
     "memo": "Based on the following content, create bullet points highlighting the key ideas and decisions:\n[TEXT]",
 
     # 키워드 추출 프롬프트
-    "keyword": """Identify about 10 of the most important keywords from the following text. Estimate the importance (relevance) of each keyword to the overall text content as a score between 0 and 1.
-List ONLY the top 5 keywords with the highest scores and their corresponding scores in the following format:
-keyword1: score1
-keyword2: score2
-keyword3: score3
-keyword4: score4
-keyword5: score5
+    "keyword": """Analyze the following text. Identify the 5 most important keywords relevant to the main topic.
+For each keyword, estimate its importance score as a decimal number between 0.0 and 1.0 (e.g., 0.75, 0.9).
+
+**Output Format Rules:**
+1. You MUST list exactly 5 keyword-score pairs.
+2. Each pair MUST be on a new line.
+3. The format for each line MUST be exactly: `keyword: score` (e.g., `인공지능: 0.95`).
+4. The score MUST be a decimal number between 0.0 and 1.0, inclusive.
+5. Do NOT include any other text, explanations, introductions, or summaries. Output ONLY the 5 keyword-score pairs in the specified format.
+
+Example of **correct** output format:
+keyword1: 0.92
+keyword2: 0.88
+keyword3: 0.75
+keyword4: 0.71
+keyword5: 0.65
+
+Now, analyze the text below and provide the output following these rules exactly.
 
 [TEXT]""",
 
@@ -672,119 +683,160 @@ def index_documents(doc_dir, log_filename, model=DEFAULT_OLLAMA_MODEL):
 
 
 # --- 키워드 기반 관련 문서 검색 함수 (반환값 변경됨) ---
+def extract_keywords_from_string(keyword_string):
+    """
+    다양한 형식의 키워드 문자열에서 키워드 텍스트만 추출하여 set으로 반환합니다.
+    형식 불일치에 더 강인하게 만듭니다.
+    """
+    keywords = set()
+    # ': ' 또는 ':' 기준으로 분리 시도 (공백 유무 고려)
+    # 여러 줄 처리
+    for line in keyword_string.splitlines():
+        line = line.strip() # 앞뒤 공백 제거
+
+        # 빈 줄이나 특정 불필요 단어로 시작하는 줄 건너뛰기 (필요에 따라 추가)
+        if not line or line.startswith("Error:") or line.startswith("[en]") or line.lower() in ["summary:", "key info:", "키워드:", "점수:"]:
+            continue
+
+        # 1. ':' 기준으로 분리 시도 (가장 일반적)
+        parts = line.split(':', 1)
+        potential_keyword = ""
+        if len(parts) == 2:
+            potential_keyword = parts[0].strip()
+        else:
+            # ':'가 없으면, 다른 구분자 (예: '**') 처리 시도 또는 라인 전체를 키워드로 간주할지 결정
+            # 예: '** 키워드 **' 같은 형식 처리
+            parts_star = line.split('**')
+            if len(parts_star) >= 2 and parts_star[1].strip(): # '**' 사이에 텍스트가 있으면
+                 potential_keyword = parts_star[1].strip()
+            elif len(line) > 1: # ':'도 없고 '**'도 애매하면, 일단 라인 전체를 후보로 (숫자 등 제외 필터링 필요)
+                 potential_keyword = line
+
+        # 추출된 후보 키워드 정리 및 검증
+        if potential_keyword:
+             # 추가 정리: 양 끝의 특수 문자 제거 (예: '*')
+             cleaned_keyword = potential_keyword.strip('*').strip()
+
+             # 최종 검증: 길이가 1 초과, 숫자가 아님, 특정 단어 아님 등
+             if len(cleaned_keyword) > 1 and not cleaned_keyword.isdigit() and cleaned_keyword.lower() not in ['keyword', 'score', '키워드', '점수']:
+                 # 너무 일반적인 단어 필터링 (선택적)
+                 # common_words = {'the', 'a', 'is', 'in', 'of', ...}
+                 # if cleaned_keyword.lower() not in common_words:
+                 keywords.add(cleaned_keyword)
+
+    # print(f"[Debug] Extracted keywords set: {keywords}") # 디버깅 필요 시
+    return keywords
+# --- [수정됨] 키워드 기반 관련 문서 검색 함수 (자카드 유사도 사용) ---
 def find_related_documents_by_keywords(query_keywords_ko, log_filename, model=DEFAULT_OLLAMA_MODEL, top_n=3):
-    """로그에서 키워드를 읽어 쿼리 키워드와 비교하여 가장 유사한 문서 N개의 정보(파일경로, 영어 요약)를 반환"""
-    print(f"\n--- 키워드 기반 관련 문서 검색 시작 (쿼리: '{query_keywords_ko[:30]}...') ---")
-    indexed_docs = [] # 문서 정보(파일경로, 키워드, 요약)를 담을 리스트
+    """
+    로그에서 키워드를 읽고, 쿼리 키워드와의 '자카드 유사도'를 계산하여
+    가장 유사한 문서 N개의 정보(파일경로, 영어 요약)를 반환합니다.
+    LLM 비교를 사용하지 않습니다.
+    """
+    print(f"\n--- 키워드 기반 관련 문서 검색 시작 (자카드 유사도) (쿼리: '{query_keywords_ko[:30]}...') ---")
+    indexed_docs = [] # 문서 정보(파일경로, 키워드 원본, 요약)를 담을 리스트
     try:
+        # 로그 파일 존재 확인
         if not os.path.exists(log_filename):
-             print("[오류] 로그 파일이 없습니다. 먼저 6번(index) 작업을 수행하세요.")
+             print(f"[오류] 로그 파일 '{log_filename}'이 없습니다. 먼저 6번(index) 작업을 수행하세요.")
              return []
 
-        # 로그 파일 읽기
+        # 로그 파일 읽기 (이전과 동일)
         with open(log_filename, 'r', encoding='utf-8') as f:
-            for line in f:
+            # ... (로그 읽어서 indexed_docs 채우는 로직은 이전과 동일) ...
+            for line_num, line in enumerate(f, 1):
                  try:
                      log_entry = json.loads(line)
-                     # [수정] 'index' 작업이고, 필요한 필드(output(ko), summary_en(ok), metadata.filepath) 있는지 확인
                      if (log_entry.get('task') == 'index' and
-                         'output' in log_entry and
+                         'output' in log_entry and # 키워드 원본 필드
                          isinstance(log_entry.get('output'), str) and
-                         ':' in log_entry['output'] and # 키워드 형식 체크
                          not log_entry['output'].startswith("Error:") and
-                         not log_entry['output'].startswith("[en]") and # 한국어 키워드만 대상
-                         'summary_en' in log_entry and # 영어 요약 필드 확인
-                         isinstance(log_entry.get('summary_en'), str) and # 요약이 문자열인지
-                         not log_entry['summary_en'].startswith("Error:") and # 요약 오류 아닌지 확인
+                         'summary_en' in log_entry and # 영어 요약 필드
+                         isinstance(log_entry.get('summary_en'), str) and
+                         not log_entry['summary_en'].startswith("Error:") and
                          isinstance(log_entry.get('metadata'), dict) and
                          'filepath' in log_entry['metadata']):
-
                          indexed_docs.append({
                              "filepath": log_entry['metadata']['filepath'],
-                             "keywords_ko": log_entry['output'],
-                             "summary_en": log_entry['summary_en'] # 영어 요약 정보 추가
+                             "keywords_ko_raw": log_entry['output'], # 파싱할 원본 키워드
+                             "summary_en": log_entry['summary_en']
                          })
                  except (json.JSONDecodeError, KeyError, TypeError):
-                     continue # 파싱/구조 오류 무시
+                     continue
+                 except Exception as read_e:
+                     print(f"[Warning] Error processing log line {line_num}: {type(read_e).__name__} - {read_e}")
+                     continue
+    # ... (로그 읽기 오류 처리) ...
+    except FileNotFoundError:
+        print(f"[오류] 로그 파일 '{log_filename}'을 찾을 수 없습니다.")
+        return []
     except Exception as e:
-        print(f"[오류] 로그 파일 읽기 중 오류: {e}")
+        print(f"[오류] 로그 파일 읽기 중 오류 발생: {type(e).__name__} - {e}")
         return []
 
     if not indexed_docs:
         print("[정보] 비교할 유효한 인덱스 로그가 없습니다.")
         return []
 
-    print(f"로그에서 {len(indexed_docs)}개의 유효한 인덱스 정보를 로드했습니다. 유사성 비교 시작...")
+    print(f"로그에서 {len(indexed_docs)}개의 유효한 인덱스 정보를 로드했습니다. 자카드 유사도 계산 시작...")
+
+    # 쿼리 키워드에서 텍스트 set 추출 (query_keywords_ko는 이미 clean하다고 가정)
+    query_keyword_set = extract_keywords_from_string(query_keywords_ko)
+    if not query_keyword_set:
+        print("[오류] 쿼리에서 유효한 키워드를 추출하지 못했습니다.")
+        return []
+    print(f"  쿼리 키워드 Set: {query_keyword_set}")
 
     results_with_scores = []
-    comparison_count = 0
-    comparison_errors = 0
+    calculation_count = 0
 
-    # 각 인덱스 정보와 쿼리 키워드 비교
+    # 각 문서의 키워드와 자카드 유사도 계산
     for doc_data in indexed_docs:
         doc_filepath = doc_data['filepath']
-        doc_keywords_ko = doc_data['keywords_ko']
-        doc_summary_en = doc_data['summary_en'] # 반환할 요약 정보
-        comparison_count += 1
-        print(f"  ({comparison_count}/{len(indexed_docs)}) 비교 중: Query <-> {os.path.basename(doc_filepath)}")
+        doc_keywords_ko_raw = doc_data['keywords_ko_raw']
+        doc_summary_en = doc_data['summary_en']
+        calculation_count += 1
 
-        try:
-            # 비교 프롬프트 생성 및 번역
-            comparison_prompt_ko = task_prompts["comparison"].replace("[KEYWORDS1]", query_keywords_ko).replace("[KEYWORDS2]", doc_keywords_ko)
-            comparison_prompt_en = translate_text(comparison_prompt_ko, 'auto', 'en')
-            if comparison_prompt_en.startswith("Error"):
-                 print(f"    [경고] 비교 프롬프트 번역 실패, 건너<0xEB><0x84>니다.")
-                 comparison_errors += 1
-                 continue
+        # 문서 키워드에서 텍스트 set 추출
+        doc_keyword_set = extract_keywords_from_string(doc_keywords_ko_raw)
 
-            # Ollama 비교 작업 실행 및 점수 추출
-            comparison_result_en = query_ollama(comparison_prompt_en, model=model)
-            if comparison_result_en.startswith("Error"):
-                 print(f"    [경고] Ollama 유사성 평가 실패: {comparison_result_en}, 건너<0xEB><0x84>니다.")
-                 comparison_errors += 1
-                 continue
+        if not doc_keyword_set:
+            print(f"  ({calculation_count}/{len(indexed_docs)}) [경고] 문서 '{os.path.basename(doc_filepath)}'에서 키워드 추출 실패. 건너<0xEB><0x84>니다.")
+            continue
 
-            score = -1.0 # 기본 오류 값
-            try:
-                # 점수 파싱 로직 (정규식 사용)
-                score_text = comparison_result_en.strip()
-                match = re.search(r"(\d*\.\d+|\d+)", score_text)
-                if match:
-                    parsed_score = float(match.group(1))
-                    if 0.0 <= parsed_score <= 1.0:
-                        score = parsed_score
-                    else:
-                        print(f"    [경고] 점수 범위 벗어남 ({parsed_score:.2f}). 결과 무시.")
-                else:
-                    print(f"    [경고] 점수 추출 불가. 응답: '{score_text}'. 결과 무시.")
-            except ValueError:
-                 print(f"    [경고] 점수 변환 실패. 응답: '{comparison_result_en}'. 결과 무시.")
+        # 자카드 유사도 계산
+        intersection_size = len(query_keyword_set.intersection(doc_keyword_set))
+        union_size = len(query_keyword_set.union(doc_keyword_set))
 
-            # 유효한 점수 얻었을 경우 결과 리스트에 추가
-            if score >= 0.0:
-                 results_with_scores.append({
-                     "filepath": doc_filepath,
-                     "score": score,
-                     "summary_en": doc_summary_en # 요약 정보 포함
-                 })
-                 print(f"    - 유사성 점수: {score:.2f}")
+        if union_size == 0:
+            jaccard_score = 0.0 # 두 집합 모두 비어있는 경우
+        else:
+            jaccard_score = intersection_size / union_size
 
-        except Exception as e:
-            print(f"    [오류] 비교 처리 중 예외 발생: {e}")
-            comparison_errors += 1
+        print(f"  ({calculation_count}/{len(indexed_docs)}) Jaccard Score with {os.path.basename(doc_filepath)}: {jaccard_score:.4f}")
 
-    print(f"--- 유사성 비교 완료 (오류: {comparison_errors}건) ---")
+        # 결과 저장
+        results_with_scores.append({
+            "filepath": doc_filepath,
+            "score": jaccard_score, # 자카드 점수 사용
+            "summary_en": doc_summary_en
+        })
+
+    print(f"--- 자카드 유사도 계산 완료 ---")
 
     # 점수 기준으로 내림차순 정렬
     results_with_scores.sort(key=lambda x: x["score"], reverse=True)
 
     # 상위 N개 결과 선택
     top_results = results_with_scores[:top_n]
-    print(f"상위 {len(top_results)}개 관련 문서 정보:")
-    for res in top_results:
-        print(f"  - {os.path.basename(res['filepath'])} (Score: {res['score']:.2f})")
+    print(f"상위 {len(top_results)}개 관련 문서 정보 (자카드 유사도 기준):")
+    if top_results:
+        for res in top_results:
+            print(f"  - {os.path.basename(res['filepath'])} (Score: {res['score']:.4f})") # 소수점 4자리 표시
+    else:
+        print("  (관련 문서 없음)")
 
-    # [수정] 파일 경로만 반환하는 대신, 필요한 정보(파일경로, 영어 요약)를 담은 딕셔너리 리스트 반환
+    # 파일 경로와 영어 요약 정보가 담긴 딕셔너리 리스트 반환
     return [{"filepath": res["filepath"], "summary_en": res["summary_en"]} for res in top_results]
 
 
@@ -860,15 +912,49 @@ def main():
                 user_input_ko = user_query_ko # 로깅을 위해 입력값 저장
 
                 # 1. 쿼리 키워드 추출
+                print(f"[Debug] User Query (Korean): {user_query_ko}") # 사용자 쿼리 확인
+
+                # 1. 사용자 쿼리에서 키워드 추출
                 print("--- 1단계: 쿼리 키워드 추출 ---")
-                query_keyword_prompt_ko = task_prompts["keyword"].replace("[TEXT]", user_query_ko)
-                query_keyword_prompt_en = translate_text(query_keyword_prompt_ko, "auto", "en")
+                keyword_prompt_ko = task_prompts["keyword"].replace("[TEXT]", user_query_ko)
+                print(f"[Debug] Keyword Prompt (Korean - before translation): {keyword_prompt_ko[:200]}...") # 번역 전 프롬프트 확인
+
+                query_keyword_prompt_en = translate_text(keyword_prompt_ko, "auto", "en")
                 if query_keyword_prompt_en.startswith("Error"): raise Exception(f"쿼리 키워드 프롬프트 번역 실패: {query_keyword_prompt_en}")
+                print(f"[Debug] Keyword Prompt (English - sent to Ollama): {query_keyword_prompt_en[:200]}...") # Ollama에 보낼 프롬프트 확인
+
                 query_keywords_en = query_ollama(query_keyword_prompt_en, model=model_to_use)
                 if query_keywords_en.startswith("Error"): raise Exception(f"쿼리 키워드 추출 실패: {query_keywords_en}")
+                print(f"[Debug] Raw Keyword Result (English - from Ollama): {query_keywords_en}") # Ollama 원본 결과 확인
+                # ----- [NEW] LLM 결과 파싱 로직 추가 -----
+                cleaned_keywords_en_lines = []
+                # LLM 응답을 줄 단위로 분리
+                for line in query_keywords_en.splitlines():
+                    line = line.strip() # 각 줄의 앞뒤 공백 제거
+                    # ':'가 포함되어 있고, 오류 메시지가 아니며, 빈 줄이 아닌 경우 키워드 라인으로 간주
+                    # (더 엄격하게는 ':' 뒤가 숫자인지 정규식으로 검사할 수도 있음)
+                    if ':' in line and not line.startswith("Error:") and line:
+                        # 모델이 '키워드 : 점수' 처럼 콜론 양쪽에 공백을 넣는 경우 제거
+                        parts = line.split(':', 1)
+                        if len(parts) == 2:
+                            keyword = parts[0].strip()
+                            score_str = parts[1].strip()
+                            # 간단한 형식 재구성 (키워드: 점수)
+                            cleaned_line = f"{keyword}: {score_str}"
+                            cleaned_keywords_en_lines.append(cleaned_line)
+
+                if not cleaned_keywords_en_lines:
+                    # 유효한 키워드 라인을 하나도 못 찾은 경우 오류 처리
+                    raise Exception("Failed to parse keywords from Ollama response.")
+
+                cleaned_keywords_en = "\n".join(cleaned_keywords_en_lines)
+                print(f"[Debug] Cleaned Keywords (English - before translation):\n{cleaned_keywords_en}") # 파싱 결과 확인
+                # ----- 파싱 로직 끝 -----
+
                 query_keywords_ko = translate_text(query_keywords_en, "en", "ko")
                 if query_keywords_ko.startswith("Error"): raise Exception(f"쿼리 키워드 번역 실패: {query_keywords_ko}")
-                print(f"추출된 쿼리 키워드(ko):\n{query_keywords_ko}")
+                print(f"[Debug] Final Query Keywords (Korean - after translation): {query_keywords_ko}") # 최종 한국어 키워드 확인 (이 부분이 문제였음)
+
 
                 # 2. 관련 문서 정보(요약 포함) 검색
                 print("--- 2단계: 관련 문서 정보 검색 ---")
@@ -901,7 +987,7 @@ def main():
 
                     # 4. 최종 프롬프트를 영어로 번역하여 Ollama 실행
                     print("--- 4단계: 최종 작업 요청 ---")
-                    final_prompt_en = translate_text(final_prompt_ko, "auto", "en") # 전체 프롬프트를 영어로
+                    final_prompt_en = translate_text(final_prompt_ko, "ko", "en") # 전체 프롬프트를 영어로
                     if final_prompt_en.startswith("Error"):
                         raise Exception(f"최종 프롬프트 번역 실패: {final_prompt_en}")
 
