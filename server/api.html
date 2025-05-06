@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html><head>
+  <meta charset="UTF-8">
+  <!-- OpenAPI 스크립트는 여기서 불러옵니다 -->
+  <script src="http://ncpms.rda.go.kr/npmsAPI/api/openapiFore.jsp"></script>
+</head>
+<body>
+  <!-- svc31_response.html에서 mapContainer 주변 코드만 -->
+  <div id="mapContainer" style="width:100%;height:100vh;"></div>
+  <script>
+    /* svc31_response.html의 JS 초기화 코드 */
+    npmsJ(document).ready(function(){
+      setNpmsOpenApiKey('2025d70aa9a8d35aba68e74d477c42500c74');
+      setNpmsOpenApiServiceCode('SVC31');
+      setNpmsOpenApiProxyUrl('https://aidoctorgreen.com/openapiFore_ajax_callback.jsp');
+      setNpmsOpenAPIWidth(800);
+      setCoordinateZoom('37.5665','126.9780',13);
+      setCropList(['FC010101']);
+      setMoveMatAt(true);
+      actionMapInfo('mapContainer');
+    });
+  </script>
+</body></html>
