@@ -10,171 +10,192 @@ import httpx # googletrans의 타임아웃 설정을 위해 필요할 수 있음
 import traceback # 상세 오류 로깅용
 import re # 점수 추출 등 필요
 
+# --- RAG 관련 라이브러리 ---
+# pip install sentence-transformers chromadb
+from sentence_transformers import SentenceTransformer
+import chromadb
+
 # --- 상수 정의 ---
 OLLAMA_API_URL = "http://localhost:11434/api/generate"
 DEFAULT_OLLAMA_MODEL = "llama3.1:8b"
+
 # 경로 설정 (스크립트 위치 기준 상대 경로 또는 필요시 절대 경로 사용)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__)) # 스크립트가 있는 디렉토리
 DOC_DIR = os.path.join(BASE_DIR, "Doc")      # 문서 디렉토리
 LOG_DIR = os.path.join(BASE_DIR, "log")      # 로그 디렉토리
-# 절대 경로 예시:
-# DOC_DIR = "/Doc"
-# LOG_DIR = "/log"
+CHROMA_DB_PATH = os.path.join(BASE_DIR, "chroma_db_st_google") # ChromaDB 저장 경로
+LOG_FILENAME = os.path.join(LOG_DIR, "interaction_log_st_google.jsonl")
 
-LOG_FILENAME = os.path.join(LOG_DIR, "interaction_log.jsonl")
+# --- SentenceTransformer 모델 설정 ---
+# 영어 임베딩에 적합한 모델 선택 (Hugging Face 모델 허브에서 확인 가능)
+# 예: 'all-MiniLM-L6-v2', 'all-mpnet-base-v2' 등
+SBERT_MODEL_NAME = 'all-MiniLM-L6-v2'
+SBERT_MODEL = None # 전역 변수로 모델 관리
 
-# --- 번역 함수 (오류 처리 강화 및 언어 감지 추가) ---
+# --- ChromaDB 클라이언트 및 컬렉션 설정 ---
+CHROMA_CLIENT = None
+CHROMA_COLLECTION_NAME = "documents_ko_en_sbert"
+CHROMA_COLLECTION = None
+
+# --- 유틸리티 함수: SentenceTransformer 모델 로더 ---
+def get_sbert_model():
+    global SBERT_MODEL
+    if SBERT_MODEL is None:
+        try:
+            SBERT_MODEL = SentenceTransformer(SBERT_MODEL_NAME)
+            print(f"SentenceTransformer 모델 '{SBERT_MODEL_NAME}' 로드 완료.")
+        except Exception as e:
+            print(f"[치명적 오류] SentenceTransformer 모델 '{SBERT_MODEL_NAME}' 로드 실패: {e}")
+            # 프로그램 지속이 어려우므로 예외 발생 또는 종료 처리 필요
+            raise SystemExit(f"SBERT 모델 로드 실패: {e}")
+    return SBERT_MODEL
+
+# --- 유틸리티 함수: ChromaDB 초기화 ---
+def initialize_chromadb():
+    global CHROMA_CLIENT, CHROMA_COLLECTION
+    if CHROMA_CLIENT is None:
+        try:
+            # 디스크에 DB를 저장하고 재사용하기 위해 PersistentClient 사용
+            os.makedirs(CHROMA_DB_PATH, exist_ok=True)
+            CHROMA_CLIENT = chromadb.PersistentClient(path=CHROMA_DB_PATH)
+            print(f"ChromaDB 클라이언트 초기화 완료 (저장 경로: {CHROMA_DB_PATH})")
+        except Exception as e:
+            print(f"[치명적 오류] ChromaDB 클라이언트 초기화 실패: {e}")
+            raise SystemExit(f"ChromaDB 클라이언트 초기화 실패: {e}")
+
+    if CHROMA_COLLECTION is None and CHROMA_CLIENT:
+        try:
+            # 컬렉션 가져오기 또는 생성 (임베딩 함수는 직접 제공하므로 지정 안 함)
+            CHROMA_COLLECTION = CHROMA_CLIENT.get_or_create_collection(name=CHROMA_COLLECTION_NAME)
+            print(f"ChromaDB 컬렉션 '{CHROMA_COLLECTION_NAME}' 로드/생성 완료. 현재 아이템 수: {CHROMA_COLLECTION.count()}")
+        except Exception as e:
+            print(f"[치명적 오류] ChromaDB 컬렉션 '{CHROMA_COLLECTION_NAME}' 가져오기/생성 실패: {e}")
+            raise SystemExit(f"ChromaDB 컬렉션 가져오기/생성 실패: {e}")
+    return CHROMA_COLLECTION
+
+# --- 번역 함수 (기존 코드와 거의 동일, 약간의 디버그 메시지 수정 가능) ---
 def detect_language(text):
-    """텍스트의 언어를 감지하는 함수"""
     if not text or not isinstance(text, str) or not text.strip():
         return None
     try:
-        # 매번 새로 생성하여 상태 문제 방지 시도
         translator = Translator()
         detected = translator.detect(text)
-        # print(f"[Debug] Detected language: {detected.lang} (confidence: {detected.confidence}) for text: '{text[:50]}...'")
         return detected.lang
     except Exception as e:
-        print(f"[Warning] Language detection failed: {e}")
-        # 언어 감지 API는 불안정할 수 있으므로, 실패 시 None 반환이 중요
-        return None # 감지 실패 시 None 반환
+        print(f"[Warning] 언어 감지 실패: {e} (텍스트: '{text[:30]}...')")
+        return None
 
 def translate_text(text, src_lang, dest_lang, retries=3, delay=1):
-    """텍스트 번역 함수 (언어 감지 기반 소스 언어 지정 가능)"""
     if not text or not isinstance(text, str) or not text.strip():
-        # print(f"[Debug] Skipping translation for empty or invalid input: {text}")
-        return ""
+        return "" # 빈 문자열 반환 일관성 유지
 
-    # 소스 언어가 'auto' 또는 None이면 감지 시도
     source_language = src_lang
     if source_language is None or str(source_language).lower() == 'auto':
         detected_src = detect_language(text)
-        # 감지된 언어가 LANGUAGES 목록에 있는지 확인 (googletrans가 지원하는지)
         if detected_src and detected_src in LANGUAGES:
             source_language = detected_src
-            # print(f"[Debug] Auto-detected source language: {source_language}")
         else:
-            # 감지 실패 또는 미지원 언어 시 기본값 설정
-            # 보통 한국어->영어, 영어->한국어 변환이 많으므로 추정
+            # 기본 추정: 한국어->영어 또는 영어->한국어
             source_language = 'ko' if dest_lang == 'en' else 'en'
-            print(f"[Warning] Language detection failed or unsupported ('{detected_src}'), assuming source is '{source_language}' for target '{dest_lang}'")
+            print(f"[Warning] 언어 감지 실패/미지원 ('{detected_src}'). 소스 언어 '{source_language}' (목표: '{dest_lang}')로 가정.")
 
-    # 목적 언어가 유효한지 확인 (선택적)
     if dest_lang not in LANGUAGES:
-        error_msg = f"Error: Invalid destination language code: {dest_lang}"
+        error_msg = f"Error: 유효하지 않은 목적 언어 코드: {dest_lang}"
         print(f"[Error] {error_msg}")
         return error_msg
 
-    # 소스 언어와 목적 언어가 같으면 번역 불필요
     if source_language == dest_lang:
-        # print(f"[Debug] Source and destination languages are the same ({source_language}), skipping translation.")
         return text
 
-    translator = Translator() # 매번 새로 생성 시도
+    translator = Translator()
     for attempt in range(retries):
         try:
-            # 타임아웃 설정 필요 시 httpx 사용 (주석 처리)
-            # translator = Translator(timeout=httpx.Timeout(10.0))
+            # translator = Translator(timeout=httpx.Timeout(10.0)) # 필요시 타임아웃
             translation = translator.translate(text, src=source_language, dest=dest_lang)
-
             if translation and hasattr(translation, 'text') and translation.text is not None:
-                # print(f"[Debug] Translation successful: '{text[:30]}...' -> '{translation.text[:30]}...'")
                 return translation.text
             else:
-                # None 또는 예상치 못한 결과 처리
-                error_msg = f"Translation returned unexpected result (attempt {attempt+1}/{retries}). Input: '{text[:50]}...', Src: {source_language}, Dest: {dest_lang}, Result: {translation}"
+                error_msg = f"번역 결과가 예상과 다릅니다 (시도 {attempt+1}/{retries}). 입력: '{text[:50]}...', 결과: {translation}"
                 print(f"[Warning] {error_msg}")
-
-        # requests 및 httpx 관련 네트워크 오류 명시적 처리
         except (RequestException, httpx.RequestError) as e:
-            error_msg = f"Network error during translation (attempt {attempt+1}/{retries}): {type(e).__name__} - {e}"
+            error_msg = f"번역 중 네트워크 오류 (시도 {attempt+1}/{retries}): {type(e).__name__} - {e}"
             print(f"[Warning] {error_msg}")
-        # googletrans 라이브러리 내부 오류 가능성 처리 (예: AttributeError)
-        except AttributeError as e:
-             error_msg = f"Attribute error during translation processing (attempt {attempt+1}/{retries}): {e}"
+        except AttributeError as e: # 가끔 googletrans 내부에서 발생
+             error_msg = f"번역 처리 중 속성 오류 (시도 {attempt+1}/{retries}): {e}"
              print(f"[Warning] {error_msg}")
-        # 그 외 모든 예외 처리
         except Exception as e:
-            error_msg = f"Unexpected error during translation (attempt {attempt+1}/{retries}): {type(e).__name__} - {e}"
+            error_msg = f"번역 중 예상치 못한 오류 (시도 {attempt+1}/{retries}): {type(e).__name__} - {e}"
             print(f"[Warning] {error_msg}")
-            # 상세 디버깅 필요시 주석 해제
-            # traceback.print_exc()
+            # traceback.print_exc() # 상세 디버깅 필요 시
 
-        # 재시도 로직
         if attempt < retries - 1:
             current_delay = delay * (2 ** attempt) # Exponential backoff
-            print(f"Retrying translation in {current_delay} seconds...")
+            print(f"{current_delay}초 후 번역 재시도...")
             time.sleep(current_delay)
         else:
-            # 최종 실패
-            final_error = f"Error: Translation failed after {retries} attempts. Input: '{text[:50]}...', Src: {source_language}, Dest: {dest_lang}"
+            final_error = f"Error: {retries}번 시도 후 번역 실패. 입력: '{text[:50]}...'"
             print(f"[Error] {final_error}")
-            return final_error # 최종 실패 시 오류 메시지 반환
-
-    # 루프를 모두 돌았는데도 반환되지 않은 경우 (이론상 도달 불가)
-    return f"Error: Translation failed unexpectedly after loop. Input: '{text[:50]}...'"
+            return final_error
+    return f"Error: 번역 루프 후 예기치 않게 실패. 입력: '{text[:50]}...'"
 
 
-# --- Ollama 쿼리 함수 (타임아웃 증가 유지) ---
-def query_ollama(prompt, model=DEFAULT_OLLAMA_MODEL, url=OLLAMA_API_URL, timeout=180): # 타임아웃 180초
-    """Ollama API에 쿼리를 보내고 응답 텍스트를 반환하는 함수"""
+# --- 임베딩 생성 함수 (SentenceTransformer 사용) ---
+def get_embedding_for_text_en(text_en):
+    """영문 텍스트에 대한 SentenceTransformer 임베딩 벡터를 반환."""
+    if not text_en or not isinstance(text_en, str) or not text_en.strip():
+        # print("[Warning] 임베딩을 위한 영어 텍스트가 비어있거나 유효하지 않습니다.")
+        return None
+    try:
+        sbert_model = get_sbert_model() # 모델 로더 호출
+        # 모델이 GPU를 사용하도록 설정되어 있다면 자동으로 활용됨
+        embedding = sbert_model.encode(text_en, convert_to_tensor=False) # numpy array
+        return embedding.tolist() # ChromaDB 저장을 위해 리스트로 변환
+    except Exception as e:
+        print(f"[오류] SentenceTransformer 임베딩 생성 중 오류 ('{text_en[:50]}...'): {e}")
+        # traceback.print_exc()
+        return None
+
+
+# --- Ollama 쿼리 함수 (기존과 동일) ---
+def query_ollama(prompt, model=DEFAULT_OLLAMA_MODEL, url=OLLAMA_API_URL, timeout=180):
     headers = {"Content-Type": "application/json"}
-    # stream: False로 설정해야 전체 응답을 한번에 받음
-    data = {
-        "prompt": prompt,
-        "model": model,
-        "stream": False,
-    }
-    # print(f"[Debug] Querying Ollama model {model} with prompt: '{prompt[:100]}...'") # 디버깅 필요 시
+    data = {"prompt": prompt, "model": model, "stream": False}
     try:
         response = requests.post(url, headers=headers, data=json.dumps(data), timeout=timeout)
-        # HTTP 오류 코드 (4xx, 5xx) 발생 시 예외 발생
         response.raise_for_status()
-
-        # 응답 JSON 파싱 시도
         try:
             json_data = response.json()
         except json.JSONDecodeError as e:
-            # 응답이 유효한 JSON이 아닌 경우
-            error_msg = f"Error decoding Ollama JSON response: {e}. Status: {response.status_code}. Response text: '{response.text[:100]}...'"
+            error_msg = f"Error: Ollama JSON 응답 디코딩 오류: {e}. 상태: {response.status_code}. 응답 텍스트: '{response.text[:100]}...'"
             print(f"[Error] {error_msg}")
-            return error_msg # 오류 메시지 반환
-
-        # 응답 구조 확인 및 결과 추출
+            return error_msg
+        
         if "response" in json_data and json_data["response"] is not None:
-            # print(f"[Debug] Ollama response received: '{json_data['response'][:50]}...'")
-            return json_data["response"].strip() # 앞뒤 공백 제거
+            return json_data["response"].strip()
         elif "error" in json_data:
-             # Ollama API가 명시적으로 에러를 반환한 경우
-             error_msg = f"Error: Ollama API returned an error: {json_data['error']}"
-             print(f"[Error] {error_msg}")
-             return error_msg
+            error_msg = f"Error: Ollama API가 오류를 반환했습니다: {json_data['error']}"
+            print(f"[Error] {error_msg}")
+            return error_msg
         else:
-             # 예상치 못한 응답 형식 (response 키가 없거나 null인 경우 포함)
-             error_msg = f"Error: Unexpected Ollama response format or null response. Received: {str(json_data)[:200]}..."
-             print(f"[Error] {error_msg}")
-             return error_msg
-
+            error_msg = f"Error: 예상치 못한 Ollama 응답 형식 또는 null 응답. 수신: {str(json_data)[:200]}..."
+            print(f"[Error] {error_msg}")
+            return error_msg
     except requests.exceptions.Timeout:
-        error_msg = f"Error: Request to Ollama timed out after {timeout} seconds."
+        error_msg = f"Error: Ollama 요청 시간 초과 ({timeout}초)."
         print(f"[Error] {error_msg}")
         return error_msg
     except requests.exceptions.RequestException as e:
-        # 네트워크 오류, 연결 오류 등 requests 관련 모든 예외 처리
-        error_msg = f"Error querying Ollama: Network or connection error - {e}"
+        error_msg = f"Error: Ollama 쿼리 중 네트워크 또는 연결 오류 - {e}"
         print(f"[Error] {error_msg}")
         return error_msg
     except Exception as e:
-        # 그 외 예상치 못한 모든 오류 처리
-        error_msg = f"An unexpected error occurred in query_ollama: {type(e).__name__} - {e}"
+        error_msg = f"query_ollama에서 예상치 못한 오류 발생: {type(e).__name__} - {e}"
         print(f"[Error] {error_msg}")
-        traceback.print_exc() # 상세 오류 내용 출력
+        traceback.print_exc()
         return error_msg
 
-
-# --- 작업별 프롬프트 템플릿 (영어 요약/정보 추출 추가) ---
+# --- 작업별 프롬프트 템플릿 (기존과 유사, summarize_info_en 은 RAG 컨텍스트에 맞춰 수정될 수 있음) ---
 task_prompts = {
-    # 내용 유형 분석용 프롬프트
     "classify": """Analyze the following text and classify its primary content type using one of the following labels:
 - meeting_notes (Contains discussion points, decisions, action items)
 - idea_brainstorming (Lists ideas, free-form thoughts)
@@ -186,358 +207,247 @@ task_prompts = {
 Please respond with ONLY the most appropriate label in lowercase English (e.g., meeting_notes).
 
 [TEXT]""",
-
-    # 기본 요약 프롬프트 (Fallback 또는 일반용)
     "summarize": "Please summarize the following text in three concise sentences, capturing the main points:\n[TEXT]",
-    # 기본 메모 프롬프트 (Fallback 또는 일반용)
     "memo": "Based on the following content, create bullet points highlighting the key ideas and decisions:\n[TEXT]",
-
-    # 키워드 추출 프롬프트
     "keyword": """Analyze the following text. Identify the 5 most important keywords relevant to the main topic.
 For each keyword, estimate its importance score as a decimal number between 0.0 and 1.0 (e.g., 0.75, 0.9).
-
-**Output Format Rules:**
+Output Format Rules:
 1. You MUST list exactly 5 keyword-score pairs.
 2. Each pair MUST be on a new line.
-3. The format for each line MUST be exactly: `keyword: score` (e.g., `인공지능: 0.95`).
+3. The format for each line MUST be exactly: `keyword: score` (e.g., `artificial intelligence: 0.95`).
 4. The score MUST be a decimal number between 0.0 and 1.0, inclusive.
 5. Do NOT include any other text, explanations, introductions, or summaries. Output ONLY the 5 keyword-score pairs in the specified format.
-
-Example of **correct** output format:
-keyword1: 0.92
-keyword2: 0.88
-keyword3: 0.75
-keyword4: 0.71
-keyword5: 0.65
-
-Now, analyze the text below and provide the output following these rules exactly.
-
 [TEXT]""",
-
-    # 관계성 평가 프롬프트 (키워드 기반)
     "comparison": """Below are two lists of keywords, each extracted from a different text (Text 1 and Text 2).
 Evaluate the thematic similarity between Text 1 and Text 2 based ONLY on these keywords.
 Provide a single similarity score between 0.0 (no similarity) and 1.0 (very high similarity).
 Output ONLY the numerical score, rounded to two decimal places (e.g., 0.75).
-
 Keywords from Text 1:
 [KEYWORDS1]
-
 Keywords from Text 2:
 [KEYWORDS2]""",
-
-    # [NEW] 영어 요약 및 정보 추출용 프롬프트 (LLM에게 보낼 최종 영어 프롬프트 템플릿)
-    "summarize_info_en": """Please read the following text. Provide a concise summary in English (2-3 sentences) capturing the main points. Also, list any key factual information (like names, dates, decisions, specific steps, locations mentioned) in bullet points, also in English. If no specific key info is found, state "Key Info: None". Use the following format exactly:
+    # summarize_info_en 은 RAG 파이프라인에서 직접 사용되기보다,
+    # index_documents 에서 문서 요약 생성 시 활용될 수 있음 (현재는 사용 안 함)
+    "summarize_info_en": """Please read the following text. Provide a concise summary in English (2-3 sentences) capturing the main points. Also, list any key factual information (like names, dates, decisions, specific steps, locations mentioned) in bullet points, also in English. If no specific key info is found, state "Key Info: None".
 Summary:
 [Your summary here]
-
 Key Info:
 - [Key info 1]
-- [Key info 2]
 ...
-
 [TEXT]"""
 }
 
-# --- 내용 유형에 따른 동적 프롬프트 생성 함수 ---
+# --- 내용 유형에 따른 동적 프롬프트 생성 함수 (기존과 동일, 내부 번역 사용) ---
 def create_adaptive_prompt(user_input_ko, task_type, content_type):
-    """
-    내용 유형에 따라 작업 프롬프트를 동적으로 조정하고 영어로 번역합니다.
-    (함수 내용은 이전 답변과 동일, 내부에서 translate_text 사용)
-    """
-    base_prompt_template = task_prompts[task_type] # 기본 영어 템플릿
-    adapted_prompt_template = base_prompt_template # 기본값 설정
+    base_prompt_template = task_prompts[task_type]
+    adapted_prompt_template = base_prompt_template # 기본값
 
-    # 내용 유형에 따른 프롬프트 조정 (영어 템플릿 기준)
     if task_type == "memo":
         if content_type == "meeting_notes":
             adapted_prompt_template = "Based on the following meeting notes, create clear bullet points for **key discussion points, decisions made, and action items (including responsible persons if mentioned)**:\n[TEXT]"
-        elif content_type == "idea_brainstorming":
-            adapted_prompt_template = "From the following brainstorming content, organize the **core ideas and related key points** into bullet points:\n[TEXT]"
-        elif content_type == "todo_list":
-             adapted_prompt_template = "Reformat the following to-do list into clear and concise bullet points:\n[TEXT]"
-        elif content_type == "technical_explanation":
-             adapted_prompt_template = "From the following technical explanation, create bullet points for the **main steps, components, or key takeaways**:\n[TEXT]"
-        else: # 다른 유형은 기본 메모 프롬프트 사용
-            adapted_prompt_template = task_prompts["memo"] # 명시적으로 기본 프롬프트 사용
-
+        # ... (다른 content_type에 대한 memo 프롬프트 생략, 기존 코드 참조) ...
+        else:
+            adapted_prompt_template = task_prompts["memo"]
     elif task_type == "summarize":
         if content_type == "technical_explanation":
-             adapted_prompt_template = "Summarize the following technical text in three sentences, focusing on the **core purpose, main methodology/process (if any), and significant results or conclusions**:\n[TEXT]"
-        elif content_type == "meeting_notes":
-             adapted_prompt_template = "Provide a three-sentence summary of the following meeting notes, highlighting the **most important discussion outcomes and decisions**:\n[TEXT]"
-        elif content_type == "personal_reflection":
-             adapted_prompt_template = "Summarize the main themes or feelings expressed in the following personal reflection in three sentences:\n[TEXT]"
-        else: # 다른 유형은 기본 요약 프롬프트 사용
-            adapted_prompt_template = task_prompts["summarize"] # 명시적으로 기본 프롬프트 사용
+            adapted_prompt_template = "Summarize the following technical text in three sentences, focusing on the **core purpose, main methodology/process (if any), and significant results or conclusions**:\n[TEXT]"
+        # ... (다른 content_type에 대한 summarize 프롬프트 생략, 기존 코드 참조) ...
+        else:
+            adapted_prompt_template = task_prompts["summarize"]
 
-    # 사용자 입력(ko)을 영어로 번역 ('auto' 사용 가능)
     user_input_en = translate_text(user_input_ko, 'auto', 'en')
     if user_input_en.startswith("Error"):
-        raise Exception(f"Failed to translate user input for adaptive prompt: {user_input_en}")
+        raise Exception(f"적응형 프롬프트 사용자 입력 번역 실패: {user_input_en}")
 
-    # 영어 템플릿에 번역된 영어 사용자 입력을 삽입
     final_prompt_en = adapted_prompt_template.replace("[TEXT]", user_input_en)
     return final_prompt_en
 
-
-# --- 핵심 실행 로직 함수 (Ollama 호출 및 번역) ---
+# --- 핵심 실행 로직 함수 (Ollama 호출 및 번역, 기존과 동일) ---
 def execute_ollama_task(english_prompt, model=DEFAULT_OLLAMA_MODEL):
-    """
-    Ollama에 영어 프롬프트를 보내고, 응답을 한국어로 번역하여 반환합니다.
-    (함수 내용은 이전 답변과 동일, 내부에서 query_ollama 및 translate_text 사용)
-    """
-    # Ollama에 쿼리 (영어 프롬프트 사용)
     ollama_response_en = query_ollama(english_prompt, model=model)
     if ollama_response_en.startswith("Error"):
-        # Ollama 쿼리 실패 시 오류 메시지 반환
         return ollama_response_en
-
-    # Ollama 응답을 한국어로 번역 ('auto' 감지 시도)
     ollama_response_ko = translate_text(ollama_response_en, 'auto', 'ko')
-    # 번역 결과 반환 (성공 또는 번역 오류 메시지)
     return ollama_response_ko
 
-
-# --- 2단계 실행 함수: 분류 -> 적응형 프롬프트 -> 실행 ---
+# --- 2단계 실행 함수: 분류 -> 적응형 프롬프트 -> 실행 (기존과 동일) ---
 def execute_adaptive_ollama_task(user_input_ko, task_type, model=DEFAULT_OLLAMA_MODEL):
-    """
-    내용 유형 분석 후 적응형 프롬프트를 사용하여 Ollama 작업을 수행하고 결과를 반환합니다.
-    (함수 내용은 이전 답변과 동일, 내부에서 분류, create_adaptive_prompt, execute_ollama_task 호출)
-    """
-    content_type = "unknown" # 기본 내용 유형
-
-    # --- 1단계: 내용 유형 분석 ---
+    content_type = "unknown"
     try:
         print("[1단계] 내용 유형 분석 중...")
-        # 분류 프롬프트 생성 (한국어 사용자 입력 포함)
-        # 중요: CLASSIFY 프롬프트 자체는 영어지만, 내부 [TEXT]에 한국어가 들어갈 수 있음
-        # translate_text('auto')를 사용하여 전체 프롬프트를 영어로 번역 시도
         classify_prompt_with_ko_text = task_prompts['classify'].replace("[TEXT]", user_input_ko)
-        classify_prompt_en = translate_text(classify_prompt_with_ko_text, 'auto', 'en') # 'auto' 감지 사용
-
+        classify_prompt_en = translate_text(classify_prompt_with_ko_text, 'auto', 'en')
         if classify_prompt_en.startswith("Error"):
-            print(f"  [경고] 내용 분석 프롬프트 번역 실패: {classify_prompt_en}. 기본 프롬프트를 사용합니다.")
-            # content_type은 'unknown'으로 유지
+            print(f"  [경고] 내용 분석 프롬프트 번역 실패: {classify_prompt_en}. 기본 프롬프트를 사용합니다.")
         else:
-            # Ollama에 내용 분류 요청 (영어 프롬프트 사용)
             classification_result_en = query_ollama(classify_prompt_en, model=model)
-            # print(f"  [Debug] Raw classification result: '{classification_result_en}'")
-
             if classification_result_en.startswith("Error"):
-                 print(f"  [경고] 내용 유형 분석 실패: {classification_result_en}. 기본 프롬프트를 사용합니다.")
-                 # content_type은 'unknown'으로 유지
+                print(f"  [경고] 내용 유형 분석 실패: {classification_result_en}. 기본 프롬프트를 사용합니다.")
             else:
-                # Ollama 응답에서 유형 레이블만 추출 시도 (간단한 처리)
-                if classification_result_en and isinstance(classification_result_en, str):
-                    # 응답이 여러 줄일 수 있으므로 첫 줄만 사용하고 소문자로 변환 후 앞뒤 공백 제거
-                    detected_type = classification_result_en.splitlines()[0].strip().lower()
-                else:
-                    detected_type = "" # 유효하지 않은 응답 처리
-
-                # 예상된 레이블 목록
+                detected_type = classification_result_en.splitlines()[0].strip().lower()
                 expected_types = ["meeting_notes", "idea_brainstorming", "technical_explanation",
                                   "personal_reflection", "todo_list", "general_information", "other"]
-
                 if detected_type in expected_types:
                     content_type = detected_type
-                    print(f"  감지된 내용 유형: {content_type}")
-                elif detected_type: # 예상 목록에는 없지만 뭔가 응답이 온 경우
-                     print(f"  [정보] 예상치 못한 내용 유형 응답 '{detected_type}' 감지됨. 'other'로 처리합니다.")
+                    print(f"  감지된 내용 유형: {content_type}")
+                elif detected_type :
                      content_type = "other"
-                else: # 응답이 비어있거나 유효하지 않은 경우
-                     print(f"  [경고] 내용 유형 분석 결과가 비어있거나 유효하지 않음. 기본 프롬프트를 사용합니다.")
-                     # content_type은 'unknown'으로 유지
-
+                     print(f"  [정보] 예상치 못한 내용 유형 응답 '{detected_type}' 감지됨. 'other'로 처리.")
+                else:
+                     print(f"  [경고] 내용 유형 분석 결과가 비어있거나 유효하지 않음. 기본 프롬프트를 사용합니다.")
     except Exception as e:
-        # 분류 단계에서 예외 발생 시
-        print(f"  [경고] 내용 유형 분석 중 예외 발생: {type(e).__name__} - {e}. 기본 프롬프트를 사용합니다.")
-        # content_type은 'unknown'으로 유지
+        print(f"  [경고] 내용 유형 분석 중 예외 발생: {type(e).__name__} - {e}. 기본 프롬프트를 사용합니다.")
 
-    # --- 2단계: 적응형 프롬프트 생성 및 실행 ---
-    final_result_ko = f"Error: Adaptive task '{task_type}' failed before execution." # 기본 오류 메시지
+    final_result_ko = f"Error: Adaptive task '{task_type}' failed before execution."
     try:
         print(f"[2단계] 내용 유형({content_type}) 기반 '{task_type}' 작업 실행 중...")
-        # 내용 유형을 기반으로 최종 실행할 영어 프롬프트 생성
-        # create_adaptive_prompt 함수는 내부적으로 user_input_ko를 영어로 번역함
         final_english_prompt = create_adaptive_prompt(user_input_ko, task_type, content_type)
-        if final_english_prompt.startswith("Error"): # 프롬프트 생성/번역 실패
-             raise Exception(f"Adaptive prompt creation failed: {final_english_prompt}")
-
-        # 생성된 최종 영어 프롬프트를 사용하여 Ollama 실행 및 결과 번역
+        if final_english_prompt.startswith("Error"):
+            raise Exception(f"적응형 프롬프트 생성 실패: {final_english_prompt}")
         final_result_ko = execute_ollama_task(final_english_prompt, model=model)
         return final_result_ko
-
     except Exception as e:
-        # 적응형 프롬프트 생성 또는 최종 실행 중 오류 발생 시
         error_msg = f"적응형 작업({task_type}) 처리 중 오류 발생: {type(e).__name__} - {e}."
-        print(f"  [오류] {error_msg}")
+        print(f"  [오류] {error_msg}")
         print("[Fallback] 기본 프롬프트로 작업 재시도 중...")
-        # 오류 발생 시, 안전하게 기본 프롬프트로 다시 시도 (Fallback)
         try:
-            # 기본 프롬프트 템플릿 가져오기 (영어)
             default_prompt_template_en = task_prompts[task_type]
-            # 사용자 입력 번역 (ko -> en)
             user_input_en = translate_text(user_input_ko, 'auto', 'en')
             if user_input_en.startswith("Error"):
                 return f"오류: Fallback 시 사용자 입력 번역 실패 - {user_input_en}"
-
-            # 기본 영어 프롬프트 생성
             default_prompt_en = default_prompt_template_en.replace("[TEXT]", user_input_en)
-
-            # 기본 프롬프트로 Ollama 실행 및 결과 번역
             fallback_result = execute_ollama_task(default_prompt_en, model=model)
-            return fallback_result # Fallback 결과 반환
+            return fallback_result
         except Exception as fallback_e:
-            # Fallback 마저 실패한 경우
             return f"오류: Fallback 작업 실행 중 오류 발생 - {type(fallback_e).__name__} - {fallback_e}"
 
-
-# --- Comparison 기능 함수 (task='index' 찾도록 수정) ---
+# --- Comparison 기능 함수 (기존과 동일, 로그 파일에서 'index' 작업 결과 사용) ---
 def perform_comparison_task(model=DEFAULT_OLLAMA_MODEL):
-    """로그 파일에서 'index' 작업 결과를 보여주고 사용자가 선택한 2개의 키워드 유사성 점수를 계산"""
+    # 이 함수는 키워드 기반 비교이므로, 벡터 DB와는 직접적 관련 없음.
+    # 로그 파일에서 'index' 작업 시 저장된 'output'(키워드)을 사용.
+    # 만약 'index' 작업 시 키워드 저장을 중단했다면 이 함수는 수정 필요.
+    # 현재는 키워드 로깅이 main 함수에서 이루어지므로 그대로 동작 가능.
     keyword_logs = []
     try:
-        if not os.path.exists(LOG_FILENAME):
-            return "[오류] 로그 파일을 찾을 수 없습니다. 'index' 작업을 먼저 수행해주세요."
+        if not os.path.exists(LOG_FILENAME): # 일반 로그 파일 확인
+            return "[오류] 로그 파일을 찾을 수 없습니다. 키워드 추출(3번) 또는 관련 작업(7번)을 먼저 수행하여 로그를 생성해주세요."
 
         with open(LOG_FILENAME, 'r', encoding='utf-8') as f:
             for line_num, line in enumerate(f, 1):
                 try:
                     log_entry = json.loads(line)
-                    # [수정] 'index' 작업이고, 'output'(키워드)과 'metadata.filepath' 있는지 확인
-                    if (log_entry.get('task') == 'index' and # task 이름 변경 확인
-                        'output' in log_entry and
-                        isinstance(log_entry.get('output'), str) and # output이 문자열인지
-                        ':' in log_entry['output'] and # 키워드 형식인지 (간단 체크)
-                        not log_entry['output'].startswith("Error:") and # 오류 메시지가 아닌지
-                        # 영어 키워드 로그는 비교에서 제외 (한국어 키워드만 비교 가정)
-                        not log_entry['output'].startswith("[en]") and
-                        isinstance(log_entry.get('metadata'), dict) and # 메타데이터가 딕셔너리인지
-                        'filepath' in log_entry['metadata']): # 파일경로가 있는지
+                    # 'keyword' 작업 또는 'related_task'에서 생성된 쿼리 키워드 로그를 찾음
+                    if (log_entry.get('task') == 'keyword' or \
+                        (log_entry.get('task') == 'related_task_vector_rag' and 'query_keywords_ko_for_log' in log_entry)) and \
+                        'output' in log_entry and \
+                        isinstance(log_entry.get('output'), str) and \
+                        ':' in log_entry['output'] and \
+                        not log_entry['output'].startswith("Error:") and \
+                        not log_entry['output'].startswith("[en]"):
+                        
+                        # related_task_vector_rag 인 경우, input 대신 별도 저장된 query_keywords_ko_for_log 사용
+                        display_name = log_entry.get('input', 'N/A')
+                        if log_entry.get('task') == 'related_task_vector_rag':
+                            display_name = f"쿼리: {log_entry.get('query_keywords_ko_for_log', 'N/A')}"
+                        elif log_entry.get('task') == 'keyword' and 'input' in log_entry:
+                             display_name = f"텍스트: {log_entry['input'][:30]}..."
+
 
                         keyword_logs.append({
                             "timestamp": log_entry.get('timestamp', 'N/A'),
-                            "filepath": log_entry['metadata']['filepath'], # 파일 경로 저장
-                            "filename": os.path.basename(log_entry['metadata']['filepath']), # 파일 이름만 표시용
-                            "output": log_entry['output'] # 한국어 키워드 결과 저장
+                            "name": display_name, # 표시용 이름
+                            "output": log_entry['output'] # 한국어 키워드 결과
                         })
                 except (json.JSONDecodeError, KeyError, TypeError):
-                    # 로그 라인 파싱 또는 구조 오류 시 조용히 건너<0xEB><0x84>기
-                    # print(f"[Debug] Skipping log line {line_num} due to parsing/structure error.")
                     continue
-                except Exception as e: # 그 외 예상치 못한 오류 처리
+                except Exception as e:
                     print(f"[경고] 로그 파일 '{LOG_FILENAME}'의 {line_num}번째 라인 처리 중 오류: {type(e).__name__}")
                     continue
-
     except FileNotFoundError:
-         return "[오류] 로그 파일을 찾을 수 없습니다."
+        return "[오류] 로그 파일을 찾을 수 없습니다."
     except Exception as e:
         return f"[오류] 로그 파일 읽기 중 오류 발생: {e}"
 
     if len(keyword_logs) < 2:
-        return f"[오류] 비교할 유효한 'index' 로그(한국어 키워드 포함)가 2개 이상 필요합니다. 현재 {len(keyword_logs)}개. 문서를 인덱싱해주세요."
+        return f"[오류] 비교할 유효한 키워드 로그가 2개 이상 필요합니다. 현재 {len(keyword_logs)}개."
 
-    # --- 사용자에게 목록 보여주기 (파일 이름 기반) ---
-    print("\n--- 비교 가능한 문서 목록 (키워드 기준) ---")
+    print("\n--- 비교 가능한 키워드 로그 목록 ---")
     for i, log_data in enumerate(keyword_logs):
-        print(f"{i+1}. [{log_data['timestamp']}] File: \"{log_data['filename']}\"")
+        print(f"{i+1}. [{log_data['timestamp']}] {log_data['name']}")
     print("----------------------------------------------")
 
-    # --- 사용자로부터 두 개의 로그 번호 입력받기 ---
     selected_indices = []
+    # ... (사용자 선택 로직은 기존과 동일하게 유지) ...
     while len(selected_indices) < 2:
         try:
-            prompt_msg = f"비교할 {'첫' if not selected_indices else '두'} 번째 문서 번호 (1-{len(keyword_logs)}): "
+            prompt_msg = f"비교할 {'첫' if not selected_indices else '두'} 번째 로그 번호 (1-{len(keyword_logs)}): "
             choice_str = input(prompt_msg).strip()
-            if not choice_str: continue # 빈 입력 무시
-
+            if not choice_str: continue
             choice_num = int(choice_str)
-            selected_index = choice_num - 1 # 실제 리스트 인덱스로 변환
-
+            selected_index = choice_num - 1
             if 0 <= selected_index < len(keyword_logs):
                 if selected_index not in selected_indices:
                     selected_indices.append(selected_index)
                 else:
-                    print("[오류] 이미 선택한 문서입니다. 다른 번호를 입력해주세요.")
+                    print("[오류] 이미 선택한 로그입니다. 다른 번호를 입력해주세요.")
             else:
                 print(f"[오류] 1에서 {len(keyword_logs)} 사이의 번호를 입력해주세요.")
-
         except ValueError:
             print("[오류] 유효한 숫자를 입력해주세요.")
-        except EOFError: # Ctrl+D 등으로 입력 종료 시
-             print("\n입력이 중단되었습니다.")
-             return "[알림] 사용자 입력 중단됨."
+        except EOFError:
+            print("\n입력이 중단되었습니다.")
+            return "[알림] 사용자 입력 중단됨."
 
-    # 선택된 로그 정보 가져오기
     log1 = keyword_logs[selected_indices[0]]
     log2 = keyword_logs[selected_indices[1]]
-
-    keywords1_ko = log1['output'] # 한국어 키워드
+    keywords1_ko = log1['output']
     keywords2_ko = log2['output']
-    filename1 = log1['filename']
-    filename2 = log2['filename']
+    name1 = log1['name']
+    name2 = log2['name']
 
     print(f"\n--- 선택된 비교 대상 ---")
-    print(f"1: File \"{filename1}\"")
-    print(f"2: File \"{filename2}\"")
+    print(f"1: {name1}")
+    print(f"2: {name2}")
     print("-------------------------")
 
-    # --- Ollama 비교 요청 ---
     try:
-        # 비교 프롬프트 생성 (한국어 키워드 사용)
         comparison_prompt_ko = task_prompts["comparison"]
         comparison_prompt_ko = comparison_prompt_ko.replace("[KEYWORDS1]", keywords1_ko)
         comparison_prompt_ko = comparison_prompt_ko.replace("[KEYWORDS2]", keywords2_ko)
-
-        # 프롬프트 번역 (ko -> en) - 'auto' 감지 사용
         comparison_prompt_en = translate_text(comparison_prompt_ko, 'auto', 'en')
         if comparison_prompt_en.startswith("Error"):
             raise Exception(f"Comparison 프롬프트 번역 실패: {comparison_prompt_en}")
 
         print(f"\n[comparison] 작업을 Ollama({model})에게 요청합니다...")
-        # Ollama 작업 실행 (결과는 영어 점수 텍스트 예상)
         comparison_result_en = query_ollama(comparison_prompt_en, model=model)
         if comparison_result_en.startswith("Error"):
-             return f"[오류] 유사성 평가 중 오류 발생: {comparison_result_en}"
-
-        # 결과에서 숫자 점수만 추출 시도 (번역 불필요)
+            return f"[오류] 유사성 평가 중 오류 발생: {comparison_result_en}"
+        
         try:
-            # 결과 텍스트에서 숫자 부분만 추출 (더 안정적인 정규식 사용)
             score_text = comparison_result_en.strip()
-            # 정규식: 소수점 포함하는 숫자 (예: 0.75, 1.0, .8 등)
             match = re.search(r"(\d*\.\d+|\d+)", score_text)
             if match:
                 score = float(match.group(1))
-                # 점수 범위 확인 (0~1)
                 if 0.0 <= score <= 1.0:
-                    return f"'{filename1}'와(과) '{filename2}' 간의 키워드 기반 유사성 점수: {score:.2f}"
+                    return f"'{name1}'와(과) '{name2}' 간의 키워드 기반 유사성 점수: {score:.2f}"
                 else:
-                    # 범위 벗어난 경우도 일단 점수는 보여줌
                     return f"계산된 유사성 점수 ({score:.2f})가 범위(0-1)를 벗어났습니다. 원본 결과: '{score_text}'"
             else:
-                 # 숫자 못 찾으면 원본 반환
-                 return f"유사성 평가 결과 (점수 추출 불가): '{score_text}'"
+                return f"유사성 평가 결과 (점수 추출 불가): '{score_text}'"
         except ValueError:
-             # float 변환 실패 시
-             return f"유사성 평가 결과 (텍스트, 점수 변환 불가): '{comparison_result_en}'"
-
+            return f"유사성 평가 결과 (텍스트, 점수 변환 불가): '{comparison_result_en}'"
     except Exception as e:
         return f"[오류] Comparison 작업 처리 중 문제 발생: {type(e).__name__} - {e}"
 
-
-# --- 문서 관련 함수 ---
+# --- 문서 관련 함수 (기존과 동일) ---
 def get_document_paths(doc_dir):
-    """지정된 디렉토리에서 모든 .md 파일 경로 리스트를 반환"""
     doc_path = Path(doc_dir)
     if not doc_path.is_dir():
         print(f"[오류] 문서 디렉토리 '{doc_dir}'를 찾을 수 없거나 디렉토리가 아닙니다.")
         return []
-    # rglob: 하위 디렉토리 포함 검색
-    return list(doc_path.rglob('*.md'))
+    return list(doc_path.rglob('*.md')) # 하위 디렉토리 포함
 
 def read_document_content(filepath):
-    """파일 경로를 받아 내용을 읽어 반환"""
     try:
         with open(filepath, 'r', encoding='utf-8') as f:
             return f.read()
@@ -548,332 +458,281 @@ def read_document_content(filepath):
         print(f"[오류] 파일 읽기 오류 ({filepath}): {e}")
         return None
 
+# --- [수정됨] 문서 청킹 함수 ---
+def chunk_text_by_sentences(text, sentences_per_chunk=5):
+    """텍스트를 문장 단위로 청킹하는 간단한 함수 (nltk 필요 없음)"""
+    if not text or not isinstance(text, str) or not text.strip():
+        return []
+    
+    # 문장 구분자로 '.', '!', '?', '\n' 등을 고려할 수 있음
+    # 좀 더 정교한 문장 분리는 nltk.sent_tokenize 등을 사용할 수 있지만, 여기서는 간단히 구현
+    delimiters = ".!?\n" # 문장 구분자
+    sentences = []
+    current_sentence = ""
+    for char in text:
+        current_sentence += char
+        if char in delimiters:
+            if current_sentence.strip():
+                sentences.append(current_sentence.strip())
+            current_sentence = ""
+    if current_sentence.strip(): # 마지막 문장 처리
+        sentences.append(current_sentence.strip())
 
-# --- 키워드 및 요약 인덱싱 함수 ---
-def index_documents(doc_dir, log_filename, model=DEFAULT_OLLAMA_MODEL):
-    """'/Doc' 디렉토리의 .md 파일에 대해 키워드(ko)와 요약/정보(en)를 추출하고 로그에 기록"""
-    print(f"\n--- '{doc_dir}' 내 .md 파일 인덱싱 (키워드 & 요약) 시작 ---")
+    if not sentences:
+        return [text] # 문장 분리 안되면 원본 텍스트를 단일 청크로
+
+    chunks = []
+    current_chunk_sentences = []
+    for i, sentence in enumerate(sentences):
+        current_chunk_sentences.append(sentence)
+        if (i + 1) % sentences_per_chunk == 0 or (i + 1) == len(sentences):
+            chunks.append(" ".join(current_chunk_sentences))
+            current_chunk_sentences = []
+    return chunks
+
+# --- [수정됨] 문서 인덱싱 함수 (SentenceTransformer + ChromaDB) ---
+def index_documents(doc_dir):
+    """
+    '/Doc' 디렉토리의 .md 파일을 청킹하고, 각 청크를 영어로 번역 후
+    SentenceTransformer로 임베딩하여 ChromaDB에 저장합니다.
+    """
+    print(f"\n--- '{doc_dir}' 내 .md 파일 벡터 인덱싱 시작 (SentenceTransformer, ChromaDB) ---")
     doc_paths = get_document_paths(doc_dir)
     if not doc_paths:
         print("인덱싱할 .md 파일이 없습니다.")
         return
 
-    # 기존 로그에서 이미 처리된 파일 경로 로드 (중복 방지용)
-    processed_files = set()
-    if os.path.exists(log_filename):
-        try:
-            with open(log_filename, 'r', encoding='utf-8') as f:
-                for line in f:
-                    try:
-                        log_entry = json.loads(line)
-                        # task 이름 'index'로 확인
-                        if log_entry.get('task') == 'index' and isinstance(log_entry.get('metadata'), dict) and 'filepath' in log_entry['metadata']:
-                            processed_files.add(log_entry['metadata']['filepath'])
-                    except (json.JSONDecodeError, KeyError, TypeError):
-                        continue # 파싱/구조 오류 무시
-        except Exception as e:
-            print(f"[경고] 기존 로그 파일 읽기 중 오류 (중복 체크 영향): {e}")
+    collection = initialize_chromadb() # 컬렉션 가져오기/생성
+    if not collection:
+        print("[오류] ChromaDB 컬렉션을 초기화할 수 없어 인덱싱을 중단합니다.")
+        return
 
+    # (선택적) 기존 로그에서 이미 처리된 파일 경로 로드 (중복 방지용 - ChromaDB ID로도 가능)
+    # 여기서는 ChromaDB ID를 기준으로 중복을 피하도록 구현
+    
     total_files = len(doc_paths)
-    indexed_count = 0
-    skipped_count = 0
-    error_count = 0
+    indexed_file_count = 0
+    skipped_file_count = 0
+    error_file_count = 0
+    total_chunks_processed = 0
 
-    # 각 파일 처리
-    for idx, filepath in enumerate(doc_paths, 1):
+    for file_idx, filepath in enumerate(doc_paths, 1):
         filepath_str = str(filepath)
-        print(f"\n  ({idx}/{total_files}) 처리 중: {filepath.name}")
-
-        # 중복 체크
-        if filepath_str in processed_files:
-            print(f"    - 이미 로그에 존재하여 건너<0xEB><0x84>니다.")
-            skipped_count += 1
-            continue
+        print(f"\n  ({file_idx}/{total_files}) 파일 처리 중: {filepath.name}")
 
         # 파일 내용 읽기
         content_ko = read_document_content(filepath)
         if content_ko is None or not content_ko.strip():
-            print(f"    - 내용을 읽을 수 없거나 비어있어 건너<0xEB><0x84>니다.")
-            error_count += 1
+            print(f"    - 내용을 읽을 수 없거나 비어있어 건너<0xEB><0x84>니다.")
+            error_file_count += 1
             continue
 
-        # 결과 저장 변수 초기화 (오류 발생 대비)
-        keywords_ko = "Error: Keyword extraction failed"
-        summary_en = "Error: Summary/Info extraction failed"
-        current_file_success = False # 현재 파일 처리 성공 여부 플래그
+        # 1. 내용 청킹 (한국어 기준)
+        # 예시: 문장 5개씩 청킹 (청킹 전략은 내용에 따라 조절 필요)
+        text_chunks_ko = chunk_text_by_sentences(content_ko, sentences_per_chunk=7)
+        if not text_chunks_ko:
+            print(f"    - 텍스트 청킹 결과가 없어 건너<0xEB><0x84>니다.")
+            error_file_count += 1
+            continue
+        
+        print(f"    - 원본 한국어 문서 청크 수: {len(text_chunks_ko)}")
 
-        # 파일 처리 시작 (예외 처리 블록)
-        try:
-            # --- 1. 키워드 추출 (한국어 결과 목표) ---
-            print("      - 1/2: 키워드 추출 중...")
-            keyword_prompt_ko = task_prompts["keyword"].replace("[TEXT]", content_ko)
-            keyword_prompt_en = translate_text(keyword_prompt_ko, "auto", "en") # auto 감지 사용
-            if keyword_prompt_en.startswith("Error"):
-                # 프롬프트 번역 실패 시 예외 발생시켜 아래에서 잡도록 함
-                raise Exception(f"키워드 프롬프트 번역 실패: {keyword_prompt_en}")
+        # 각 청크에 대한 정보 저장 리스트
+        chunk_embeddings = []
+        chunk_metadatas = []
+        chunk_ids = []
+        processed_chunks_for_this_file = 0
 
-            keyword_result_en = query_ollama(keyword_prompt_en, model=model)
-            if keyword_result_en.startswith("Error"):
-                raise Exception(f"Ollama 키워드 추출 실패: {keyword_result_en}")
+        for chunk_idx, chunk_ko in enumerate(text_chunks_ko):
+            chunk_id_str = f"{filepath_str}_chunk_{chunk_idx}"
 
-            # 키워드 결과(en) -> 한국어 번역
-            kw_ko_translated = translate_text(keyword_result_en, "en", "ko")
-            if kw_ko_translated.startswith("Error"):
-                 print(f"      [경고] 키워드 결과 번역 실패. 영어 결과를 로그에 기록합니다.")
-                 keywords_ko = f"[en] {keyword_result_en}" # 번역 실패 시 영어 결과 저장
-            else:
-                 keywords_ko = kw_ko_translated # 성공 시 한국어 키워드
+            # ChromaDB에서 해당 ID가 이미 있는지 확인하여 중복 방지
+            # get()은 ID가 없으면 빈 리스트를 반환하므로 results['ids'] 등으로 확인
+            existing_entry = collection.get(ids=[chunk_id_str])
+            if existing_entry and existing_entry['ids'] and chunk_id_str in existing_entry['ids']:
+                # print(f"      - 청크 ID '{chunk_id_str}'는 이미 DB에 존재하여 건너<0xEB><0x84>니다.")
+                skipped_file_count += (1 if chunk_idx == 0 else 0) # 파일 단위로 스킵 카운트 (대략적)
+                continue
 
-            # --- 2. 영어 요약/정보 추출 ---
-            print("      - 2/2: 영어 요약/정보 추출 중...")
-            # 원본 한국어 내용을 영어로 먼저 번역 ('auto' 감지 사용)
-            content_en = translate_text(content_ko, "auto", "en")
-            if content_en.startswith("Error"):
-                raise Exception(f"콘텐츠 영어 번역 실패: {content_en}")
+            # 2. 한국어 청크 -> 영어로 번역
+            # print(f"      - 청크 {chunk_idx + 1} 번역 중...")
+            chunk_en = translate_text(chunk_ko, 'ko', 'en')
+            if chunk_en.startswith("Error:") or not chunk_en.strip() :
+                print(f"      - 청크 {chunk_idx + 1} 번역 실패: {chunk_en}. 이 청크는 건너<0xEB><0x84>니다.")
+                continue
+            
+            # 3. 번역된 영어 청크 -> 임베딩 생성
+            # print(f"      - 청크 {chunk_idx + 1} 임베딩 중...")
+            embedding = get_embedding_for_text_en(chunk_en)
+            if embedding is None:
+                print(f"      - 청크 {chunk_idx + 1} 임베딩 생성 실패. 이 청크는 건너<0xEB><0x84>니다.")
+                continue
 
-            # 영어 요약 프롬프트 생성
-            summarize_info_request_en = task_prompts["summarize_info_en"].replace("[TEXT]", content_en)
+            chunk_embeddings.append(embedding)
+            chunk_metadatas.append({
+                "source_filepath": filepath_str, # 전체 파일 경로
+                "filename": filepath.name,       # 파일명
+                "chunk_id_in_doc": chunk_idx,    # 문서 내 청크 순번
+                "original_text_ko": chunk_ko,    # 원본 한국어 청크
+                "translated_text_en": chunk_en   # 번역된 영어 청크 (임베딩 대상)
+            })
+            chunk_ids.append(chunk_id_str) # ChromaDB용 고유 ID
+            processed_chunks_for_this_file += 1
+            total_chunks_processed +=1
 
-            # Ollama 요약/정보 추출 요청 (결과는 영어)
-            summary_info_result_en = query_ollama(summarize_info_request_en, model=model)
-            if summary_info_result_en.startswith("Error"):
-                raise Exception(f"Ollama 요약/정보 추출 실패: {summary_info_result_en}")
-            else:
-                summary_en = summary_info_result_en # 성공 시 영어 요약 결과 저장
-                current_file_success = True # 키워드와 요약 모두 성공
+            # (선택적) 일정 개수마다 ChromaDB에 add (메모리 관리)
+            if len(chunk_ids) >= 50: # 예: 50개 청크마다 DB에 저장
+                try:
+                    collection.add(embeddings=chunk_embeddings, metadatas=chunk_metadatas, ids=chunk_ids)
+                    print(f"      - {len(chunk_ids)}개 청크 묶음 DB에 추가 완료.")
+                    chunk_embeddings, chunk_metadatas, chunk_ids = [], [], [] # 리스트 초기화
+                except Exception as db_e:
+                    print(f"      - 다수 청크 DB 추가 중 오류: {db_e}")
+                    # 오류 발생 시 해당 묶음은 실패 처리. 필요시 개별 재시도 로직 추가 가능
 
-        except Exception as e:
-            # 키워드 추출 또는 요약 추출 과정에서 오류 발생 시
-            print(f"    [오류] 파일 처리 중 예외 발생: {e}")
-            # error_count는 finally 블록에서 처리
-
-        # --- 3. 로깅 (성공/실패 여부 기록) ---
-        finally:
-            # 성공 여부 메시지 출력
-            if current_file_success:
-                 indexed_count += 1
-                 print(f"    - 인덱싱 성공.")
-            else:
-                 error_count += 1 # try 블록에서 예외 발생 시 error_count 증가
-                 print(f"    - 인덱싱 중 오류 발생. 로그에 오류 정보 기록.")
-
-            # 로그 항목 구성 (오류 발생 시에도 오류 메시지가 변수에 담겨 저장됨)
-            log_entry = {
-                "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-                "task": "index", # 태스크 이름 명시
-                "input_source": f"file: {filepath.name}",
-                "output": keywords_ko, # 한국어 키워드 또는 오류 메시지
-                "summary_en": summary_en, # 영어 요약/정보 또는 오류 메시지
-                "metadata": {"filepath": filepath_str}, # 파일 경로 메타데이터
-                "model_used": model
-            }
-            # 로그 파일에 추가 시도
+        # 파일 내 남은 청크들 저장
+        if chunk_ids:
             try:
-                os.makedirs(LOG_DIR, exist_ok=True) # 로그 디렉토리 확인/생성
-                with open(log_filename, 'a', encoding='utf-8') as f:
-                    f.write(json.dumps(log_entry, ensure_ascii=False) + '\n')
-                # print(f"    - 로그 기록 완료.") # 성공/실패 메시지는 위에서 출력
-            except Exception as log_e:
-                print(f"    [오류] 로그 파일 저장 실패: {log_e}")
-                # 로그 저장 실패는 별도 카운트하지 않음
+                collection.add(embeddings=chunk_embeddings, metadatas=chunk_metadatas, ids=chunk_ids)
+                print(f"      - 남은 {len(chunk_ids)}개 청크 DB에 추가 완료.")
+            except Exception as db_e:
+                print(f"      - 파일 마지막 청크 DB 추가 중 오류: {db_e}")
+        
+        if processed_chunks_for_this_file > 0:
+            indexed_file_count +=1
+            print(f"    - 파일 '{filepath.name}'에서 {processed_chunks_for_this_file}개 청크 처리 완료.")
+        elif not any(collection.get(ids=[f"{filepath_str}_chunk_{i}"])['ids'] for i in range(len(text_chunks_ko))): # 스킵도 아니고 처리된 것도 없으면 오류로 간주
+            error_file_count +=1
+            print(f"    - 파일 '{filepath.name}' 처리 중 유효한 청크를 DB에 저장하지 못했습니다.")
 
-    # 최종 인덱싱 결과 출력
-    print(f"\n--- 인덱싱 완료 ---")
-    print(f"  성공: {indexed_count}, 건너<0xEB><0x9B><0x84>: {skipped_count}, 처리 오류: {error_count} (로그 저장 실패 별도)")
+
+    print(f"\n--- 벡터 인덱싱 완료 ---")
+    print(f"  처리 시도한 총 파일 수: {total_files}")
+    print(f"  성공적으로 일부라도 인덱싱된 파일 수: {indexed_file_count}")
+    print(f"  건너뛴 파일 수 (일부 청크라도 이미 존재 시): {skipped_file_count}") # 이 카운트는 정확하지 않을 수 있음
+    print(f"  오류 발생 파일 수: {error_file_count}")
+    print(f"  DB에 추가/확인된 총 청크 수 (대략): {collection.count()} (이번 실행에서 처리: {total_chunks_processed})")
 
 
-# --- 키워드 기반 관련 문서 검색 함수 (반환값 변경됨) ---
-def extract_keywords_from_string(keyword_string):
+# --- [수정됨] 벡터 기반 관련 문서 검색 함수 (SentenceTransformer + ChromaDB) ---
+def find_related_documents_by_vector_similarity(query_ko, top_n=3):
     """
-    다양한 형식의 키워드 문자열에서 키워드 텍스트만 추출하여 set으로 반환합니다.
-    형식 불일치에 더 강인하게 만듭니다.
+    한국어 쿼리를 영어로 번역 후 임베딩하여 ChromaDB에서 유사한 문서 청크를 검색.
+    반환: LLM 컨텍스트로 사용될 영어 청크 텍스트 리스트와 메타데이터.
     """
-    keywords = set()
-    # ': ' 또는 ':' 기준으로 분리 시도 (공백 유무 고려)
-    # 여러 줄 처리
-    for line in keyword_string.splitlines():
-        line = line.strip() # 앞뒤 공백 제거
+    print(f"\n--- 벡터 기반 관련 문서 검색 시작 (쿼리: '{query_ko[:30]}...') ---")
+    
+    collection = initialize_chromadb()
+    if not collection:
+        print("[오류] ChromaDB 컬렉션을 초기화할 수 없어 검색을 중단합니다.")
+        return []
 
-        # 빈 줄이나 특정 불필요 단어로 시작하는 줄 건너뛰기 (필요에 따라 추가)
-        if not line or line.startswith("Error:") or line.startswith("[en]") or line.lower() in ["summary:", "key info:", "키워드:", "점수:"]:
-            continue
+    if not query_ko or not query_ko.strip():
+        print("[오류] 검색 쿼리가 비어있습니다.")
+        return []
 
-        # 1. ':' 기준으로 분리 시도 (가장 일반적)
-        parts = line.split(':', 1)
-        potential_keyword = ""
-        if len(parts) == 2:
-            potential_keyword = parts[0].strip()
-        else:
-            # ':'가 없으면, 다른 구분자 (예: '**') 처리 시도 또는 라인 전체를 키워드로 간주할지 결정
-            # 예: '** 키워드 **' 같은 형식 처리
-            parts_star = line.split('**')
-            if len(parts_star) >= 2 and parts_star[1].strip(): # '**' 사이에 텍스트가 있으면
-                 potential_keyword = parts_star[1].strip()
-            elif len(line) > 1: # ':'도 없고 '**'도 애매하면, 일단 라인 전체를 후보로 (숫자 등 제외 필터링 필요)
-                 potential_keyword = line
+    # 1. 한국어 쿼리 -> 영어로 번역
+    query_en = translate_text(query_ko, 'ko', 'en')
+    if query_en.startswith("Error:") or not query_en.strip():
+        print(f"[오류] 쿼리 번역 실패: {query_en}")
+        return []
+    print(f"  번역된 영어 쿼리: '{query_en[:50]}...'")
 
-        # 추출된 후보 키워드 정리 및 검증
-        if potential_keyword:
-             # 추가 정리: 양 끝의 특수 문자 제거 (예: '*')
-             cleaned_keyword = potential_keyword.strip('*').strip()
+    # 2. 번역된 영어 쿼리 -> 임베딩 생성
+    query_embedding = get_embedding_for_text_en(query_en)
+    if query_embedding is None:
+        print("[오류] 쿼리 임베딩 생성에 실패했습니다.")
+        return []
 
-             # 최종 검증: 길이가 1 초과, 숫자가 아님, 특정 단어 아님 등
-             if len(cleaned_keyword) > 1 and not cleaned_keyword.isdigit() and cleaned_keyword.lower() not in ['keyword', 'score', '키워드', '점수']:
-                 # 너무 일반적인 단어 필터링 (선택적)
-                 # common_words = {'the', 'a', 'is', 'in', 'of', ...}
-                 # if cleaned_keyword.lower() not in common_words:
-                 keywords.add(cleaned_keyword)
-
-    # print(f"[Debug] Extracted keywords set: {keywords}") # 디버깅 필요 시
-    return keywords
-# --- [수정됨] 키워드 기반 관련 문서 검색 함수 (자카드 유사도 사용) ---
-def find_related_documents_by_keywords(query_keywords_ko, log_filename, model=DEFAULT_OLLAMA_MODEL, top_n=3):
-    """
-    로그에서 키워드를 읽고, 쿼리 키워드와의 '자카드 유사도'를 계산하여
-    가장 유사한 문서 N개의 정보(파일경로, 영어 요약)를 반환합니다.
-    LLM 비교를 사용하지 않습니다.
-    """
-    print(f"\n--- 키워드 기반 관련 문서 검색 시작 (자카드 유사도) (쿼리: '{query_keywords_ko[:30]}...') ---")
-    indexed_docs = [] # 문서 정보(파일경로, 키워드 원본, 요약)를 담을 리스트
+    # 3. 벡터 DB에서 유사도 검색
     try:
-        # 로그 파일 존재 확인
-        if not os.path.exists(log_filename):
-             print(f"[오류] 로그 파일 '{log_filename}'이 없습니다. 먼저 6번(index) 작업을 수행하세요.")
-             return []
-
-        # 로그 파일 읽기 (이전과 동일)
-        with open(log_filename, 'r', encoding='utf-8') as f:
-            # ... (로그 읽어서 indexed_docs 채우는 로직은 이전과 동일) ...
-            for line_num, line in enumerate(f, 1):
-                 try:
-                     log_entry = json.loads(line)
-                     if (log_entry.get('task') == 'index' and
-                         'output' in log_entry and # 키워드 원본 필드
-                         isinstance(log_entry.get('output'), str) and
-                         not log_entry['output'].startswith("Error:") and
-                         'summary_en' in log_entry and # 영어 요약 필드
-                         isinstance(log_entry.get('summary_en'), str) and
-                         not log_entry['summary_en'].startswith("Error:") and
-                         isinstance(log_entry.get('metadata'), dict) and
-                         'filepath' in log_entry['metadata']):
-                         indexed_docs.append({
-                             "filepath": log_entry['metadata']['filepath'],
-                             "keywords_ko_raw": log_entry['output'], # 파싱할 원본 키워드
-                             "summary_en": log_entry['summary_en']
-                         })
-                 except (json.JSONDecodeError, KeyError, TypeError):
-                     continue
-                 except Exception as read_e:
-                     print(f"[Warning] Error processing log line {line_num}: {type(read_e).__name__} - {read_e}")
-                     continue
-    # ... (로그 읽기 오류 처리) ...
-    except FileNotFoundError:
-        print(f"[오류] 로그 파일 '{log_filename}'을 찾을 수 없습니다.")
-        return []
+        results = collection.query(
+            query_embeddings=[query_embedding], # 리스트 형태로 전달
+            n_results=top_n,
+            include=["metadatas", "documents", "distances"] # documents는 저장된 원본 청크 (여기서는 translated_text_en)
+        )
     except Exception as e:
-        print(f"[오류] 로그 파일 읽기 중 오류 발생: {type(e).__name__} - {e}")
+        print(f"[오류] 벡터 DB 검색 중 오류 발생: {e}")
+        traceback.print_exc()
         return []
 
-    if not indexed_docs:
-        print("[정보] 비교할 유효한 인덱스 로그가 없습니다.")
+    if not results or not results.get('ids') or not results.get('ids')[0]:
+        print("[정보] 유사한 문서를 찾지 못했습니다.")
         return []
+    
+    retrieved_contexts = []
+    ids = results.get('ids')[0]
+    metadatas = results.get('metadatas')[0]
+    # 'documents'는 ChromaDB에 저장 시 'documents' 파라미터로 전달한 텍스트 리스트를 의미.
+    # 우리는 메타데이터에 'translated_text_en'와 'original_text_ko'를 저장했으므로 이를 활용.
+    # documents_retrieved = results.get('documents')[0] if results.get('documents') else [None] * len(ids)
+    distances = results.get('distances')[0]
 
-    print(f"로그에서 {len(indexed_docs)}개의 유효한 인덱스 정보를 로드했습니다. 자카드 유사도 계산 시작...")
+    print(f"상위 {len(ids)}개 관련 문서 청크 정보 (벡터 유사도 기준):")
+    for i in range(len(ids)):
+        meta = metadatas[i]
+        filename = meta.get('filename', 'N/A')
+        # original_ko_chunk = meta.get('original_text_ko', '') # 원본 한국어 청크
+        translated_en_chunk = meta.get('translated_text_en', '') # 번역된 영어 청크 (컨텍스트로 사용)
+        distance = distances[i]
 
-    # 쿼리 키워드에서 텍스트 set 추출 (query_keywords_ko는 이미 clean하다고 가정)
-    query_keyword_set = extract_keywords_from_string(query_keywords_ko)
-    if not query_keyword_set:
-        print("[오류] 쿼리에서 유효한 키워드를 추출하지 못했습니다.")
-        return []
-    print(f"  쿼리 키워드 Set: {query_keyword_set}")
+        print(f"  - {filename} (Distance: {distance:.4f})")
+        # print(f"     영어 컨텍스트: {translated_en_chunk[:100]}...")
 
-    results_with_scores = []
-    calculation_count = 0
-
-    # 각 문서의 키워드와 자카드 유사도 계산
-    for doc_data in indexed_docs:
-        doc_filepath = doc_data['filepath']
-        doc_keywords_ko_raw = doc_data['keywords_ko_raw']
-        doc_summary_en = doc_data['summary_en']
-        calculation_count += 1
-
-        # 문서 키워드에서 텍스트 set 추출
-        doc_keyword_set = extract_keywords_from_string(doc_keywords_ko_raw)
-
-        if not doc_keyword_set:
-            print(f"  ({calculation_count}/{len(indexed_docs)}) [경고] 문서 '{os.path.basename(doc_filepath)}'에서 키워드 추출 실패. 건너<0xEB><0x84>니다.")
-            continue
-
-        # 자카드 유사도 계산
-        intersection_size = len(query_keyword_set.intersection(doc_keyword_set))
-        union_size = len(query_keyword_set.union(doc_keyword_set))
-
-        if union_size == 0:
-            jaccard_score = 0.0 # 두 집합 모두 비어있는 경우
-        else:
-            jaccard_score = intersection_size / union_size
-
-        print(f"  ({calculation_count}/{len(indexed_docs)}) Jaccard Score with {os.path.basename(doc_filepath)}: {jaccard_score:.4f}")
-
-        # 결과 저장
-        results_with_scores.append({
-            "filepath": doc_filepath,
-            "score": jaccard_score, # 자카드 점수 사용
-            "summary_en": doc_summary_en
+        # LLM 컨텍스트로는 번역된 영어 청크를 사용 (LLM이 영어를 더 잘 이해한다고 가정)
+        retrieved_contexts.append({
+            "filepath": meta.get('source_filepath', 'N/A'),
+            "filename": filename,
+            "context_text_en": translated_en_chunk, # 컨텍스트로 사용할 영어 텍스트
+            "original_text_ko": meta.get('original_text_ko', ''), # 참고용 원본 한국어
+            "score": 1 - distance # 코사인 거리 -> 유사도 (0~1, 클수록 유사)
         })
-
-    print(f"--- 자카드 유사도 계산 완료 ---")
-
-    # 점수 기준으로 내림차순 정렬
-    results_with_scores.sort(key=lambda x: x["score"], reverse=True)
-
-    # 상위 N개 결과 선택
-    top_results = results_with_scores[:top_n]
-    print(f"상위 {len(top_results)}개 관련 문서 정보 (자카드 유사도 기준):")
-    if top_results:
-        for res in top_results:
-            print(f"  - {os.path.basename(res['filepath'])} (Score: {res['score']:.4f})") # 소수점 4자리 표시
-    else:
-        print("  (관련 문서 없음)")
-
-    # 파일 경로와 영어 요약 정보가 담긴 딕셔너리 리스트 반환
-    return [{"filepath": res["filepath"], "summary_en": res["summary_en"]} for res in top_results]
+    
+    # score (유사도) 기준으로 내림차순 정렬 (이미 거리순 정렬되어 있으므로 사실상 유지)
+    retrieved_contexts.sort(key=lambda x: x["score"], reverse=True)
+    return retrieved_contexts
 
 
 # --- 메인 함수 ---
 def main():
-    """메인 함수: 사용자 입력, 작업 선택, Ollama 쿼리, 결과 출력 및 로깅"""
-    model_to_use = DEFAULT_OLLAMA_MODEL
+    # 스크립트 시작 시 모델 및 DB 초기화
+    try:
+        get_sbert_model()
+        initialize_chromadb()
+    except SystemExit as e: # 모델/DB 로드 실패 시 종료
+        print(f"초기화 실패로 프로그램을 종료합니다: {e}")
+        return
+    except Exception as e:
+        print(f"초기화 중 예기치 않은 오류 발생: {e}")
+        traceback.print_exc()
+        return
 
-    # 작업 매핑 (task 이름 변경 반영)
+
+    model_to_use = DEFAULT_OLLAMA_MODEL # LLM 모델
+
     task_mapping = {
         '1': 'summarize', '2': 'memo', '3': 'keyword', '4': 'chat',
-        '5': 'comparison',
-        '6': 'index', # 문서 인덱싱 (키워드+요약)
-        '7': 'related_task', # 관계도(요약) 기반 작업
+        '5': 'comparison', # 키워드 로그 기반 비교
+        '6': 'index',      # 문서 벡터 인덱싱 (SentenceTransformer + ChromaDB)
+        '7': 'related_task_vector_rag', # 벡터 RAG 기반 작업
     }
 
-    # 로그/문서 디렉토리 생성 및 확인
-    try:
-        os.makedirs(DOC_DIR, exist_ok=True)
-        os.makedirs(LOG_DIR, exist_ok=True)
-        print(f"문서 디렉토리: {DOC_DIR}")
-        print(f"로그 디렉토리: {LOG_DIR}")
-    except OSError as e:
-        print(f"[오류] 디렉토리 생성 실패: {e}")
-        return # 디렉토리 생성 못하면 종료
+    # 로그/문서 디렉토리 생성 (이미 맨 위에서 처리)
+    # try:
+    #     os.makedirs(DOC_DIR, exist_ok=True)
+    #     os.makedirs(LOG_DIR, exist_ok=True)
+    # except OSError as e: ...
 
-    # 메인 루프 시작
     while True:
         print("\n" + "="*10 + " 작업 선택 " + "="*10)
         print("1. 요약 (Summarize) [단일 텍스트, 최적화]")
         print("2. 메모 (Memo) [단일 텍스트, 최적화]")
-        print("3. 키워드 추출 (Keyword) [단일 텍스트 대상]")
+        print("3. 키워드 추출 (Keyword) [단일 텍스트 대상, 결과 로깅]")
         print("4. 일반 대화 (Chat)")
-        print("5. 로그 비교 (Comparison) [수동 선택]")
-        print("--- 문서 관리 & 활용 ---")
-        print(f"6. 문서 인덱싱 (index) ['/Doc' 내 .md 키워드(ko)+요약(en) 추출]")
-        print(f"7. 주제 관련 작업 (related_task) [인덱스된 요약 활용]")
+        print("5. 키워드 로그 비교 (Comparison) [3번 작업 결과 활용]")
+        print("--- 문서 관리 & RAG ---")
+        print(f"6. 문서 벡터 인덱싱 (index) ['{DOC_DIR}' 내 .md -> 영어 번역 -> SBERT 임베딩 -> ChromaDB 저장]")
+        print(f"7. 주제 관련 작업 (RAG) [벡터 DB 검색 기반, 영어 컨텍스트 활용]")
         print("exit: 종료")
         print("="*32)
 
@@ -881,219 +740,225 @@ def main():
         if choice == 'exit':
             break
 
-        # 각 루프 시작 시 변수 초기화
         task_name = "unknown"
-        result = "오류: 처리되지 않음" # 기본 결과값
-        log_this_interaction = True # 기본적으로 로깅 수행
-        user_input_ko = "" # 사용자 입력 저장용 변수 초기화
+        result = "오류: 처리되지 않음"
+        log_this_interaction = True
+        user_input_for_log = "" # 로깅될 사용자 입력 (단일 작업용)
+        log_metadata = {} # 추가 로깅 정보
 
-        # 작업 처리 (try...except로 감싸기)
         try:
-            # --- 작업 분기 ---
-            if choice == '5': # Comparison 작업
+            if choice == '5':
                 task_name = "comparison"
                 comparison_output = perform_comparison_task(model=model_to_use)
-                # Comparison 결과는 즉시 출력하고 로깅 안 함
                 print("\n" + "="*30); print(f"결과 ({task_name}):"); print(comparison_output); print("="*30 + "\n")
-                log_this_interaction = False
+                log_this_interaction = False # Comparison 자체는 일반 로그에 상세히 남기지 않음
 
-            elif choice == '6': # 문서 인덱싱
-                 task_name = "index"
-                 index_documents(DOC_DIR, LOG_FILENAME, model=model_to_use)
-                 log_this_interaction = False # 인덱싱 작업 자체는 메인 로그에 남기지 않음 (내부에서 개별 로깅)
+            elif choice == '6':
+                task_name = "index_vector_db" # 로그용 태스크 이름 변경
+                index_documents(DOC_DIR) # 인덱싱 함수는 내부적으로 메시지 출력
+                log_this_interaction = False # 인덱싱 작업은 일반 로그에 남기지 않음
 
-            elif choice == '7': # 주제 관련 작업 (요약 활용)
-                task_name = "related_task" # 기본 작업명
-                user_query_ko = input("질문 또는 정리할 주제를 입력하세요: ")
+            elif choice == '7':
+                task_name = task_mapping[choice] # related_task_vector_rag
+                user_query_ko = input("질문 또는 정리할 주제를 입력하세요 (한국어): ")
                 if not user_query_ko.strip():
                     print("[알림] 입력이 비어 있습니다.")
-                    log_this_interaction = False # 빈 입력은 처리/로깅 안함
-                    continue # 다음 루프로
-                user_input_ko = user_query_ko # 로깅을 위해 입력값 저장
+                    log_this_interaction = False
+                    continue
+                user_input_for_log = user_query_ko # 로깅용 사용자 입력
 
-                # 1. 쿼리 키워드 추출
-                print(f"[Debug] User Query (Korean): {user_query_ko}") # 사용자 쿼리 확인
+                # (선택적) 사용자 쿼리에서도 키워드를 뽑아 로그에 남기거나, 하이브리드 검색에 활용 가능
+                # 여기서는 RAG 파이프라인에 집중
+                
+                # 1. 벡터 DB에서 관련 문서 청크 (영어 컨텍스트) 검색
+                # top_n은 가져올 관련 청크 수
+                related_contexts_info = find_related_documents_by_vector_similarity(user_query_ko, top_n=3)
 
-                # 1. 사용자 쿼리에서 키워드 추출
-                print("--- 1단계: 쿼리 키워드 추출 ---")
-                keyword_prompt_ko = task_prompts["keyword"].replace("[TEXT]", user_query_ko)
-                print(f"[Debug] Keyword Prompt (Korean - before translation): {keyword_prompt_ko[:200]}...") # 번역 전 프롬프트 확인
-
-                query_keyword_prompt_en = translate_text(keyword_prompt_ko, "auto", "en")
-                if query_keyword_prompt_en.startswith("Error"): raise Exception(f"쿼리 키워드 프롬프트 번역 실패: {query_keyword_prompt_en}")
-                print(f"[Debug] Keyword Prompt (English - sent to Ollama): {query_keyword_prompt_en[:200]}...") # Ollama에 보낼 프롬프트 확인
-
-                query_keywords_en = query_ollama(query_keyword_prompt_en, model=model_to_use)
-                if query_keywords_en.startswith("Error"): raise Exception(f"쿼리 키워드 추출 실패: {query_keywords_en}")
-                print(f"[Debug] Raw Keyword Result (English - from Ollama): {query_keywords_en}") # Ollama 원본 결과 확인
-                # ----- [NEW] LLM 결과 파싱 로직 추가 -----
-                cleaned_keywords_en_lines = []
-                # LLM 응답을 줄 단위로 분리
-                for line in query_keywords_en.splitlines():
-                    line = line.strip() # 각 줄의 앞뒤 공백 제거
-                    # ':'가 포함되어 있고, 오류 메시지가 아니며, 빈 줄이 아닌 경우 키워드 라인으로 간주
-                    # (더 엄격하게는 ':' 뒤가 숫자인지 정규식으로 검사할 수도 있음)
-                    if ':' in line and not line.startswith("Error:") and line:
-                        # 모델이 '키워드 : 점수' 처럼 콜론 양쪽에 공백을 넣는 경우 제거
-                        parts = line.split(':', 1)
-                        if len(parts) == 2:
-                            keyword = parts[0].strip()
-                            score_str = parts[1].strip()
-                            # 간단한 형식 재구성 (키워드: 점수)
-                            cleaned_line = f"{keyword}: {score_str}"
-                            cleaned_keywords_en_lines.append(cleaned_line)
-
-                if not cleaned_keywords_en_lines:
-                    # 유효한 키워드 라인을 하나도 못 찾은 경우 오류 처리
-                    raise Exception("Failed to parse keywords from Ollama response.")
-
-                cleaned_keywords_en = "\n".join(cleaned_keywords_en_lines)
-                print(f"[Debug] Cleaned Keywords (English - before translation):\n{cleaned_keywords_en}") # 파싱 결과 확인
-                # ----- 파싱 로직 끝 -----
-
-                query_keywords_ko = translate_text(query_keywords_en, "en", "ko")
-                if query_keywords_ko.startswith("Error"): raise Exception(f"쿼리 키워드 번역 실패: {query_keywords_ko}")
-                print(f"[Debug] Final Query Keywords (Korean - after translation): {query_keywords_ko}") # 최종 한국어 키워드 확인 (이 부분이 문제였음)
-
-
-                # 2. 관련 문서 정보(요약 포함) 검색
-                print("--- 2단계: 관련 문서 정보 검색 ---")
-                # find_related... 함수는 이제 [{'filepath': ..., 'summary_en': ...}, ...] 형태의 리스트 반환
-                related_docs_info = find_related_documents_by_keywords(query_keywords_ko, LOG_FILENAME, model=model_to_use, top_n=3)
-
-                if not related_docs_info:
-                    # 관련 문서 못 찾으면 Fallback
-                    print("[알림] 관련 문서를 찾지 못했습니다. 일반 Chat 방식으로 처리합니다.")
-                    task_name = "chat_fallback" # 작업명 변경
-                    english_prompt = translate_text(user_query_ko, 'auto', 'en')
-                    if english_prompt.startswith("Error"): raise Exception(english_prompt)
-                    result = execute_ollama_task(english_prompt, model=model_to_use) # 결과 할당
+                if not related_contexts_info:
+                    print("[알림] 관련 문서를 찾지 못했습니다. 일반 Chat 방식으로 Fallback 합니다.")
+                    task_name = "chat_fallback_after_rag_fail" # 로그용 작업명 변경
+                    english_prompt_for_fallback = translate_text(user_query_ko, 'ko', 'en')
+                    if english_prompt_for_fallback.startswith("Error"):
+                        result = f"Fallback 프롬프트 번역 실패: {english_prompt_for_fallback}"
+                        raise Exception(result)
+                    result = execute_ollama_task(english_prompt_for_fallback, model=model_to_use)
                 else:
-                    # 관련 문서 찾았으면 요약 기반 프롬프트 생성
-                    print("--- 3단계: 관련 문서 영어 요약으로 프롬프트 생성 ---")
-                    augmented_context_en = "" # 영어 컨텍스트 생성
-                    for i, doc_info in enumerate(related_docs_info):
-                        filename = os.path.basename(doc_info['filepath'])
-                        summary = doc_info['summary_en'] # 영어 요약 사용
-                        augmented_context_en += f"\n--- Relevant Document Summary {i+1}: {filename} ---\n"
-                        augmented_context_en += summary + "\n"
+                    # 2. 검색된 영어 컨텍스트를 활용하여 Ollama에 전달할 최종 프롬프트(영어) 구성
+                    print("--- 관련 정보 기반 응답 생성 중 ---")
+                    
+                    # 컨텍스트들을 영어로 조합
+                    augmented_context_en_str = ""
+                    retrieved_sources_for_log = [] # 로깅용
+                    for i, ctx_info in enumerate(related_contexts_info):
+                        augmented_context_en_str += f"\n--- Relevant English Context {i+1} (Source: {ctx_info['filename']}) ---\n"
+                        augmented_context_en_str += ctx_info['context_text_en'] + "\n"
+                        retrieved_sources_for_log.append({
+                            "filename": ctx_info['filename'],
+                            "original_ko_chunk_preview": ctx_info['original_text_ko'][:3000] + "...",
+                            "score": ctx_info['score']
+                        })
+                    log_metadata['retrieved_contexts'] = retrieved_sources_for_log # 로그에 추가 정보 저장
 
-                    # 최종 프롬프트 (한국어 질문 + 영어 요약 컨텍스트 + 한국어 지시)
-                    final_prompt_ko = f"""사용자 질문/주제: {user_query_ko}
+                    # 사용자 질문(한국어)을 영어로 번역
+                    user_query_en = translate_text(user_query_ko, 'ko', 'en')
+                    if user_query_en.startswith("Error:"):
+                        result = f"사용자 질문 영어 번역 실패: {user_query_en}"
+                        raise Exception(result)
 
-다음은 관련성이 높은 문서들의 영어 요약본입니다:
-{augmented_context_en}
-위 영어 요약 내용을 바탕으로 사용자의 질문에 답하거나 주제를 한국어로 정리해주세요."""
+                    # 최종 영어 프롬프트 구성: 영어 질문 + 영어 컨텍스트 + 영어 지시
+                    final_rag_prompt_en = f""" "{user_query_en}"
 
-                    # 4. 최종 프롬프트를 영어로 번역하여 Ollama 실행
-                    print("--- 4단계: 최종 작업 요청 ---")
-                    final_prompt_en = translate_text(final_prompt_ko, "ko", "en") # 전체 프롬프트를 영어로
-                    if final_prompt_en.startswith("Error"):
-                        raise Exception(f"최종 프롬프트 번역 실패: {final_prompt_en}")
+Please use the following English context
 
-                    # execute_ollama_task는 내부에서 영어 프롬프트로 Ollama 호출 후, 결과를 한국어로 번역
-                    result = execute_ollama_task(final_prompt_en, model=model_to_use) # 결과 할당
+{augmented_context_en_str}
+
+"""
+                    
+                    print(f"  Ollama에 전달될 프롬프트 (일부): {final_rag_prompt_en[:3000]}...")
+                    
+                    # Ollama 실행 (영어 프롬프트 -> 영어 응답 예상) 및 결과 한국어 번역
+                    # execute_ollama_task가 내부적으로 ollama_response_en -> ko 번역 수행
+                    result = execute_ollama_task(final_rag_prompt_en, model=model_to_use)
 
             elif choice in ('1', '2', '3', '4'): # 기존 단일 입력 작업
-                 user_input_ko_single = input("작업할 텍스트 또는 질문을 입력하세요: ")
-                 if not user_input_ko_single.strip():
-                     print("[알림] 입력이 비어 있습니다.")
-                     log_this_interaction = False
-                     continue
-                 user_input_ko = user_input_ko_single # 로깅용 입력값 저장
+                user_input_ko_single = input("작업할 텍스트 또는 질문을 입력하세요 (한국어): ")
+                if not user_input_ko_single.strip():
+                    print("[알림] 입력이 비어 있습니다.")
+                    log_this_interaction = False
+                    continue
+                user_input_for_log = user_input_ko_single # 로깅용 입력값 저장
 
-                 # task_name 설정
-                 if choice not in task_mapping:
-                     print("[오류] 내부 오류: task_mapping에 해당 선택지가 없습니다.")
-                     log_this_interaction = False
-                     continue
-                 task_name = task_mapping[choice]
+                if choice not in task_mapping: # 있을 수 없는 경우지만 안전장치
+                    print("[오류] 내부 오류: task_mapping에 해당 선택지가 없습니다.")
+                    log_this_interaction = False
+                    continue
+                task_name = task_mapping[choice]
+                print(f"\n[{task_name}] 작업을 Ollama({model_to_use})에게 요청합니다...")
 
-                 print(f"\n[{task_name}] 작업을 Ollama({model_to_use})에게 요청합니다...")
+                if choice == '4': # Chat
+                    english_prompt = translate_text(user_input_for_log, 'auto', 'en')
+                    if english_prompt.startswith("Error"): raise Exception(english_prompt)
+                    result = execute_ollama_task(english_prompt, model=model_to_use)
+                elif choice in ('1', '2'): # Summarize, Memo (Adaptive)
+                    result = execute_adaptive_ollama_task(user_input_for_log, task_name, model=model_to_use)
+                elif choice == '3': # Keyword
+                    # 키워드 프롬프트는 영어를 기반으로 하므로, [TEXT] 부분만 번역하면 됨
+                    user_input_en_for_kw = translate_text(user_input_for_log, 'ko', 'en')
+                    if user_input_en_for_kw.startswith("Error"):
+                        raise Exception(f"키워드 추출용 입력 번역 실패: {user_input_en_for_kw}")
+                    
+                    keyword_prompt_template_en = task_prompts[task_name]
+                    # [TEXT] 부분에 번역된 영어 사용자 입력을 삽입
+                    english_prompt_for_kw = keyword_prompt_template_en.replace("[TEXT]", user_input_en_for_kw)
+                    
+                    keyword_result_en = query_ollama(english_prompt_for_kw, model=model_to_use)
 
-                 # 작업 유형별 처리
-                 if choice == '4': # Chat
-                     english_prompt = translate_text(user_input_ko, 'auto', 'en')
-                     if english_prompt.startswith("Error"): raise Exception(english_prompt)
-                     result = execute_ollama_task(english_prompt, model=model_to_use)
-                 elif choice in ('1', '2'): # Summarize, Memo (Adaptive)
-                     result = execute_adaptive_ollama_task(user_input_ko, task_name, model=model_to_use)
-                 elif choice == '3': # Keyword
-                     keyword_prompt_ko = task_prompts[task_name].replace("[TEXT]", user_input_ko)
-                     english_prompt = translate_text(keyword_prompt_ko, "auto", "en")
-                     if english_prompt.startswith("Error"): raise Exception(english_prompt)
-                     keyword_result_en = query_ollama(english_prompt, model=model_to_use)
-                     if keyword_result_en.startswith("Error"):
-                         result = keyword_result_en # 오류 결과 사용
-                     else:
-                         # 키워드 결과(en) -> 한국어 번역
-                         keyword_result_ko = translate_text(keyword_result_en, "en", "ko")
-                         # 번역 성공 시 한국어 결과, 실패 시 [en] 접두사 붙여 영어 결과 사용
-                         result = keyword_result_ko if not keyword_result_ko.startswith("Error") else f"[en] {keyword_result_en}"
+                    if keyword_result_en.startswith("Error"):
+                        result = keyword_result_en
+                    else:
+                        # 키워드 결과(영어) -> 한국어로 번역 (키워드 자체는 영어 유지, 점수만 있음)
+                        # 프롬프트에서 키워드 자체를 영어로 생성하도록 지시했으므로,
+                        # 결과 번역은 키워드 리스트 전체를 한국어로 바꾸는 것이 아니라
+                        # 혹시 있을지 모를 설명부 등을 번역하거나, 원본(영어 키워드)을 그대로 사용할 수 있음
+                        # 여기서는 Ollama가 영어 키워드를 생성했다고 가정하고, 그 결과를 한국어로 번역
+                        # 하지만 프롬프트는 "keyword: score" 형태만 출력하라고 되어있으므로,
+                        # 보통은 번역 없이 바로 사용하거나, 로깅을 위해 한국어로 한번 더 시도할 수 있음.
+                        # 여기서는 사용자가 결과를 한국어로 보길 원할 수 있으므로 번역 시도.
+                        keyword_result_ko = translate_text(keyword_result_en, "en", "ko")
+                        result = keyword_result_ko if not keyword_result_ko.startswith("Error") else f"[en_keywords_with_error_in_ko_translation] {keyword_result_en}"
+                        # 만약 'comparison' 기능에서 한국어 키워드를 사용한다면, 여기서 확실히 한국어 키워드를 확보해야 함.
+                        # 현재 키워드 프롬프트는 영어로 응답 생성.
+                        # 로깅 시 'output' 에 저장되는 값. comparison이 이걸 사용.
+                        # Comparison은 한국어 키워드를 기대하므로, keyword_result_ko를 output으로 저장해야 함.
+                        if task_name == 'keyword': # 키워드 작업의 경우
+                             log_metadata['original_english_keywords'] = keyword_result_en
 
-            else: # 잘못된 선택
+
+            else:
                 print("[오류] 잘못된 선택입니다. 메뉴에 있는 번호나 'exit'를 입력해주세요.")
                 log_this_interaction = False
-                task_name = "invalid_choice" # 잘못된 선택 명시
+                task_name = "invalid_choice"
 
-            # --- [통합] 결과 출력 (결과를 출력해야 하는 유효 작업 완료 시) ---
-            # task_name이 설정되었고, 로깅 안하는 특수 작업이 아닌 경우
-            if task_name not in ["unknown", "invalid_choice", "index", "comparison"]:
+            # 결과 출력 (결과를 출력해야 하는 유효 작업 완료 시)
+            if task_name not in ["unknown", "invalid_choice", "index_vector_db"] and choice != '5': # comparison은 자체 출력
                 print("\n" + "="*30)
                 print(f"결과 ({task_name}):")
-                # result 변수에 담긴 최종 결과 (한국어 또는 오류 메시지) 출력
-                print(result)
+                print(result) # 최종 결과 (한국어 또는 오류 메시지)
                 print("="*30 + "\n")
 
-            # --- [통합] 로깅 (오류 아닐 경우 & 로깅 플래그 True & 유효 작업일 때) ---
-            if log_this_interaction and isinstance(result, str) and not result.startswith("Error:") and task_name not in ["unknown", "invalid_choice"]:
-                try:
-                    # 로그 항목 구성 (user_input_ko 변수 사용 확인)
-                    log_entry = {
-                        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-                        "task": task_name,
-                        "input": user_input_ko, # 해당 루프의 사용자 입력 저장
-                        "output": result, # 최종 결과 저장
-                        "model_used": model_to_use
-                        # 필요 시 추가 메타 정보 로깅 가능 (예: related_task 시 사용된 문서 요약 등)
-                    }
-                    os.makedirs(LOG_DIR, exist_ok=True) # 로그 디렉토리 재확인
-                    with open(LOG_FILENAME, 'a', encoding='utf-8') as f:
-                        f.write(json.dumps(log_entry, ensure_ascii=False) + '\n')
-                except Exception as log_e:
-                    print(f"[오류] 로그 파일 저장 실패: {log_e}")
+            # 로깅
+            if log_this_interaction and isinstance(result, str) and task_name not in ["unknown", "invalid_choice"]:
+                # 오류 결과도 로깅 (단, 심각한 예외로 중단된 경우는 아래 except 블록에서 처리됨)
+                # if result.startswith("Error:"): print(f"[정보] 오류 결과를 로그에 기록합니다: {result[:50]}...")
+                
+                log_entry_data = {
+                    "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                    "task": task_name,
+                    "input": user_input_for_log,
+                    "output": result, # 최종 결과 저장
+                    "model_used_llm": model_to_use,
+                }
+                if task_name == 'related_task_vector_rag':
+                    log_entry_data['sbert_model_for_rag'] = SBERT_MODEL_NAME
+                if log_metadata: # 추가 메타데이터 병합
+                    log_entry_data.update(log_metadata)
+                
+                # 'keyword' 작업이고, 'comparison'을 위해 한국어 키워드가 필요한 경우,
+                # 'output' 필드에 번역된 한국어 키워드가 잘 들어가는지 확인 필요.
+                # 위 keyword 처리 로직에서 result는 번역된 keyword_result_ko 이거나, 번역 실패시 영어 원본임.
+                # perform_comparison_task는 output이 한국어 키워드라고 가정함.
+                # 따라서 'keyword' task의 'output'은 한국어 번역된 키워드여야 함.
+                if task_name == 'keyword' and 'original_english_keywords' in log_metadata:
+                    # 만약 result (output)이 영어 키워드인데 comparison 위해 한국어가 필요하면 여기서 한번 더 처리?
+                    # 이미 위에서 keyword_result_ko 가 result로 할당됨.
+                    pass
 
-        # --- 메인 예외 처리 ---
-        except Exception as e:
-            print(f"\n[!!! 작업 '{task_name}' 처리 중 오류 발생 !!!]")
+
+                os.makedirs(LOG_DIR, exist_ok=True)
+                with open(LOG_FILENAME, 'a', encoding='utf-8') as f:
+                    f.write(json.dumps(log_entry_data, ensure_ascii=False) + '\n')
+
+        except Exception as e: # 각 작업 루프 내에서 발생하는 주요 예외 처리
+            print(f"\n[!!! 작업 '{task_name}' 처리 중 주 예외 발생 !!!]")
             print(f"오류 상세: {type(e).__name__} - {e}")
             print("--- Traceback ---")
-            traceback.print_exc() # 상세 오류 스택 출력
+            traceback.print_exc()
             print("--- End Traceback ---")
             print("다음 작업을 계속 진행합니다.")
-            # 오류 발생 시 해당 루프의 로깅은 자동으로 건너뜀
+            # 오류 발생 시 해당 루프의 로깅은 자동으로 건너뜀 (log_this_interaction=False 설정 또는 위에서 처리)
 
 # --- 스크립트 실행 시작점 ---
 if __name__ == "__main__":
-    # 시작 메시지 및 필수 디렉토리 확인
     print(f"스크립트 시작: {datetime.datetime.now()}")
-    print(f"사용 모델: {DEFAULT_OLLAMA_MODEL}")
+    print(f"기본 LLM 모델: {DEFAULT_OLLAMA_MODEL}")
+    print(f"SentenceTransformer 임베딩 모델: {SBERT_MODEL_NAME}")
+    print(f"ChromaDB 저장 경로: {CHROMA_DB_PATH}")
+    print(f"로그 파일 위치: {LOG_FILENAME}")
+    print(f"문서 디렉토리: {DOC_DIR}")
+
+    # 필수 디렉토리 생성
     try:
         os.makedirs(DOC_DIR, exist_ok=True)
         os.makedirs(LOG_DIR, exist_ok=True)
-        print(f"문서 디렉토리 확인: {DOC_DIR}")
-        print(f"로그 파일 위치 확인: {LOG_FILENAME}")
+        os.makedirs(CHROMA_DB_PATH, exist_ok=True) # ChromaDB 경로도 생성 확인
     except OSError as e:
         print(f"[치명적 오류] 필수 디렉토리 생성 불가: {e}. 스크립트를 종료합니다.")
-        exit(1) # 디렉토리 없으면 실행 의미 없음
-
+        exit(1)
+    
     # 메인 함수 실행 (키보드 인터럽트 처리 포함)
     try:
         main()
     except KeyboardInterrupt:
         print("\n[알림] 사용자에 의해 스크립트가 중단되었습니다.")
+    except SystemExit as e: # 모델/DB 로드 실패 등 시스템 종료 예외
+        print(f"프로그램 종료: {e}")
+    except Exception as e: # 예상치 못한 최상위 예외
+        print(f"\n[!!! 스크립트 실행 중 치명적인 오류 발생 !!!]")
+        print(f"오류 상세: {type(e).__name__} - {e}")
+        traceback.print_exc()
     finally:
-        # 스크립트 종료 메시지
         print(f"\n스크립트 종료: {datetime.datetime.now()}")
+
+
 
 
