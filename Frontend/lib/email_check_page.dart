@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
-import ' password_reset_page.dart';
+import 'password_reset_page.dart';
 
 // 이메일 확인 페이지 위젯 (StatefulWidget으로 변경)
 class EmailCheckPage extends StatefulWidget {

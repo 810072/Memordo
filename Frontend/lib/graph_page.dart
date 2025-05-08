@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_graph_view/flutter_graph_view.dart'; // 그래프 뷰 라이브러리 임포트
 import 'left_sidebar_layout.dart'; // 좌측 사이드바 레이아웃 임포트
 import 'bottom_section.dart'; // 하단 액션 영역 위젯 임포트
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 // 그래프 레이아웃 알고리즘 타입을 정의하는 열거형
 enum GraphAlgorithmType { random, fruchtermanReingold }
@@ -74,13 +75,13 @@ class _GraphPageState extends State<GraphPage> {
   @override
   void initState() {
     super.initState();
-    // 초기 스케일 및 중앙 정렬을 위한 초기 변환 설정
-    // (나중에 LayoutBuilder로 영역 크기에 따라 업데이트 가능)
-    _controller.value =
-        Matrix4.identity()
-          ..translate(200, 200) // 초기 이동 변환 (중앙 정렬 시 필요)
-          ..scale(_scale); // 초기 스케일 적용
+
+    // ⚠️ 아래 초기 변환 설정은 Web이나 일부 환경에서 UnimplementedError를 발생시킬 수 있으므로 주석 처리
+    // _controller.value = Matrix4.identity()
+    //   ..translate(200, 200)
+    //   ..scale(_scale);
   }
+
 
   @override
   Widget build(BuildContext context) {
