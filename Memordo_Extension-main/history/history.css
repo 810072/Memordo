@@ -1,8 +1,10 @@
 /* history/history.css */
 
-/* 기본 스타일 및 폰트 설정 */
+/* ==========================================================================
+기본 스타일 및 폰트 설정
+========================================================================== */
 body {
-  font-family: 'Noto Sans KR', sans-serif; /* 기본 폰트 설정 (Noto Sans KR 없으면 시스템 sans-serif) */
+  font-family: 'Noto Sans KR', sans-serif; /* Noto Sans KR 우선, 없으면 시스템 기본 sans-serif */
   font-size: 14px;                        /* 기본 글자 크기 */
   color: #333;                             /* 기본 글자 색상 */
   background-color: #f9f9f9;              /* 페이지 전체 배경색 */
@@ -20,20 +22,22 @@ h2 {
   text-align: center;    /* 제목 가운데 정렬 */
 }
 
-/* --- 액션 바 (삭제 버튼과 상태 메시지 포함 영역) 스타일 --- */
+/* ==========================================================================
+  액션 바 (상단 컨트롤 영역) 스타일
+  ========================================================================== */
 .action-bar {
   display: flex;                   /* 자식 요소(버튼, 메시지)를 가로로 배치 */
   align-items: center;             /* 자식 요소 수직 가운데 정렬 */
 
-  /* 애니메이션 및 초기 상태 설정 (max-height 기법으로 높이 조절) */
+  /* 애니메이션 및 초기 숨김 상태 설정 (max-height 기법) */
   max-height: 0;                   /* 초기 높이 0 (숨김 상태) */
-  opacity: 0;                      /* 초기 상태: 투명 */
-  overflow: hidden;                /* 내용 넘치면 숨김 (애니메이션 필수) */
+  opacity: 0;                      /* 초기 상태: 투명 (부드러운 등장을 위해) */
+  overflow: hidden;                /* 내용 넘치면 숨김 (max-height 애니메이션 필수) */
   margin-bottom: 0;                /* 초기 아래쪽 마진 0 */
   padding-top: 0;                  /* 초기 위쪽 패딩 0 */
   padding-bottom: 0;               /* 초기 아래쪽 패딩 0 */
   border-bottom-width: 0;          /* 초기 아래쪽 테두리 두께 0 */
-  border-bottom-style: solid;      /* 테두리 스타일 유지 (애니메이션 위해) */
+  border-bottom-style: solid;      /* 테두리 스타일은 유지 (애니메이션 위해) */
   border-bottom-color: #eee;       /* 테두리 색상 유지 */
   box-sizing: border-box;          /* 패딩/테두리 포함하여 크기 계산 */
 
@@ -50,13 +54,12 @@ h2 {
 /* 액션 바가 보여질 때 적용될 스타일 (.visible 클래스가 추가되었을 때) */
 .action-bar.visible {
   /* 내용물 높이 + 패딩 + 테두리보다 충분히 큰 값으로 설정 (펼쳐진 상태) */
-  max-height: 100px;               /* 예시 값, 버튼 높이 등을 고려해 조정 */
+  max-height: 100px;               /* 예시 값, 버튼 높이(약 40px) + 패딩 등을 고려해 조정 */
   opacity: 1;                      /* 최종 상태: 불투명 */
 
   /* 원래 값 복원 */
   margin-bottom: 20px;             /* 원래 아래쪽 마진 */
   padding-bottom: 15px;            /* 원래 아래쪽 패딩 */
-  /* padding-top: 0; */             /* 원래 위쪽 패딩이 0이었다면 생략 가능 */
   border-bottom-width: 1px;        /* 원래 아래쪽 테두리 두께 */
 }
 
@@ -65,8 +68,10 @@ h2 {
   font-size: 13px;                 /* 메시지 글자 크기 */
   color: #555;                     /* 메시지 글자 색상 */
   opacity: 1;                      /* 기본 상태: 불투명 */
+  margin-left: auto;               /* 삭제 버튼들 외에 남는 공간을 모두 차지하여 오른쪽으로 밀착 (선택적) */
+  padding-left: 10px;              /* 버튼과의 최소 간격 (선택적) */
   /* 메시지가 액션 바보다 약간 늦게 나타나도록 전환 효과 설정 */
-  transition: opacity 0.3s ease 0.2s;
+  transition: opacity 0.3s ease 0.2s; /* opacity 변경 시 0.3초 동안, 0.2초 지연 후 시작 */
 }
 
 /* 액션 바가 숨겨질 때(.visible 클래스가 없을 때) 상태 메시지 스타일 */
@@ -76,20 +81,38 @@ h2 {
   transition-duration: 0.1s;       /* 빠르게 사라지도록 */
 }
 
-/* --- 파란색 애니메이션 삭제 버튼 스타일 (#delete-selected-button) --- */
+/* ==========================================================================
+  액션 바 내부 버튼 스타일 (전체 선택, 삭제)
+  ========================================================================== */
+
+/* 버튼 스타일링에 사용될 공통 CSS 변수 (커스텀 속성) */
+/* :root 또는 상위 요소(.action-bar)에 선언하여 사용 가능 */
+.action-bar { /* .action-bar 내의 버튼들에 적용되도록 여기서 선언 */
+  --button-bg: #275efe;             /* 버튼 배경색 */
+  --button-text: #fff;                       /* 버튼 글자색 */
+  --button-font-size: 14px;                 /* 버튼 글자 크기 */
+  --button-duration: .44s;                 /* 버튼 내부 글자 애니메이션 시간 */
+  --button-move-hover: -4px;                /* 마우스 올렸을 때 버튼 Y축 이동 거리 */
+  --button-shadow: 0 2px 8px -1px rgba(39, 94, 254, 0.32);  /* 기본 그림자 */
+  --button-shadow-hover: 0 4px 20px -2px rgba(39, 94, 254, 0.5); /* 호버 시 그림자 */
+  --button-font-shadow: var(--button-font-size);   /* 글자 아래 그림자 Y 오프셋 (입체 효과용) */
+}
+
+/* "전체 선택" 버튼(#select-all-button)과 "삭제" 버튼(#delete-selected-button) 공통 기본 스타일 */
+#select-all-button,
 #delete-selected-button {
-  /* 버튼 스타일 및 애니메이션에 사용될 CSS 변수(커스텀 속성) 정의 */
-  --background: #275efe;             /* 버튼 배경색 */
-  --text: #fff;                       /* 버튼 글자색 */
-  --font-size: 14px;                 /* 버튼 글자 크기 */
-  --duration: .44s;                 /* 버튼 내부 글자 애니메이션 시간 */
-  --move-hover: -1px;                /* 마우스 올렸을 때 버튼 Y축 이동 거리 */
-  --shadow: 0 2px 8px -1px rgba(39, 94, 254, 0.32);  /* 기본 그림자 */
-  --shadow-hover: 0 4px 20px -2px rgba(39, 94, 254, 0.5); /* 호버 시 그림자 */
-  --font-shadow: var(--font-size);   /* 글자 아래 그림자 Y 오프셋 (입체 효과용) */
+  /* CSS 변수 참조하여 스타일 적용 */
+  --background: var(--button-bg);
+  --text: var(--button-text);
+  --font-size: var(--button-font-size);
+  --duration: var(--button-duration);
+  --move-hover: var(--button-move-hover);
+  --shadow: var(--button-shadow);
+  --shadow-hover: var(--button-shadow-hover);
+  --font-shadow: var(--button-font-shadow);
   --m: 0;                             /* 글자 초기 Y 위치 (애니메이션용) */
 
-  /* 버튼 기본 모양 및 배치 설정 */
+  /* 버튼 모양 및 배치 */
   padding: 10px 20px;                /* 내부 여백 (상하 10px, 좌우 20px) */
   font-family: 'Roboto', 'Noto Sans KR', sans-serif; /* 버튼 폰트 */
   font-weight: 500;                  /* 폰트 굵기 */
@@ -105,7 +128,6 @@ h2 {
   color: var(--text);                /* 글자색 적용 */
   box-shadow: var(--shadow);         /* 그림자 적용 */
   cursor: pointer;                   /* 마우스 커서를 손가락 모양으로 */
-  margin-right: 10px;                /* 오른쪽 여백 (상태 메시지와의 간격) */
   display: block;                    /* 블록 요소로 표시 */
   flex-shrink: 0;                    /* 액션 바 크기 변경 시 버튼 크기 줄어들지 않도록 */
 
@@ -116,49 +138,67 @@ h2 {
   transform: translateY(0);            /* 초기 Y 위치 (호버 애니메이션 기준점) */
 }
 
+/* "전체 선택" 버튼 특정 마진 */
+#select-all-button {
+  margin-right: 10px; /* 오른쪽 '삭제' 버튼과의 간격 */
+}
+
+/* "삭제" 버튼 특정 마진 */
+#delete-selected-button {
+  margin-right: 10px; /* 오른쪽 상태 메시지와의 간격 (필요 시 조정) */
+}
+
 /* 버튼 내부의 div 요소 (글자 span들을 감싸는 역할) */
+#select-all-button div,
 #delete-selected-button div {
   display: flex;                     /* 내부 span들을 가로로 배치 */
   overflow: hidden;                  /* 내부 span 애니메이션 시 영역 벗어나면 숨김 */
   /* 글자 아래에 같은 색의 그림자를 주어 입체 효과 */
-  text-shadow: 0 var(--font-shadow) 0 var(--text);
+  text-shadow: 0 var(--button-font-shadow) 0 var(--button-text); /* CSS 변수 사용 */
 }
 
 /* 버튼 내부의 span 요소 (JavaScript에 의해 각 글자가 span으로 감싸짐) */
+#select-all-button div span,
 #delete-selected-button div span {
   display: block;                    /* span을 블록 요소로 처리 */
   backface-visibility: hidden;       /* 애니메이션 중 뒷면 숨김 (성능 개선) */
   font-style: normal;                /* 기본 폰트 스타일 */
   /* 글자 위치(transform) 변경 시 애니메이션 효과 */
-  transition: transform var(--duration) ease;
+  transition: transform var(--button-duration) ease; /* CSS 변수 사용 */
   transform: translateY(var(--m)) translateZ(0); /* 초기 Y 위치 및 3D 가속 활성화 */
 }
 
-/* 각 글자(span)별 애니메이션 시작 지연 시간 설정 (순차적 효과) */
+/* "전체 선택" 버튼 글자(span)별 애니메이션 시작 지연 시간 설정 */
+/* "전체 선택" (4글자) 또는 "전체 해제" (5글자)에 맞춰 조정 */
+#select-all-button div span:nth-child(1) { transition-delay: 0.05s; }
+#select-all-button div span:nth-child(2) { transition-delay: 0.1s; }
+#select-all-button div span:nth-child(3) { transition-delay: 0.15s; }
+#select-all-button div span:nth-child(4) { transition-delay: 0.2s; }
+#select-all-button div span:nth-child(5) { transition-delay: 0.25s; } /* "전체 해제" 용 */
+
+/* "삭제" 버튼 글자(span)별 애니메이션 시작 지연 시간 설정 ('삭제'는 2글자) */
 #delete-selected-button div span:nth-child(1) { transition-delay: 0.05s; }
 #delete-selected-button div span:nth-child(2) { transition-delay: 0.1s; }
-#delete-selected-button div span:nth-child(3) { transition-delay: 0.15s; } /* '삭제'는 2글자지만 여유분 */
-#delete-selected-button div span:nth-child(4) { transition-delay: 0.2s; }
-#delete-selected-button div span:nth-child(5) { transition-delay: 0.25s; }
-#delete-selected-button div span:nth-child(6) { transition-delay: 0.3s; }
-#delete-selected-button div span:nth-child(7) { transition-delay: 0.35s; }
-#delete-selected-button div span:nth-child(8) { transition-delay: 0.4s; }
 
 /* 버튼에 마우스를 올렸을 때(:hover) 스타일 */
+#select-all-button:hover,
 #delete-selected-button:hover {
-  /* 버튼을 위로 약간 이동 (var(--move-hover) 값: -4px) */
-  transform: translateY(var(--move-hover));
+  /* 버튼을 위로 약간 이동 */
+  transform: translateY(var(--button-move-hover)); /* CSS 변수 사용 */
   /* 그림자 효과 변경 */
-  box-shadow: var(--shadow-hover);
+  box-shadow: var(--button-shadow-hover); /* CSS 변수 사용 */
 }
 
 /* 버튼에 마우스를 올렸을 때(:hover) 내부 글자(span) 스타일 */
+#select-all-button:hover span,
 #delete-selected-button:hover span {
   /* 글자 Y 위치를 위로 이동시켜 아래 그림자가 보이게 함 */
-  --m: calc(var(--font-size) * -1);
+  --m: calc(var(--button-font-size) * -1); /* CSS 변수 사용 */
 }
 
-/* --- 나머지 스타일 (날짜 그룹, 리스트 아이템 등) --- */
+/* ==========================================================================
+  방문 기록 리스트 스타일
+  ========================================================================== */
 /* 날짜 그룹 스타일 */
 .date-group {
   margin-bottom: 25px;             /* 날짜 그룹 사이의 아래쪽 여백 */
