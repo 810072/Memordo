@@ -1,12 +1,15 @@
+// lib/features/history.dart
+
 // 필요한 라이브러리 및 내부 파일 import
 import 'dart:convert';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:url_launcher/url_launcher.dart'; // 외부 링크 열기 위한 패키지 추가
+import 'package:url_launcher/url_launcher.dart';
 import '../layout/left_sidebar_layout.dart';
 import '../layout/bottom_section.dart';
 import '../services/google_drive_auth.dart';
+import '../services/crawler.dart'; // CrawlerPage를 사용하므로 import 문이 필요합니다.
 
 // 방문 기록 페이지를 상태를 가지는 위젯으로 정의
 class HistoryPage extends StatefulWidget {
@@ -18,22 +21,21 @@ class HistoryPage extends StatefulWidget {
 
 // 상태 클래스 정의
 class _HistoryPageState extends State<HistoryPage> {
-  List<Map<String, dynamic>> _visitHistory = []; // 방문 기록 리스트
-  final Set<String> _selectedTimestamps = {}; // 체크된 항목을 저장할 Set
-  String _status = '불러오는 중...'; // 상태 메시지
-  final folderId = '18gvXku0NzRbFrWJtsuI52dX0IJq_IE1f'; // Google Drive 폴더 ID
+  List<Map<String, dynamic>> _visitHistory = [];
+  final Set<String> _selectedTimestamps = {};
+  String _status = '불러오는 중...';
+  final folderId = '18gvXku0NzRbFrWJtsuI52dX0IJq_IE1f';
 
   @override
   void initState() {
     super.initState();
-    _loadVisitHistory(); // 초기 데이터 불러오기
+    _loadVisitHistory();
   }
 
-  // 방문 기록을 Google Drive에서 불러오는 함수
   Future<void> _loadVisitHistory() async {
     final auth = GoogleDriveAuth();
-    await auth.logout(); // 로그인 오류 시 주석 제거 후 핫로드
-    print("저장된 토큰 강제 삭제 완료 (테스트 목적)");
+    // await auth.logout();
+    // print("저장된 토큰 강제 삭제 완료 (테스트 목적)");
 
     final token = await auth.getAccessToken();
     if (token == null) {
@@ -42,7 +44,6 @@ class _HistoryPageState extends State<HistoryPage> {
     }
 
     try {
-      // 가장 최신의 jsonl 파일 ID 가져오기
       final url = Uri.parse(
         'https://www.googleapis.com/drive/v3/files?q=%27$folderId%27+in+parents+and+name+contains+%27.jsonl%27&orderBy=createdTime+desc&pageSize=1'
       );
@@ -68,18 +69,62 @@ class _HistoryPageState extends State<HistoryPage> {
     }
   }
 
-  // jsonl 파일 다운로드 및 파싱 함수
   Future<List<Map<String, dynamic>>> _downloadAndParseJsonl(String token, String fileId) async {
     final url = Uri.parse('https://www.googleapis.com/drive/v3/files/$fileId?alt=media');
     final res = await http.get(url, headers: {'Authorization': 'Bearer $token'});
-    final body = utf8.decode(res.bodyBytes); // UTF-8 디코딩으로 한글 깨짐 방지
+    final body = utf8.decode(res.bodyBytes);
     final lines = const LineSplitter().convert(body);
     return lines.map<Map<String, dynamic>>((l) => jsonDecode(l) as Map<String, dynamic>).toList();
   }
 
+  // "내용 요약" 버튼 클릭 시 호출될 함수
+  void _handleSummarizeAction() {
+    if (_selectedTimestamps.length == 1) {
+      final selectedTimestamp = _selectedTimestamps.first;
+      String? selectedUrl;
+
+      for (var item in _visitHistory) {
+        final timestamp = item['timestamp'] ?? item['visitTime'];
+        if (timestamp == selectedTimestamp) {
+          selectedUrl = item['url'] as String?;
+          break;
+        }
+      }
+
+      if (selectedUrl != null && selectedUrl.isNotEmpty) {
+        // CrawlerPage로 이동하고 URL 전달
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => CrawlerPage(url: selectedUrl!)),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('선택된 항목에서 URL을 찾을 수 없습니다.'),
+            backgroundColor: Colors.orangeAccent,
+          ),
+        );
+      }
+    } else if (_selectedTimestamps.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('내용을 요약할 URL을 선택해주세요.'),
+          backgroundColor: Colors.orangeAccent,
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('내용을 요약할 URL은 하나만 선택할 수 있습니다.'),
+          backgroundColor: Colors.orangeAccent,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    // 날짜별로 방문 기록을 그룹화
+    // ... (build 메소드의 나머지 부분은 이전과 동일하게 유지)
     final Map<String, List<Map<String, dynamic>>> grouped = {};
     for (var item in _visitHistory) {
       final timestamp = item['timestamp'] ?? item['visitTime'];
@@ -94,7 +139,6 @@ class _HistoryPageState extends State<HistoryPage> {
       activePage: PageType.history,
       child: Column(
         children: [
-          // 상단 제목 바
           Container(
             height: 50,
             color: Colors.grey[300],
@@ -105,7 +149,6 @@ class _HistoryPageState extends State<HistoryPage> {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
           ),
-          // 기록 리스트 표시 영역
           Expanded(
             child: _visitHistory.isEmpty
                 ? Center(child: Text(_status))
@@ -124,7 +167,6 @@ class _HistoryPageState extends State<HistoryPage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // 날짜 헤더
                             Text(
                               _formatDateKorean(date),
                               style: const TextStyle(
@@ -134,7 +176,6 @@ class _HistoryPageState extends State<HistoryPage> {
                               ),
                             ),
                             const SizedBox(height: 6),
-                            // 각 기록 항목
                             ...items.map((item) {
                               final title = item['title'] ?? item['url'] ?? '';
                               final url = item['url'] ?? '';
@@ -144,6 +185,7 @@ class _HistoryPageState extends State<HistoryPage> {
                               return ListTile(
                                 leading: Checkbox(
                                   value: isChecked,
+                                  activeColor: Colors.deepPurple,
                                   onChanged: (checked) {
                                     setState(() {
                                       if (checked == true) {
@@ -162,7 +204,6 @@ class _HistoryPageState extends State<HistoryPage> {
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
-                                // ✅ 하이퍼링크를 한 줄로 표시하고 말줄임 적용
                                 subtitle: Align(
                                   alignment: Alignment.centerLeft,
                                   child: RichText(
@@ -195,13 +236,14 @@ class _HistoryPageState extends State<HistoryPage> {
                     },
                   ),
           ),
-          const CollapsibleBottomSection(), // 하단 영역
+          CollapsibleBottomSection( 
+            onSummarizePressed: _handleSummarizeAction,
+          ),
         ],
       ),
     );
   }
 
-  // 날짜를 한국식 포맷으로 변환 (예: 2025.05.13 (화))
   String _formatDateKorean(String yyyyMMdd) {
     try {
       final date = DateTime.parse(yyyyMMdd);
@@ -212,14 +254,14 @@ class _HistoryPageState extends State<HistoryPage> {
     }
   }
 
-  // 시간 문자열을 오전/오후 형식으로 변환
   String _formatTime(String? isoString) {
     if (isoString == null) return '';
     try {
       final time = DateTime.parse(isoString).toLocal();
-      final hour = time.hour > 12 ? '오후 ${time.hour - 12}' : '오전 ${time.hour}';
+      final hour12 = time.hour % 12 == 0 ? 12 : time.hour % 12;
+      final ampm = time.hour < 12 || time.hour == 24 ? '오전' : '오후';
       final minute = time.minute.toString().padLeft(2, '0');
-      return '$hour:$minute';
+      return '$ampm $hour12:$minute';
     } catch (_) {
       return '';
     }

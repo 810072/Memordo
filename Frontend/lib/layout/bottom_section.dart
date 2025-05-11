@@ -3,7 +3,19 @@ import 'package:flutter/material.dart';
 
 // 접을 수 있는 하단 액션 영역 위젯
 class CollapsibleBottomSection extends StatefulWidget {
-  const CollapsibleBottomSection({super.key});
+  final VoidCallback? onSummarizePressed; // "내용 요약" 버튼 콜백 추가
+  // 다른 버튼들에 대한 콜백도 필요하다면 여기에 추가할 수 있습니다.
+  // final VoidCallback? onExtractTagsPressed;
+  // final VoidCallback? onSearchPressed;
+  // final VoidCallback? onApplyPressed;
+
+  const CollapsibleBottomSection({
+    super.key,
+    this.onSummarizePressed, // 생성자에 콜백 추가
+    // this.onExtractTagsPressed,
+    // this.onSearchPressed,
+    // this.onApplyPressed,
+  });
 
   @override
   State<CollapsibleBottomSection> createState() =>
@@ -50,8 +62,8 @@ class _CollapsibleBottomSectionState extends State<CollapsibleBottomSection> {
                 Icon(
                   _isExpanded
                       ? Icons
-                          .keyboard_arrow_up // 확장 시 위쪽 화살표
-                      : Icons.keyboard_arrow_down, // 축소 시 아래쪽 화살표
+                          .keyboard_arrow_down // 확장 시 위쪽 화살표
+                      : Icons.keyboard_arrow_up, // 축소 시 아래쪽 화살표
                 ),
               ],
             ),
@@ -69,17 +81,21 @@ class _CollapsibleBottomSectionState extends State<CollapsibleBottomSection> {
                   child: Row(
                     children: [
                       ElevatedButton(
-                        onPressed: () {}, // 버튼 클릭 시 실행될 함수 (현재는 비어있음)
+                        onPressed: widget.onSummarizePressed, // 버튼 클릭 시 실행될 함수 (현재는 비어있음)
                         child: const Text('내용 요약'),
                       ),
                       const SizedBox(width: 10),
                       ElevatedButton(
-                        onPressed: () {}, // 버튼 클릭 시 실행될 함수 (현재는 비어있음)
+                        onPressed: () {
+                          // TODO: 태그 추출 로직 또는 콜백 연결
+                        }, // 버튼 클릭 시 실행될 함수 (현재는 비어있음)
                         child: const Text('태그 추출'),
                       ),
                       const SizedBox(width: 10),
                       ElevatedButton(
-                        onPressed: () {},
+                        onPressed: (
+                          // TODO: 검색 로직 또는 콜백 연결
+                        ) {},
                         child: const Text('검색'),
                       ), // 버튼 클릭 시 실행될 함수 (현재는 비어있음)
                     ],
@@ -99,7 +115,9 @@ class _CollapsibleBottomSectionState extends State<CollapsibleBottomSection> {
                     style: ElevatedButton.styleFrom(
                       minimumSize: const Size(120, 40), // 버튼 최소 크기 설정
                     ),
-                    onPressed: () {}, // 버튼 클릭 시 실행될 함수 (현재는 비어있음)
+                    onPressed: (
+                      // TODO: 적용 로직 또는 콜백 연결
+                    ) {}, // 버튼 클릭 시 실행될 함수 (현재는 비어있음)
                     child: const Text('적용'),
                   ),
                 ),
