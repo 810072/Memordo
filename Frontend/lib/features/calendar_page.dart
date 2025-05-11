@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart'; // 달력 위젯 라이브러리 임포트
-import 'left_sidebar_layout.dart'; // 좌측 사이드바 레이아웃 임포트
-import 'bottom_section.dart'; // 하단 액션 영역 위젯 임포트
+import '../layout/left_sidebar_layout.dart';// 좌측 사이드바 레이아웃 임포트
+import '../layout/bottom_section.dart'; // 하단 액션 영역 위젯 임포트
+
 
 // 달력 페이지 위젯
 class CalendarPage extends StatefulWidget {

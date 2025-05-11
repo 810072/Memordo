@@ -3,8 +3,8 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 
-import 'bottom_section.dart';
-import 'utils/web_helper.dart';
+import '../layout/bottom_section.dart';
+import '../utils/web_helper.dart';
 
 class MeetingScreen extends StatefulWidget {
   const MeetingScreen({super.key});

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'meeting_screen.dart';
-import 'calendar_page.dart';
-import 'graph_page.dart';
-import 'history.dart';
+import '../features/meeting_screen.dart';
+import '../features/calendar_page.dart';
+import '../features/graph_page.dart';
+import '../features/history.dart';
 
 
 /// 현재 활성 페이지를 나타내는 열거형

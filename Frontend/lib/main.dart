@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'meeting_screen.dart';
-import 'left_sidebar_layout.dart';
-import 'login_page.dart';
-import 'signup_page.dart';
-import 'email_check_page.dart';
-import 'password_reset_page.dart';
-import 'find_id_page.dart';
+import 'auth/login_page.dart';
+import 'auth/signup_page.dart';
+import 'auth/email_check_page.dart';
+import 'auth/password_reset_page.dart';
+import 'auth/find_id_page.dart';
+import 'layout/left_sidebar_layout.dart';
+import 'features/meeting_screen.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 Future<void> main() async {

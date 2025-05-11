@@ -3,8 +3,8 @@ import 'dart:math'; // 랜덤 값 생성을 위한 math 라이브러리 임포�
 import 'package:flutter/material.dart';
 import 'package:flutter_graph_view/flutter_graph_view.dart'; // 그래프 뷰 라이브러리 임포트
 import 'package:vector_math/vector_math_64.dart' as vm; // Matrix4 충돌 방지를 위한 별칭 import
-import 'left_sidebar_layout.dart'; // 좌측 사이드바 레이아웃 임포트
-import 'bottom_section.dart'; // 하단 액션 영역 위젯 임포트
+import '../layout/left_sidebar_layout.dart';
+import '../layout/bottom_section.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 // 그래프 레이아웃 알고리즘 타입을 정의하는 열거형

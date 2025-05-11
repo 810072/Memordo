@@ -4,9 +4,9 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart'; // 외부 링크 열기 위한 패키지 추가
-import 'google_drive_auth.dart';
-import 'left_sidebar_layout.dart';
-import 'bottom_section.dart';
+import '../layout/left_sidebar_layout.dart';
+import '../layout/bottom_section.dart';
+import '../services/google_drive_auth.dart';
 
 // 방문 기록 페이지를 상태를 가지는 위젯으로 정의
 class HistoryPage extends StatefulWidget {
@@ -32,7 +32,7 @@ class _HistoryPageState extends State<HistoryPage> {
   // 방문 기록을 Google Drive에서 불러오는 함수
   Future<void> _loadVisitHistory() async {
     final auth = GoogleDriveAuth();
-    //await auth.logout(); // 로그인 오류 시 주석 제거 후 핫로드
+    await auth.logout(); // 로그인 오류 시 주석 제거 후 핫로드
     print("저장된 토큰 강제 삭제 완료 (테스트 목적)");
 
     final token = await auth.getAccessToken();
