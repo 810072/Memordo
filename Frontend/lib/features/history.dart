@@ -1,6 +1,5 @@
 // lib/features/history.dart
 
-// 필요한 라이브러리 및 내부 파일 import
 import 'dart:convert';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -9,9 +8,8 @@ import 'package:url_launcher/url_launcher.dart';
 import '../layout/left_sidebar_layout.dart';
 import '../layout/bottom_section.dart';
 import '../services/google_drive_auth.dart';
-import '../utils/web_crawler.dart'; // CrawlerPage를 사용하므로 import 문이 필요합니다.
+import '../utils/web_crawler.dart';
 
-// 방문 기록 페이지를 상태를 가지는 위젯으로 정의
 class HistoryPage extends StatefulWidget {
   const HistoryPage({super.key});
 
@@ -19,12 +17,13 @@ class HistoryPage extends StatefulWidget {
   State<HistoryPage> createState() => _HistoryPageState();
 }
 
-// 상태 클래스 정의
 class _HistoryPageState extends State<HistoryPage> {
   List<Map<String, dynamic>> _visitHistory = [];
   final Set<String> _selectedTimestamps = {};
   String _status = '불러오는 중...';
   final folderId = '18gvXku0NzRbFrWJtsuI52dX0IJq_IE1f';
+  final GlobalKey<CollapsibleBottomSectionState> _bottomSectionKey =
+      GlobalKey();
 
   @override
   void initState() {
@@ -35,8 +34,6 @@ class _HistoryPageState extends State<HistoryPage> {
   Future<void> _loadVisitHistory() async {
     final auth = GoogleDriveAuth();
     await auth.logout();
-    // print("저장된 토큰 강제 삭제 완료 (테스트 목적)");
-
     final token = await auth.getAccessToken();
     if (token == null) {
       setState(() => _status = 'Google 로그인 실패');
@@ -88,7 +85,6 @@ class _HistoryPageState extends State<HistoryPage> {
         .toList();
   }
 
-  // "내용 요약" 버튼 클릭 시 호출될 함수
   void _handleSummarizeAction() async {
     if (_selectedTimestamps.length == 1) {
       final selectedTimestamp = _selectedTimestamps.first;
@@ -103,33 +99,22 @@ class _HistoryPageState extends State<HistoryPage> {
       }
 
       if (selectedUrl != null && selectedUrl.isNotEmpty) {
-        final filePath = await crawlSaveAndSummarize(selectedUrl);
+        final summary = await crawlSaveAndSummarize(selectedUrl);
 
-        if (filePath != null) {
-          // 👇 파일 저장 성공 여부는 터미널 출력만 (사용자 UI는 요약 결과 없음)
-          print('✅ (history.dart)Markdown 저장 성공: $filePath');
+        if (summary != null) {
+          _bottomSectionKey.currentState?.updateSummary(summary);
         } else {
-          print('❌ (history.dart)Markdown 저장 실패');
+          print('❌ 요약 실패');
         }
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('선택된 항목에서 URL을 찾을 수 없습니다.'),
-            backgroundColor: Colors.orangeAccent,
-          ),
-        );
       }
-    } else if (_selectedTimestamps.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('내용을 요약할 URL을 선택해주세요.'),
-          backgroundColor: Colors.orangeAccent,
-        ),
-      );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('내용을 요약할 URL은 하나만 선택할 수 있습니다.'),
+        SnackBar(
+          content: Text(
+            _selectedTimestamps.isEmpty
+                ? '내용을 요약할 URL을 선택해주세요.'
+                : '내용을 요약할 URL은 하나만 선택할 수 있습니다.',
+          ),
           backgroundColor: Colors.orangeAccent,
         ),
       );
@@ -138,7 +123,6 @@ class _HistoryPageState extends State<HistoryPage> {
 
   @override
   Widget build(BuildContext context) {
-    // ... (build 메소드의 나머지 부분은 이전과 동일하게 유지)
     final Map<String, List<Map<String, dynamic>>> grouped = {};
     for (var item in _visitHistory) {
       final timestamp = item['timestamp'] ?? item['visitTime'];
@@ -205,6 +189,7 @@ class _HistoryPageState extends State<HistoryPage> {
                                 final isChecked = _selectedTimestamps.contains(
                                   timestamp,
                                 );
+
                                 return ListTile(
                                   leading: Checkbox(
                                     value: isChecked,
@@ -269,7 +254,10 @@ class _HistoryPageState extends State<HistoryPage> {
                       },
                     ),
           ),
-          CollapsibleBottomSection(onSummarizePressed: _handleSummarizeAction),
+          CollapsibleBottomSection(
+            key: _bottomSectionKey,
+            onSummarizePressed: _handleSummarizeAction,
+          ),
         ],
       ),
     );
