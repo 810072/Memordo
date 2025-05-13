@@ -103,7 +103,7 @@ class _HistoryPageState extends State<HistoryPage> {
       }
 
       if (selectedUrl != null && selectedUrl.isNotEmpty) {
-        final filePath = await crawlAndSaveAsMarkdown(selectedUrl);
+        final filePath = await crawlSaveAndSummarize(selectedUrl);
 
         if (filePath != null) {
           // 👇 파일 저장 성공 여부는 터미널 출력만 (사용자 UI는 요약 결과 없음)

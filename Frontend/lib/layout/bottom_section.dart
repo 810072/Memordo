@@ -1,143 +1,126 @@
-// bottom_section.dart
 import 'package:flutter/material.dart';
 
-// 접을 수 있는 하단 액션 영역 위젯
+/// 하단에서 마우스로 높이 조절 가능한 액션 영역 위젯
 class CollapsibleBottomSection extends StatefulWidget {
-  final VoidCallback? onSummarizePressed; // "내용 요약" 버튼 콜백 추가
-  // 다른 버튼들에 대한 콜백도 필요하다면 여기에 추가할 수 있습니다.
-  // final VoidCallback? onExtractTagsPressed;
-  // final VoidCallback? onSearchPressed;
-  // final VoidCallback? onApplyPressed;
+  final VoidCallback? onSummarizePressed; // "내용 요약" 버튼 콜백 함수
 
-  const CollapsibleBottomSection({
-    super.key,
-    this.onSummarizePressed, // 생성자에 콜백 추가
-    // this.onExtractTagsPressed,
-    // this.onSearchPressed,
-    // this.onApplyPressed,
-  });
+  const CollapsibleBottomSection({super.key, this.onSummarizePressed});
 
   @override
   State<CollapsibleBottomSection> createState() =>
       _CollapsibleBottomSectionState();
 }
 
-// CollapsibleBottomSection 위젯의 상태를 관리하는 클래스
 class _CollapsibleBottomSectionState extends State<CollapsibleBottomSection> {
-  // 하단 영역이 확장되었는지 여부를 나타내는 상태 변수
-  bool _isExpanded = true;
-
-  // 하단 영역의 확장/축소 상태를 토글하는 함수
-  void _toggleSection() {
-    setState(() {
-      _isExpanded = !_isExpanded; // 상태 변경 및 위젯 다시 빌드 요청
-    });
-  }
+  double _height = 220; // 현재 바텀 섹션 높이
+  final double _minHeight = 60; // 최소 높이
+  double _maxHeight = 400; // 최대 높이 (context 반영하여 초기화 예정)
+  double _startDy = 0; // 드래그 시작 시 Y 좌표
+  double _startHeight = 0; // 드래그 시작 시 높이
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      // 상단에 테두리선 추가
-      decoration: BoxDecoration(
-        border: Border(top: BorderSide(color: Colors.grey.shade400)),
-      ),
-      padding: const EdgeInsets.all(16), // 내부 여백
-      child: Column(
-        mainAxisSize: MainAxisSize.min, // 컬럼 크기를 자식 위젯에 맞춤
-        crossAxisAlignment: CrossAxisAlignment.start, // 자식 위젯을 왼쪽으로 정렬
-        children: [
-          // 헤더: 제목과 토글 아이콘을 포함하는 영역
-          GestureDetector(
-            onTap: _toggleSection, // 탭하면 _toggleSection 함수 호출
-            child: Row(
-              mainAxisAlignment:
-                  MainAxisAlignment.spaceBetween, // 자식 위젯을 양 끝으로 정렬
-              children: [
-                // 헤더 제목
-                const Text(
-                  '하단 액션 영역',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-                // 확장/축소 상태에 따라 아이콘 변경
-                Icon(
-                  _isExpanded
-                      ? Icons
-                          .keyboard_arrow_down // 확장 시 위쪽 화살표
-                      : Icons.keyboard_arrow_up, // 축소 시 아래쪽 화살표
-                ),
-              ],
-            ),
+    final screenHeight = MediaQuery.of(context).size.height;
+    final bottomPadding = MediaQuery.of(context).viewPadding.bottom;
+    _maxHeight =
+        screenHeight - kToolbarHeight - bottomPadding - 50; // 남은 여유 공간 계산
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.resizeUpDown, // 마우스 커서를 상하조절 아이콘으로 변경
+      child: GestureDetector(
+        // 드래그 시작 시 초기값 저장
+        onVerticalDragStart: (details) {
+          _startDy = details.globalPosition.dy;
+          _startHeight = _height;
+        },
+        // 드래그 중 높이 조절 (빠릿하게 반응하도록 즉시 적용)
+        onVerticalDragUpdate: (details) {
+          final drag = details.globalPosition.dy - _startDy;
+          final newHeight = (_startHeight - drag).clamp(_minHeight, _maxHeight);
+          setState(() {
+            _height = newHeight;
+          });
+        },
+        child: Container(
+          height: _height,
+          constraints: BoxConstraints(maxHeight: _maxHeight),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            border: Border(top: BorderSide(color: Colors.grey.shade400)),
+            boxShadow: const [
+              BoxShadow(
+                color: Colors.black12,
+                blurRadius: 4,
+                offset: Offset(0, -2),
+              ),
+            ],
           ),
-          // 내용 영역: AnimatedCrossFade로 부드럽게 숨김/보임 전환
-          AnimatedCrossFade(
-            // 확장 시 보여줄 위젯 (내용)
-            firstChild: Column(
-              crossAxisAlignment: CrossAxisAlignment.start, // 자식 위젯을 왼쪽으로 정렬
-              children: [
-                const SizedBox(height: 10),
-                // 스크롤 가능한 버튼 행
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal, // 가로 스크롤
-                  child: Row(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              // 드래그 핸들
+              Container(
+                width: 40,
+                height: 5,
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: Colors.grey[400],
+                  borderRadius: BorderRadius.circular(2.5),
+                ),
+              ),
+              // 내용 영역
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      ElevatedButton(
-                        onPressed: widget.onSummarizePressed, // 버튼 클릭 시 실행될 함수 (현재는 비어있음)
-                        child: const Text('내용 요약'),
+                      // 버튼 행
+                      Row(
+                        children: [
+                          ElevatedButton(
+                            onPressed: widget.onSummarizePressed, // 내용 요약
+                            child: const Text('내용 요약'),
+                          ),
+                          const SizedBox(width: 10),
+                          ElevatedButton(
+                            onPressed: () {}, // TODO: 태그 추출 기능 연결 예정
+                            child: const Text('태그 추출'),
+                          ),
+                          const SizedBox(width: 10),
+                          ElevatedButton(
+                            onPressed: () {}, // TODO: 검색 기능 연결 예정
+                            child: const Text('검색'),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 10),
-                      ElevatedButton(
-                        onPressed: () {
-                          // TODO: 태그 추출 로직 또는 콜백 연결
-                        }, // 버튼 클릭 시 실행될 함수 (현재는 비어있음)
-                        child: const Text('태그 추출'),
+                      const SizedBox(height: 20),
+                      // 요약 결과 제목 (나중에 실제 결과 표시 가능)
+                      const Text(
+                        'AI 요약 내용...',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                      const SizedBox(width: 10),
-                      ElevatedButton(
-                        onPressed: (
-                          // TODO: 검색 로직 또는 콜백 연결
-                        ) {},
-                        child: const Text('검색'),
-                      ), // 버튼 클릭 시 실행될 함수 (현재는 비어있음)
+                      const SizedBox(height: 20),
+                      // 적용 버튼
+                      Align(
+                        alignment: Alignment.bottomRight,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            minimumSize: const Size(120, 40),
+                          ),
+                          onPressed: () {}, // TODO: 요약 내용 적용 로직 연결 예정
+                          child: const Text('적용'),
+                        ),
+                      ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 20),
-                // AI 요약 내용 제목
-                const Text(
-                  'AI 요약 내용...',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 20),
-                // '적용' 버튼을 오른쪽 하단에 정렬
-                Align(
-                  alignment: Alignment.bottomRight,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: const Size(120, 40), // 버튼 최소 크기 설정
-                    ),
-                    onPressed: (
-                      // TODO: 적용 로직 또는 콜백 연결
-                    ) {}, // 버튼 클릭 시 실행될 함수 (현재는 비어있음)
-                    child: const Text('적용'),
-                  ),
-                ),
-              ],
-            ),
-            // 축소 시 보여줄 위젯 (빈 컨테이너), 명시적으로 높이를 0으로 설정하여 레이아웃 안정화 시도
-            secondChild: Container(height: 0.0), // <-- 이 부분 추가 또는 수정
-            // 현재 상태에 따라 보여줄 위젯 결정
-            crossFadeState:
-                _isExpanded
-                    ? CrossFadeState
-                        .showFirst // 확장 시 firstChild 표시
-                    : CrossFadeState.showSecond, // 축소 시 secondChild 표시
-            duration: const Duration(milliseconds: 300), // 전환 애니메이션 시간
-            // Optional: 애니메이션 커브를 지정하여 부드러움 조절 가능
-            // firstCurve: Curves.easeIn,
-            // secondCurve: Curves.easeOut,
-            // sizeCurve: Curves.easeInOut,
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
