@@ -9,7 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../layout/left_sidebar_layout.dart';
 import '../layout/bottom_section.dart';
 import '../services/google_drive_auth.dart';
-import '../services/crawler.dart'; // CrawlerPage를 사용하므로 import 문이 필요합니다.
+import '../utils/web_crawler.dart'; // CrawlerPage를 사용하므로 import 문이 필요합니다.
 
 // 방문 기록 페이지를 상태를 가지는 위젯으로 정의
 class HistoryPage extends StatefulWidget {
@@ -34,7 +34,7 @@ class _HistoryPageState extends State<HistoryPage> {
 
   Future<void> _loadVisitHistory() async {
     final auth = GoogleDriveAuth();
-    // await auth.logout();
+    await auth.logout();
     // print("저장된 토큰 강제 삭제 완료 (테스트 목적)");
 
     final token = await auth.getAccessToken();
@@ -45,11 +45,12 @@ class _HistoryPageState extends State<HistoryPage> {
 
     try {
       final url = Uri.parse(
-        'https://www.googleapis.com/drive/v3/files?q=%27$folderId%27+in+parents+and+name+contains+%27.jsonl%27&orderBy=createdTime+desc&pageSize=1'
+        'https://www.googleapis.com/drive/v3/files?q=%27$folderId%27+in+parents+and+name+contains+%27.jsonl%27&orderBy=createdTime+desc&pageSize=1',
       );
-      final res = await http.get(url, headers: {
-        'Authorization': 'Bearer $token',
-      });
+      final res = await http.get(
+        url,
+        headers: {'Authorization': 'Bearer $token'},
+      );
 
       final data = jsonDecode(res.body);
       if ((data['files'] as List).isEmpty) {
@@ -69,16 +70,26 @@ class _HistoryPageState extends State<HistoryPage> {
     }
   }
 
-  Future<List<Map<String, dynamic>>> _downloadAndParseJsonl(String token, String fileId) async {
-    final url = Uri.parse('https://www.googleapis.com/drive/v3/files/$fileId?alt=media');
-    final res = await http.get(url, headers: {'Authorization': 'Bearer $token'});
+  Future<List<Map<String, dynamic>>> _downloadAndParseJsonl(
+    String token,
+    String fileId,
+  ) async {
+    final url = Uri.parse(
+      'https://www.googleapis.com/drive/v3/files/$fileId?alt=media',
+    );
+    final res = await http.get(
+      url,
+      headers: {'Authorization': 'Bearer $token'},
+    );
     final body = utf8.decode(res.bodyBytes);
     final lines = const LineSplitter().convert(body);
-    return lines.map<Map<String, dynamic>>((l) => jsonDecode(l) as Map<String, dynamic>).toList();
+    return lines
+        .map<Map<String, dynamic>>((l) => jsonDecode(l) as Map<String, dynamic>)
+        .toList();
   }
 
   // "내용 요약" 버튼 클릭 시 호출될 함수
-  void _handleSummarizeAction() {
+  void _handleSummarizeAction() async {
     if (_selectedTimestamps.length == 1) {
       final selectedTimestamp = _selectedTimestamps.first;
       String? selectedUrl;
@@ -92,11 +103,14 @@ class _HistoryPageState extends State<HistoryPage> {
       }
 
       if (selectedUrl != null && selectedUrl.isNotEmpty) {
-        // CrawlerPage로 이동하고 URL 전달
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => CrawlerPage(url: selectedUrl!)),
-        );
+        final filePath = await crawlAndSaveAsMarkdown(selectedUrl);
+
+        if (filePath != null) {
+          // 👇 파일 저장 성공 여부는 터미널 출력만 (사용자 UI는 요약 결과 없음)
+          print('✅ (history.dart)Markdown 저장 성공: $filePath');
+        } else {
+          print('❌ (history.dart)Markdown 저장 실패');
+        }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -150,95 +164,112 @@ class _HistoryPageState extends State<HistoryPage> {
             ),
           ),
           Expanded(
-            child: _visitHistory.isEmpty
-                ? Center(child: Text(_status))
-                : ListView.builder(
-                    itemCount: sortedDates.length,
-                    itemBuilder: (context, index) {
-                      final date = sortedDates[index];
-                      final items = grouped[date]!..sort((a, b) {
-                        final at = a['timestamp'] ?? a['visitTime'];
-                        final bt = b['timestamp'] ?? b['visitTime'];
-                        return bt.compareTo(at);
-                      });
+            child:
+                _visitHistory.isEmpty
+                    ? Center(child: Text(_status))
+                    : ListView.builder(
+                      itemCount: sortedDates.length,
+                      itemBuilder: (context, index) {
+                        final date = sortedDates[index];
+                        final items =
+                            grouped[date]!..sort((a, b) {
+                              final at = a['timestamp'] ?? a['visitTime'];
+                              final bt = b['timestamp'] ?? b['visitTime'];
+                              return bt.compareTo(at);
+                            });
 
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _formatDateKorean(date),
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.blueGrey,
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 8,
+                            horizontal: 16,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _formatDateKorean(date),
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.blueGrey,
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 6),
-                            ...items.map((item) {
-                              final title = item['title'] ?? item['url'] ?? '';
-                              final url = item['url'] ?? '';
-                              final timestamp = item['timestamp'] ?? item['visitTime'];
-                              final time = _formatTime(timestamp);
-                              final isChecked = _selectedTimestamps.contains(timestamp);
-                              return ListTile(
-                                leading: Checkbox(
-                                  value: isChecked,
-                                  activeColor: Colors.deepPurple,
-                                  onChanged: (checked) {
-                                    setState(() {
-                                      if (checked == true) {
-                                        _selectedTimestamps.add(timestamp);
-                                      } else {
-                                        _selectedTimestamps.remove(timestamp);
-                                      }
-                                    });
-                                  },
-                                ),
-                                title: Text(
-                                  title,
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500,
-                                    overflow: TextOverflow.ellipsis,
+                              const SizedBox(height: 6),
+                              ...items.map((item) {
+                                final title =
+                                    item['title'] ?? item['url'] ?? '';
+                                final url = item['url'] ?? '';
+                                final timestamp =
+                                    item['timestamp'] ?? item['visitTime'];
+                                final time = _formatTime(timestamp);
+                                final isChecked = _selectedTimestamps.contains(
+                                  timestamp,
+                                );
+                                return ListTile(
+                                  leading: Checkbox(
+                                    value: isChecked,
+                                    activeColor: Colors.deepPurple,
+                                    onChanged: (checked) {
+                                      setState(() {
+                                        if (checked == true) {
+                                          _selectedTimestamps.add(timestamp);
+                                        } else {
+                                          _selectedTimestamps.remove(timestamp);
+                                        }
+                                      });
+                                    },
                                   ),
-                                ),
-                                subtitle: Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: RichText(
-                                    overflow: TextOverflow.ellipsis,
-                                    maxLines: 1,
-                                    text: TextSpan(
-                                      text: url,
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        color: Color(0xFF0C64E8),
-                                        decoration: TextDecoration.none,
-                                      ),
-                                      recognizer: TapGestureRecognizer()
-                                        ..onTap = () async {
-                                          final uri = Uri.tryParse(url);
-                                          if (uri != null && await canLaunchUrl(uri)) {
-                                            await launchUrl(uri, mode: LaunchMode.externalApplication);
-                                          }
-                                        },
+                                  title: Text(
+                                    title,
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
-                                ),
-                                trailing: Text(time, style: const TextStyle(fontSize: 12)),
-                              );
-                            }),
-                            const Divider(),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
+                                  subtitle: Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: RichText(
+                                      overflow: TextOverflow.ellipsis,
+                                      maxLines: 1,
+                                      text: TextSpan(
+                                        text: url,
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          color: Color(0xFF0C64E8),
+                                          decoration: TextDecoration.none,
+                                        ),
+                                        recognizer:
+                                            TapGestureRecognizer()
+                                              ..onTap = () async {
+                                                final uri = Uri.tryParse(url);
+                                                if (uri != null &&
+                                                    await canLaunchUrl(uri)) {
+                                                  await launchUrl(
+                                                    uri,
+                                                    mode:
+                                                        LaunchMode
+                                                            .externalApplication,
+                                                  );
+                                                }
+                                              },
+                                      ),
+                                    ),
+                                  ),
+                                  trailing: Text(
+                                    time,
+                                    style: const TextStyle(fontSize: 12),
+                                  ),
+                                );
+                              }),
+                              const Divider(),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
           ),
-          CollapsibleBottomSection( 
-            onSummarizePressed: _handleSummarizeAction,
-          ),
+          CollapsibleBottomSection(onSummarizePressed: _handleSummarizeAction),
         ],
       ),
     );
