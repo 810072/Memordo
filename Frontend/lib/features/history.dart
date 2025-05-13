@@ -33,7 +33,7 @@ class _HistoryPageState extends State<HistoryPage> {
 
   Future<void> _loadVisitHistory() async {
     final auth = GoogleDriveAuth();
-    await auth.logout();
+    // await auth.logout();
     final token = await auth.getAccessToken();
     if (token == null) {
       setState(() => _status = 'Google 로그인 실패');

@@ -4,7 +4,6 @@ import '../features/calendar_page.dart';
 import '../features/graph_page.dart';
 import '../features/history.dart';
 
-
 /// 현재 활성 페이지를 나타내는 열거형
 enum PageType { home, calendar, graph, history }
 
@@ -64,8 +63,8 @@ class LeftSidebarLayout extends StatelessWidget {
             () => Navigator.pushReplacement(
               context,
               MaterialPageRoute(builder: (_) => const HistoryPage()),
-              ),
             ),
+          ),
         ],
       ),
     );

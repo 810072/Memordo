@@ -13,7 +13,7 @@ class CollapsibleBottomSection extends StatefulWidget {
 
 /// 상태 클래스 - 외부에서 접근해야 하므로 public으로 선언
 class CollapsibleBottomSectionState extends State<CollapsibleBottomSection> {
-  double _height = 220; // 초기 높이
+  double _height = 120; // 초기 높이
   final double _minHeight = 60; // 최소 높이
   double _maxHeight = 400; // 최대 높이 (실행 중 계산됨)
   double _startDy = 0; // 드래그 시작 위치
@@ -32,10 +32,10 @@ class CollapsibleBottomSectionState extends State<CollapsibleBottomSection> {
   Widget build(BuildContext context) {
     final screenHeight = MediaQuery.of(context).size.height;
     final bottomPadding = MediaQuery.of(context).viewPadding.bottom;
-    _maxHeight = screenHeight - kToolbarHeight - bottomPadding - 50;
+    _maxHeight = screenHeight - kToolbarHeight - bottomPadding - 150;
 
     return Container(
-      height: _height,
+      height: _height.clamp(_minHeight, _maxHeight),
       constraints: BoxConstraints(maxHeight: _maxHeight),
       decoration: BoxDecoration(
         color: Colors.white,
