@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>인증 리디렉션 처리 중</title>
+  <meta charset="UTF-8">
+</head>
+<body>
+  <p>인증 처리 중입니다. 창이 자동으로 닫힐 때까지 기다려주세요...</p>
+  <script>
+    // 이 스크립트는 URL fragment (#) 또는 쿼리 스트링 (?)에서 OAuth 응답을 추출하여
+    // 팝업을 연 원래 창으로 메시지를 통해 전달합니다.
+    console.log("oauth2callback.html loaded. Location:", window.location.href);
+
+    // 팝업을 연 부모 창이 있는지 확인
+    if (window.opener) {
+      // URL의 fragment (Implicit Grant) 또는 query string (Code Flow)을 가져옵니다.
+      const authResponse = window.location.hash || window.location.search;
+      console.log("Auth response found:", authResponse);
+
+      if (authResponse) {
+         try {
+            // window.location.origin은 현재 페이지의 출처(protocol + domain + port)를 가져옵니다.
+            const targetOrigin = window.location.origin;
+            console.log("Sending message to opener with target origin:", targetOrigin);
+
+            // postMessage를 사용하여 authResponse 데이터를 부모 창으로 보냅니다.
+            // 두 번째 인자 (targetOrigin)는 보안을 위해 중요합니다.
+            // 실제 배포 시에는 '*' 대신 여러분의 메인 웹 앱의 정확한 출처를 지정해야 합니다.
+            window.opener.postMessage(authResponse, targetOrigin);
+
+            console.log("Message sent. Closing window.");
+            // 메시지 전송 후 팝업 창을 닫습니다.
+            window.close();
+
+         } catch (e) {
+            console.error("Error sending message to opener:", e);
+             document.body.innerHTML = '<p>인증 처리 중 오류가 발생했습니다. 창을 수동으로 닫아주세요.</p><p>오류: ' + e.message + '</p>';
+         }
+      } else {
+         console.warn("No auth response fragment or query found in URL.");
+         document.body.innerHTML = '<p>인증 응답을 찾을 수 없습니다. 다시 시도해주세요.</p>';
+         // 필요시 창을 닫거나, 사용자에게 알리는 추가 로직
+          // window.close();
+      }
+
+    } else {
+        console.warn("Window was not opened as a popup.");
+        // 팝업으로 열리지 않은 경우 처리
+        document.body.innerHTML = '<p>인증 완료. 이 창을 닫으셔도 됩니다.</p>';
+    }
+  </script>
+</body>
+</html>

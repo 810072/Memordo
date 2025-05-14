@@ -2,7 +2,7 @@ import 'dart:io' show File, Directory, Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p; // path 패키지 import 별칭 사용
-import 'dart:html' as html;
+// import 'dart:html' as html;
 
 import '../layout/bottom_section.dart';
 import '../layout/left_sidebar_layout.dart';
@@ -17,20 +17,26 @@ class MeetingScreen extends StatefulWidget {
 }
 
 class _MeetingScreenState extends State<MeetingScreen> {
-  final TextEditingController _textEditingController = TextEditingController(); // 이름 변경 (더 명확하게)
+  final TextEditingController _textEditingController =
+      TextEditingController(); // 이름 변경 (더 명확하게)
   String _saveStatus = ''; // 파일 저장 상태 메시지
   // String _summaryStatus = ''; // 요약 상태 메시지 (BottomSection에서 관리)
 
   bool _isSummarizing = false; // AI 요약 작업 진행 상태
-  final GlobalKey<CollapsibleBottomSectionState> _bottomSectionKey = GlobalKey();
-
+  final GlobalKey<CollapsibleBottomSectionState> _bottomSectionKey =
+      GlobalKey();
 
   /// ✅ 원하는 저장 경로 설정 (macOS 전용)
   Future<String> getCustomSavePath() async {
     // 웹 환경에서는 이 함수가 호출되지 않도록 kIsWeb 체크가 _saveMarkdown에 있음
     if (Platform.isMacOS) {
-      final home = Platform.environment['HOME'] ?? Platform.environment['USERPROFILE']; // Windows HOME도 고려
-      final folderPath = p.join(home!, 'Memordo_Notes'); // path 패키지 사용, 폴더명 변경 가능
+      final home =
+          Platform.environment['HOME'] ??
+          Platform.environment['USERPROFILE']; // Windows HOME도 고려
+      final folderPath = p.join(
+        home!,
+        'Memordo_Notes',
+      ); // path 패키지 사용, 폴더명 변경 가능
       final directory = Directory(folderPath);
 
       if (!await directory.exists()) {
@@ -55,12 +61,16 @@ class _MeetingScreenState extends State<MeetingScreen> {
     }
 
     if (kIsWeb) {
-      downloadMarkdownWeb(content, 'memordo_note_${DateTime.now().millisecondsSinceEpoch}.md'); // 두 개의 인자 전달
+      downloadMarkdownWeb(
+        content,
+        'memordo_note_${DateTime.now().millisecondsSinceEpoch}.md',
+      ); // 두 개의 인자 전달
       if (!mounted) return;
       setState(() {
         _saveStatus = "웹에서 다운로드를 시작합니다 ✅";
       });
-    } else if (Platform.isMacOS) { // 다른 데스크톱 플랫폼 지원 시 else if (Platform.isWindows || Platform.isLinux) 추가
+    } else if (Platform.isMacOS) {
+      // 다른 데스크톱 플랫폼 지원 시 else if (Platform.isWindows || Platform.isLinux) 추가
       try {
         final saveDir = await getCustomSavePath();
         final fileName = 'note_${DateTime.now().millisecondsSinceEpoch}.md';
@@ -81,7 +91,8 @@ class _MeetingScreenState extends State<MeetingScreen> {
     } else {
       if (!mounted) return;
       setState(() {
-        _saveStatus = "${Platform.operatingSystem} 플랫폼은 아직 파일 저장 기능이 지원되지 않습니다 🛑";
+        _saveStatus =
+            "${Platform.operatingSystem} 플랫폼은 아직 파일 저장 기능이 지원되지 않습니다 🛑";
       });
     }
   }
@@ -108,7 +119,9 @@ class _MeetingScreenState extends State<MeetingScreen> {
       _isSummarizing = true;
     });
     // BottomSection의 텍스트를 "요약 중..."으로 먼저 업데이트
-    _bottomSectionKey.currentState?.updateSummary('텍스트 요약 중...\n입력된 내용 길이: ${textToSummarize.length}');
+    _bottomSectionKey.currentState?.updateSummary(
+      '텍스트 요약 중...\n입력된 내용 길이: ${textToSummarize.length}',
+    );
 
     String? summary;
     try {
@@ -122,7 +135,9 @@ class _MeetingScreenState extends State<MeetingScreen> {
       summary = '요약 중 오류가 발생했습니다: $e';
     } finally {
       if (!mounted) return;
-      _bottomSectionKey.currentState?.updateSummary(summary ?? '요약에 실패했거나 내용이 없습니다.');
+      _bottomSectionKey.currentState?.updateSummary(
+        summary ?? '요약에 실패했거나 내용이 없습니다.',
+      );
       setState(() {
         _isSummarizing = false;
       });
@@ -131,7 +146,8 @@ class _MeetingScreenState extends State<MeetingScreen> {
     // 요약 실패 또는 오류 시 스낵바 표시 (선택적)
     if (summary == null || summary.contains("오류") || summary.contains("실패")) {
       print('❌ 요약 실패 또는 오류 수신: $summary');
-      if(mounted) { // mounted 체크 후 context 사용
+      if (mounted) {
+        // mounted 체크 후 context 사용
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(summary ?? '텍스트 요약에 실패했습니다.'),
@@ -167,7 +183,8 @@ class _MeetingScreenState extends State<MeetingScreen> {
                   Expanded(
                     child: TextField(
                       controller: _textEditingController,
-                      maxLines: null, // null로 설정해야 여러 줄 입력 및 expands: true와 함께 작동
+                      maxLines:
+                          null, // null로 설정해야 여러 줄 입력 및 expands: true와 함께 작동
                       expands: true, // TextField가 사용 가능한 모든 공간을 차지하도록 함
                       textAlignVertical: TextAlignVertical.top, // 텍스트를 위에서부터 시작
                       decoration: const InputDecoration(
@@ -175,7 +192,10 @@ class _MeetingScreenState extends State<MeetingScreen> {
                         border: OutlineInputBorder(),
                         contentPadding: EdgeInsets.all(12), // 내부 패딩 추가
                       ),
-                      style: const TextStyle(fontSize: 15, height: 1.5), // 폰트 크기 및 줄 간격
+                      style: const TextStyle(
+                        fontSize: 15,
+                        height: 1.5,
+                      ), // 폰트 크기 및 줄 간격
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -192,7 +212,8 @@ class _MeetingScreenState extends State<MeetingScreen> {
                         ),
                       ),
                       const SizedBox(width: 16),
-                      Expanded( // 상태 메시지가 남은 공간을 채우도록
+                      Expanded(
+                        // 상태 메시지가 남은 공간을 채우도록
                         child: Text(
                           _saveStatus,
                           style: const TextStyle(
@@ -210,7 +231,8 @@ class _MeetingScreenState extends State<MeetingScreen> {
           ),
           CollapsibleBottomSection(
             key: _bottomSectionKey, // GlobalKey 전달
-            onSummarizePressed: _isSummarizing ? null : _handleSummarizeAction, // 콜백 전달
+            onSummarizePressed:
+                _isSummarizing ? null : _handleSummarizeAction, // 콜백 전달
             isLoading: _isSummarizing, // 로딩 상태 전달
           ),
         ],
