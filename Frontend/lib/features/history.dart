@@ -316,10 +316,7 @@ class _HistoryPageState extends State<HistoryPage> {
                                         text: url,
                                         style: TextStyle(
                                           fontSize: 12,
-                                          color:
-                                              Theme.of(context)
-                                                  .colorScheme
-                                                  .secondary, // 테마 색상 사용
+                                          color: Colors.blue, // 테마 색상 사용
                                           decoration:
                                               TextDecoration
                                                   .none, // 밑줄 제거는 onTap으로
