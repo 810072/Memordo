@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart'; // 달력 위젯 라이브러리 임포트
-import '../layout/left_sidebar_layout.dart';// 좌측 사이드바 레이아웃 임포트
+import '../layout/left_sidebar_layout.dart'; // 좌측 사이드바 레이아웃 임포트
 import '../layout/bottom_section.dart'; // 하단 액션 영역 위젯 임포트
-
 
 // 달력 페이지 위젯
 class CalendarPage extends StatefulWidget {
@@ -49,7 +48,7 @@ class _CalendarPageState extends State<CalendarPage> {
   // 상단 바 위젯: 제목, "2 Weeks" 버튼과 "Today" 버튼 포함 (현재 2 Weeks 버튼 없음)
   Widget _buildTopBar() {
     return Container(
-      height: 50,
+      height: 40,
       color: Colors.grey[300], // 배경색
       padding: const EdgeInsets.symmetric(horizontal: 16), // 좌우 여백
       child: Row(

@@ -213,7 +213,7 @@ class _HistoryPageState extends State<HistoryPage> {
       child: Column(
         children: [
           Container(
-            height: 50,
+            height: 40,
             color: Colors.grey[300],
             alignment: Alignment.centerLeft,
             padding: const EdgeInsets.symmetric(horizontal: 16),

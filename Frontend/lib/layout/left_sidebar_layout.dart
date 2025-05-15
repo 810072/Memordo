@@ -28,7 +28,7 @@ class LeftSidebarLayout extends StatelessWidget {
   // 좌측 사이드바 (아이콘을 통해 페이지 전환, 현재 활성 페이지의 아이콘는 표시하지 않음)
   Widget _buildSideBar(BuildContext context) {
     return Container(
-      width: 60,
+      width: 45,
       color: Colors.grey[200],
       child: Column(
         children: [

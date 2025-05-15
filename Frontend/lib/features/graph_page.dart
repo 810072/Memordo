@@ -151,7 +151,7 @@ class _GraphPageState extends State<GraphPage> {
 
   Widget _buildTopBar() {
     return Container(
-      height: 50,
+      height: 40,
       color: Colors.grey[300],
       alignment: Alignment.centerRight,
       padding: const EdgeInsets.symmetric(horizontal: 16),

@@ -166,7 +166,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch, // 자식 요소들이 가로로 꽉 차도록
         children: [
           Container(
-            height: 50,
+            height: 40,
             color: Colors.grey[300],
             alignment: Alignment.centerLeft,
             padding: const EdgeInsets.symmetric(horizontal: 16),
