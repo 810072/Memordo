@@ -42,7 +42,7 @@ class _HistoryPageState extends State<HistoryPage> {
     if (!mounted) return; // 위젯이 dispose된 경우 setState 호출 방지
     setState(() => _status = '방문 기록 불러오는 중...');
     final auth = GoogleDriveAuth(); // 공통 코드로 가능
-    await auth.logout(); // 필요시 로그아웃 테스트
+    // await auth.logout(); // 필요시 로그아웃 테스트
     final token = await auth.getAccessToken();
     if (token == null) {
       if (!mounted) return;
@@ -257,7 +257,7 @@ class _HistoryPageState extends State<HistoryPage> {
                         return Padding(
                           padding: const EdgeInsets.symmetric(
                             vertical: 8.0,
-                            horizontal: 16.0,
+                            horizontal: 12.0,
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -265,12 +265,12 @@ class _HistoryPageState extends State<HistoryPage> {
                               Text(
                                 _formatDateKorean(date),
                                 style: const TextStyle(
-                                  fontSize: 16,
+                                  fontSize: 15,
                                   fontWeight: FontWeight.bold,
                                   color: Colors.blueGrey,
                                 ),
                               ),
-                              const SizedBox(height: 6),
+                              const SizedBox(height: 0),
                               ...itemsOnDate.map((item) {
                                 final title =
                                     item['title']?.toString() ??
@@ -283,26 +283,36 @@ class _HistoryPageState extends State<HistoryPage> {
                                 final time = _formatTime(timestamp);
                                 final bool isChecked = _selectedTimestamps
                                     .contains(timestamp);
-
                                 return ListTile(
-                                  leading: Checkbox(
-                                    value: isChecked,
-                                    activeColor: Colors.deepPurple,
-                                    onChanged: (bool? checked) {
-                                      if (timestamp == null) return;
-                                      setState(() {
-                                        if (checked == true) {
-                                          _selectedTimestamps.add(timestamp);
-                                        } else {
-                                          _selectedTimestamps.remove(timestamp);
-                                        }
-                                      });
-                                    },
+                                  leading: Padding(
+                                    padding: EdgeInsets.zero, // 원하는 여백 설정
+                                    child: Transform.scale(
+                                      scale: 0.9, // 크기 축소
+                                      child: Checkbox(
+                                        value: isChecked,
+                                        activeColor: Colors.deepPurple,
+                                        visualDensity: VisualDensity.compact,
+                                        onChanged: (bool? checked) {
+                                          if (timestamp == null) return;
+                                          setState(() {
+                                            if (checked == true) {
+                                              _selectedTimestamps.add(
+                                                timestamp,
+                                              );
+                                            } else {
+                                              _selectedTimestamps.remove(
+                                                timestamp,
+                                              );
+                                            }
+                                          });
+                                        },
+                                      ),
+                                    ),
                                   ),
                                   title: Text(
                                     title,
                                     style: const TextStyle(
-                                      fontSize: 14,
+                                      fontSize: 13,
                                       fontWeight: FontWeight.w500,
                                       overflow: TextOverflow.ellipsis,
                                     ),

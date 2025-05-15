@@ -49,7 +49,6 @@ class CollapsibleBottomSectionState extends State<CollapsibleBottomSection> {
     }
   }
 
-
   @override
   Widget build(BuildContext context) {
     // didChangeDependencies에서 maxHeight가 설정되므로 build에서 매번 호출할 필요 없음
@@ -64,7 +63,8 @@ class CollapsibleBottomSectionState extends State<CollapsibleBottomSection> {
       decoration: BoxDecoration(
         color: Colors.white, // 배경색
         border: Border(top: BorderSide(color: Colors.grey.shade300)), // 상단 경계선
-        boxShadow: const [ // 그림자 효과
+        boxShadow: const [
+          // 그림자 효과
           BoxShadow(
             color: Colors.black12,
             blurRadius: 5,
@@ -109,7 +109,9 @@ class CollapsibleBottomSectionState extends State<CollapsibleBottomSection> {
           // 내용 영역 (Expanded와 SingleChildScrollView로 스크롤 가능하게)
           Expanded(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0).copyWith(bottom: 16.0), // 내부 패딩
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16.0,
+              ).copyWith(bottom: 16.0), // 내부 패딩
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -118,29 +120,38 @@ class CollapsibleBottomSectionState extends State<CollapsibleBottomSection> {
                     children: [
                       // << 3. isLoading 상태에 따라 버튼 UI 변경 >>
                       ElevatedButton.icon(
-                        icon: widget.isLoading
-                            ? Container(
-                                width: 18,
-                                height: 18,
-                                child: const CircularProgressIndicator(
-                                  color: Colors.white,
-                                  strokeWidth: 2.5,
+                        icon:
+                            widget.isLoading
+                                ? Container(
+                                  width: 18,
+                                  height: 18,
+                                  child: const CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2.5,
+                                  ),
+                                )
+                                : const Icon(
+                                  Icons.summarize_outlined,
+                                  size: 20,
                                 ),
-                              )
-                            : const Icon(Icons.summarize_outlined, size: 20),
                         label: Text(widget.isLoading ? '요약 중...' : '내용 요약'),
-                        onPressed: widget.isLoading ? null : widget.onSummarizePressed, // 로딩 중이면 비활성화
+                        onPressed:
+                            widget.isLoading
+                                ? null
+                                : widget.onSummarizePressed, // 로딩 중이면 비활성화
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.deepPurple,
                           foregroundColor: Colors.white,
-                          textStyle: const TextStyle(fontWeight: FontWeight.w500)
+                          textStyle: const TextStyle(
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 10),
                       ElevatedButton(
                         onPressed: () {
                           // TODO: 태그 추출 기능 연결 예정
-                           ScaffoldMessenger.of(context).showSnackBar(
+                          ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(content: Text('태그 추출 기능은 준비 중입니다.')),
                           );
                         },
@@ -156,7 +167,11 @@ class CollapsibleBottomSectionState extends State<CollapsibleBottomSection> {
                   const SizedBox(height: 16), // 버튼과 요약 내용 사이 간격
                   Text(
                     'AI 요약 내용', // 섹션 제목
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.grey[700]),
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey[700],
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Container(
@@ -167,14 +182,21 @@ class CollapsibleBottomSectionState extends State<CollapsibleBottomSection> {
                       borderRadius: BorderRadius.circular(4.0),
                       border: Border.all(color: Colors.grey[300]!),
                     ),
-                    constraints: const BoxConstraints(minHeight: 80), // 요약 내용 최소 높이
-                    child: Text(
+                    constraints: const BoxConstraints(
+                      minHeight: 80,
+                    ), // 요약 내용 최소 높이
+                    child: SelectableText(
                       _summaryText.isEmpty && !widget.isLoading
                           ? '요약할 항목을 히스토리에서 선택 후 "내용 요약" 버튼을 누르세요.'
-                          : widget.isLoading && _summaryText.contains("요약 중...") // 초기 요약 중 메시지 유지
-                              ? _summaryText // "URL 요약 중..." 메시지 표시
-                              : _summaryText,
-                      style: TextStyle(fontSize: 14, color: Colors.grey[850], height: 1.5),
+                          : widget.isLoading &&
+                              _summaryText.contains("요약 중...") // 초기 요약 중 메시지 유지
+                          ? _summaryText // "URL 요약 중..." 메시지 표시
+                          : _summaryText,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey[850],
+                        height: 1.5,
+                      ),
                     ),
                   ),
                   // "적용" 버튼은 현재 기능이 명확하지 않아 일단 주석 처리 또는 제거
