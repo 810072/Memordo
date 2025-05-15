@@ -42,7 +42,7 @@ class _HistoryPageState extends State<HistoryPage> {
     if (!mounted) return; // 위젯이 dispose된 경우 setState 호출 방지
     setState(() => _status = '방문 기록 불러오는 중...');
     final auth = GoogleDriveAuth(); // 공통 코드로 가능
-    // await auth.logout(); // 필요시 로그아웃 테스트
+    await auth.logout(); // 필요시 로그아웃 테스트
     final token = await auth.getAccessToken();
     if (token == null) {
       if (!mounted) return;
