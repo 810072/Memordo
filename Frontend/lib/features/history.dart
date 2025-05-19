@@ -62,6 +62,7 @@ class _HistoryPageState extends State<HistoryPage> {
 
       if (res.statusCode != 200) {
         if (!mounted) return;
+        await auth.logout();
         setState(
           () => _status = 'Google Drive 파일 목록 가져오기 실패 (상태: ${res.statusCode})',
         );

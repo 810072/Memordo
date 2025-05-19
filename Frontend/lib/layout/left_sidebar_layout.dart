@@ -3,6 +3,7 @@ import '../features/meeting_screen.dart';
 import '../features/calendar_page.dart';
 import '../features/graph_page.dart';
 import '../features/history.dart';
+import '../auth/login_page.dart';
 
 /// 현재 활성 페이지를 나타내는 열거형
 enum PageType { home, calendar, graph, history }
@@ -33,30 +34,30 @@ class LeftSidebarLayout extends StatelessWidget {
       child: Column(
         children: [
           const SizedBox(height: 40),
-          if (activePage != PageType.home)
-            _sideBarIcon(
-              Icons.home,
-              () => Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (_) => const MeetingScreen()),
-              ),
+          //if (activePage != PageType.home)
+          _sideBarIcon(
+            Icons.home,
+            () => Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const MeetingScreen()),
             ),
-          if (activePage != PageType.calendar)
-            _sideBarIcon(
-              Icons.calendar_today,
-              () => Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (_) => const CalendarPage()),
-              ),
+          ),
+          //if (activePage != PageType.calendar)
+          _sideBarIcon(
+            Icons.calendar_today,
+            () => Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const CalendarPage()),
             ),
-          if (activePage != PageType.graph)
-            _sideBarIcon(
-              Icons.show_chart,
-              () => Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (_) => const GraphPage()),
-              ),
+          ),
+          //if (activePage != PageType.graph)
+          _sideBarIcon(
+            Icons.show_chart,
+            () => Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const GraphPage()),
             ),
+          ),
           _sideBarIcon(Icons.search_rounded, () => print('검색')),
           _sideBarIcon(
             Icons.history,
@@ -65,6 +66,12 @@ class LeftSidebarLayout extends StatelessWidget {
               MaterialPageRoute(builder: (_) => const HistoryPage()),
             ),
           ),
+          _sideBarIcon(Icons.logout, () {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => LoginPage()),
+            );
+          }),
         ],
       ),
     );
