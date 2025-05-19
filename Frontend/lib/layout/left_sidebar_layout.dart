@@ -34,30 +34,30 @@ class LeftSidebarLayout extends StatelessWidget {
       child: Column(
         children: [
           const SizedBox(height: 40),
-          //if (activePage != PageType.home)
-          _sideBarIcon(
-            Icons.home,
-            () => Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const MeetingScreen()),
+          if (activePage != PageType.home)
+            _sideBarIcon(
+              Icons.home,
+              () => Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (_) => const MeetingScreen()),
+              ),
             ),
-          ),
-          //if (activePage != PageType.calendar)
-          _sideBarIcon(
-            Icons.calendar_today,
-            () => Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const CalendarPage()),
+          if (activePage != PageType.calendar)
+            _sideBarIcon(
+              Icons.calendar_today,
+              () => Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (_) => const CalendarPage()),
+              ),
             ),
-          ),
-          //if (activePage != PageType.graph)
-          _sideBarIcon(
-            Icons.show_chart,
-            () => Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const GraphPage()),
+          if (activePage != PageType.graph)
+            _sideBarIcon(
+              Icons.show_chart,
+              () => Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (_) => const GraphPage()),
+              ),
             ),
-          ),
           _sideBarIcon(Icons.search_rounded, () => print('검색')),
           _sideBarIcon(
             Icons.history,
@@ -66,12 +66,18 @@ class LeftSidebarLayout extends StatelessWidget {
               MaterialPageRoute(builder: (_) => const HistoryPage()),
             ),
           ),
+          const Spacer(),
+          _sideBarIcon(
+            Icons.align_vertical_bottom_rounded,
+            () => print('하단 영역 사라졌다 나왔다 하게 하는 기능 추가 예정'),
+          ),
           _sideBarIcon(Icons.logout, () {
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(builder: (_) => LoginPage()),
             );
           }),
+          const SizedBox(height: 10),
         ],
       ),
     );
