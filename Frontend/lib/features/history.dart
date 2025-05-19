@@ -10,6 +10,7 @@ import '../layout/bottom_section.dart'; // 이 파일의 실제 경로 확인 �
 import '../services/google_drive_platform.dart';
 // import '../utils/web_crawler.dart'; // 기존 import 삭제
 import '../utils/ai_service.dart'; // 새로 만든 ai_service.dart import (경로 확인!)
+// import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class HistoryPage extends StatefulWidget {
   const HistoryPage({super.key});

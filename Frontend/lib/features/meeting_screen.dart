@@ -1,13 +1,12 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:path/path.dart' as p; // path 패키지 import 별칭 사용
-// import 'dart:html' as html;
+import 'package:path/path.dart' as p; // path 패키지 별칭
 
 import '../layout/bottom_section.dart';
 import '../layout/left_sidebar_layout.dart';
-import '../utils/web_helper.dart'; // 웹 다운로드 헬퍼
-import '../utils/ai_service.dart'; // AI 서비스 import (경로 확인!)
+import '../utils/web_helper.dart'; // 웹 다운로드용 유틸
+import '../utils/ai_service.dart'; // AI 요약 기능 API
 
 class MeetingScreen extends StatefulWidget {
   const MeetingScreen({super.key});
@@ -18,14 +17,39 @@ class MeetingScreen extends StatefulWidget {
 
 class _MeetingScreenState extends State<MeetingScreen> {
   final TextEditingController _textEditingController =
-      TextEditingController(); // 이름 변경 (더 명확하게)
-  String _saveStatus = ''; // 파일 저장 상태 메시지
-  bool _isSummarizing = false; // AI 요약 작업 진행 상태
+      TextEditingController(); // 텍스트 입력 컨트롤러
+  String _saveStatus = ''; // 저장 상태 메시지
+  bool _isSummarizing = false; // 요약 중 여부
   final GlobalKey<CollapsibleBottomSectionState> _bottomSectionKey =
       GlobalKey();
-  String? _lastSavedDirectoryPath; // 마지막 저장된 폴더 경로 저장
+  String? _lastSavedDirectoryPath; // 마지막 저장된 디렉토리 경로
 
-  /// ✅ 원하는 저장 경로 설정
+  /// ✅ 사용자 홈에 Memordo_Notes 폴더가 없으면 생성하고 경로 반환
+  Future<String> getOrCreateNoteFolderPath() async {
+    final home =
+        Platform.environment['USERPROFILE'] ?? Platform.environment['HOME'];
+
+    if (home == null) {
+      throw Exception('사용자 홈 디렉터리를 찾을 수 없습니다.');
+    }
+
+    final folderPath =
+        Platform.isMacOS
+            ? p.join(home, 'Memordo_Notes') // macOS
+            : p.join(home, 'Documents', 'Memordo_Notes'); // Windows
+
+    final directory = Directory(folderPath);
+    if (!await directory.exists()) {
+      await directory.create(recursive: true);
+      print('📁 폴더 생성됨: $folderPath');
+    } else {
+      print('📁 폴더 이미 존재함: $folderPath');
+    }
+
+    return folderPath;
+  }
+
+  /// ✅ 이전 방식: 중복됨 (필요 시 유지 가능)
   Future<String> getCustomSavePath() async {
     final home =
         Platform.environment['USERPROFILE'] ?? Platform.environment['HOME'];
@@ -34,27 +58,24 @@ class _MeetingScreenState extends State<MeetingScreen> {
       throw Exception('사용자 홈 디렉터리를 찾을 수 없습니다.');
     }
 
-    if (Platform.isMacOS || Platform.isWindows) {
-      final folderPath =
-          Platform.isMacOS
-              ? p.join(home, 'Memordo_Notes') // macOS
-              : p.join(home, 'Documents', 'Memordo_Notes'); // ✅ Windows
+    final folderPath =
+        Platform.isMacOS
+            ? p.join(home, 'Memordo_Notes')
+            : p.join(home, 'Documents', 'Memordo_Notes');
 
-      final directory = Directory(folderPath);
-      if (!await directory.exists()) {
-        await directory.create(recursive: true);
-        print('📁 폴더 생성됨: $folderPath');
-      }
-
-      return folderPath;
+    final directory = Directory(folderPath);
+    if (!await directory.exists()) {
+      await directory.create(recursive: true);
+      print('📁 폴더 생성됨: $folderPath');
     }
 
-    throw UnsupportedError('${Platform.operatingSystem}에서는 아직 지원되지 않습니다.');
+    return folderPath;
   }
 
-  /// Markdown 파일 저장 함수
+  /// ✅ Markdown 파일 저장 함수 (.md 확장자 사용)
   Future<void> _saveMarkdown() async {
     final content = _textEditingController.text;
+
     if (content.isEmpty) {
       if (!mounted) return;
       setState(() {
@@ -64,6 +85,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
     }
 
     if (kIsWeb) {
+      // 웹일 경우: 다운로드 실행
       downloadMarkdownWeb(
         content,
         'memordo_note_${DateTime.now().millisecondsSinceEpoch}.md',
@@ -73,12 +95,13 @@ class _MeetingScreenState extends State<MeetingScreen> {
         _saveStatus = "웹에서 다운로드를 시작합니다 ✅";
       });
     } else if (Platform.isMacOS || Platform.isWindows) {
+      // 데스크탑 플랫폼
       try {
-        final saveDir = await getCustomSavePath();
+        final saveDir = await getOrCreateNoteFolderPath();
         final fileName = 'note_${DateTime.now().millisecondsSinceEpoch}.md';
         final filePath = p.join(saveDir, fileName);
         final file = File(filePath);
-        _lastSavedDirectoryPath = saveDir; // ✅ 폴더 경로 저장
+        _lastSavedDirectoryPath = saveDir;
 
         await file.writeAsString(content);
         if (!mounted) return;
@@ -100,7 +123,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
     }
   }
 
-  /// 폴더 열기 함수
+  /// ✅ 폴더 탐색기 열기 함수 (플랫폼별 실행 명령)
   Future<void> openFolderInExplorer(String folderPath) async {
     final directory = Directory(folderPath);
     if (!await directory.exists()) {
@@ -119,11 +142,11 @@ class _MeetingScreenState extends State<MeetingScreen> {
     }
   }
 
-  /// --- AI 요약 처리 함수 ---
+  /// ✅ 텍스트를 AI 백엔드로 요약 요청
   Future<void> _handleSummarizeAction() async {
     if (_isSummarizing) return;
 
-    final String textToSummarize = _textEditingController.text;
+    final textToSummarize = _textEditingController.text;
 
     if (textToSummarize.trim().isEmpty) {
       _bottomSectionKey.currentState?.updateSummary('요약할 내용이 없습니다.');
@@ -177,6 +200,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
     }
   }
 
+  /// ✅ UI 정의
   @override
   Widget build(BuildContext context) {
     return LeftSidebarLayout(
@@ -217,6 +241,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.start,
                     children: [
+                      // 저장 버튼
                       ElevatedButton.icon(
                         icon: const Icon(Icons.save_alt_outlined, size: 18),
                         label: const Text('.md 파일로 저장'),
@@ -227,21 +252,33 @@ class _MeetingScreenState extends State<MeetingScreen> {
                         ),
                       ),
                       const SizedBox(width: 8),
+
+                      // 폴더 열기 버튼
                       ElevatedButton.icon(
                         icon: const Icon(Icons.folder_open, size: 18),
                         label: const Text('폴더 열기'),
-                        onPressed:
-                            _lastSavedDirectoryPath == null
-                                ? null
-                                : () => openFolderInExplorer(
-                                  _lastSavedDirectoryPath!,
-                                ),
+                        onPressed: () async {
+                          try {
+                            final path =
+                                await getOrCreateNoteFolderPath(); // ✅ 호출 괄호 오류 수정
+                            await openFolderInExplorer(path);
+                          } catch (e) {
+                            print('❌ 폴더 열기 실패: $e');
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('폴더 열기에 실패했습니다: $e')),
+                              );
+                            }
+                          }
+                        },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.blueGrey[700],
                           foregroundColor: Colors.white,
                         ),
                       ),
                       const SizedBox(width: 16),
+
+                      // 상태 메시지 출력
                       Expanded(
                         child: Text(
                           _saveStatus,
