@@ -1,12 +1,14 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:path/path.dart' as p; // path 패키지 별칭
+import 'package:path/path.dart' as p;
+import 'package:provider/provider.dart'; // Provider 임포트
 
 import '../layout/bottom_section.dart';
 import '../layout/left_sidebar_layout.dart';
-import '../utils/web_helper.dart'; // 웹 다운로드용 유틸
-import '../utils/ai_service.dart'; // AI 요약 기능 API
+import '../utils/web_helper.dart';
+import '../utils/ai_service.dart';
+import '../layout/bottom_section_controller.dart'; // 컨트롤러 임포트
 
 class MeetingScreen extends StatefulWidget {
   const MeetingScreen({super.key});
@@ -16,13 +18,13 @@ class MeetingScreen extends StatefulWidget {
 }
 
 class _MeetingScreenState extends State<MeetingScreen> {
-  final TextEditingController _textEditingController =
-      TextEditingController(); // 텍스트 입력 컨트롤러
-  String _saveStatus = ''; // 저장 상태 메시지
-  bool _isSummarizing = false; // 요약 중 여부
-  final GlobalKey<CollapsibleBottomSectionState> _bottomSectionKey =
-      GlobalKey();
-  String? _lastSavedDirectoryPath; // 마지막 저장된 디렉토리 경로
+  final TextEditingController _textEditingController = TextEditingController();
+  String _saveStatus = '';
+  // _isSummarizing은 이제 BottomSectionController에서 관리됩니다.
+  // bool _isSummarizing = false;
+  // GlobalKey 대신 BottomSectionController를 직접 사용합니다.
+  // final GlobalKey<CollapsibleBottomSectionState> _bottomSectionKey = GlobalKey();
+  String? _lastSavedDirectoryPath;
 
   /// ✅ 사용자 홈에 Memordo_Notes 폴더가 없으면 생성하고 경로 반환
   Future<String> getOrCreateNoteFolderPath() async {
@@ -35,8 +37,8 @@ class _MeetingScreenState extends State<MeetingScreen> {
 
     final folderPath =
         Platform.isMacOS
-            ? p.join(home, 'Memordo_Notes') // macOS
-            : p.join(home, 'Documents', 'Memordo_Notes'); // Windows
+            ? p.join(home, 'Memordo_Notes')
+            : p.join(home, 'Documents', 'Memordo_Notes');
 
     final directory = Directory(folderPath);
     if (!await directory.exists()) {
@@ -85,7 +87,6 @@ class _MeetingScreenState extends State<MeetingScreen> {
     }
 
     if (kIsWeb) {
-      // 웹일 경우: 다운로드 실행
       downloadMarkdownWeb(
         content,
         'memordo_note_${DateTime.now().millisecondsSinceEpoch}.md',
@@ -95,7 +96,6 @@ class _MeetingScreenState extends State<MeetingScreen> {
         _saveStatus = "웹에서 다운로드를 시작합니다 ✅";
       });
     } else if (Platform.isMacOS || Platform.isWindows) {
-      // 데스크탑 플랫폼
       try {
         final saveDir = await getOrCreateNoteFolderPath();
         final fileName = 'note_${DateTime.now().millisecondsSinceEpoch}.md';
@@ -144,12 +144,18 @@ class _MeetingScreenState extends State<MeetingScreen> {
 
   /// ✅ 텍스트를 AI 백엔드로 요약 요청
   Future<void> _handleSummarizeAction() async {
-    if (_isSummarizing) return;
+    // BottomSectionController 인스턴스 가져오기
+    final bottomController = Provider.of<BottomSectionController>(
+      context,
+      listen: false,
+    );
+
+    if (bottomController.isLoading) return;
 
     final textToSummarize = _textEditingController.text;
 
     if (textToSummarize.trim().isEmpty) {
-      _bottomSectionKey.currentState?.updateSummary('요약할 내용이 없습니다.');
+      bottomController.updateSummary('요약할 내용이 없습니다.');
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('요약할 내용을 먼저 입력해주세요.'),
@@ -160,13 +166,8 @@ class _MeetingScreenState extends State<MeetingScreen> {
     }
 
     if (!mounted) return;
-    setState(() {
-      _isSummarizing = true;
-    });
-
-    _bottomSectionKey.currentState?.updateSummary(
-      '텍스트 요약 중...\n입력된 내용 길이: ${textToSummarize.length}',
-    );
+    bottomController.setIsLoading(true); // 로딩 상태 시작
+    bottomController.updateSummary(''); // 기존 요약 내용 초기화
 
     String? summary;
     try {
@@ -179,12 +180,8 @@ class _MeetingScreenState extends State<MeetingScreen> {
       summary = '요약 중 오류가 발생했습니다: $e';
     } finally {
       if (!mounted) return;
-      _bottomSectionKey.currentState?.updateSummary(
-        summary ?? '요약에 실패했거나 내용이 없습니다.',
-      );
-      setState(() {
-        _isSummarizing = false;
-      });
+      bottomController.updateSummary(summary ?? '요약에 실패했거나 내용이 없습니다.');
+      bottomController.setIsLoading(false); // 로딩 상태 종료
     }
 
     if (summary == null || summary.contains("오류") || summary.contains("실패")) {
@@ -203,6 +200,9 @@ class _MeetingScreenState extends State<MeetingScreen> {
   /// ✅ UI 정의
   @override
   Widget build(BuildContext context) {
+    // BottomSectionController 인스턴스 가져오기 (listen: true로 변화 감지)
+    final bottomController = Provider.of<BottomSectionController>(context);
+
     return LeftSidebarLayout(
       activePage: PageType.home,
       child: Column(
@@ -241,7 +241,6 @@ class _MeetingScreenState extends State<MeetingScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.start,
                     children: [
-                      // 저장 버튼
                       ElevatedButton.icon(
                         icon: const Icon(Icons.save_alt_outlined, size: 18),
                         label: const Text('.md 파일로 저장'),
@@ -253,14 +252,12 @@ class _MeetingScreenState extends State<MeetingScreen> {
                       ),
                       const SizedBox(width: 8),
 
-                      // 폴더 열기 버튼
                       ElevatedButton.icon(
                         icon: const Icon(Icons.folder_open, size: 18),
                         label: const Text('폴더 열기'),
                         onPressed: () async {
                           try {
-                            final path =
-                                await getOrCreateNoteFolderPath(); // ✅ 호출 괄호 오류 수정
+                            final path = await getOrCreateNoteFolderPath();
                             await openFolderInExplorer(path);
                           } catch (e) {
                             print('❌ 폴더 열기 실패: $e');
@@ -278,7 +275,6 @@ class _MeetingScreenState extends State<MeetingScreen> {
                       ),
                       const SizedBox(width: 16),
 
-                      // 상태 메시지 출력
                       Expanded(
                         child: Text(
                           _saveStatus,
@@ -296,9 +292,9 @@ class _MeetingScreenState extends State<MeetingScreen> {
             ),
           ),
           CollapsibleBottomSection(
-            key: _bottomSectionKey,
-            onSummarizePressed: _isSummarizing ? null : _handleSummarizeAction,
-            isLoading: _isSummarizing,
+            // key는 더 이상 필요 없습니다.
+            onSummarizePressed:
+                bottomController.isLoading ? null : _handleSummarizeAction,
           ),
         ],
       ),

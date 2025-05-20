@@ -4,13 +4,12 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
-import '../layout/left_sidebar_layout.dart'; // 이 파일의 실제 경로 확인 필요
-import '../layout/bottom_section.dart'; // 이 파일의 실제 경로 확인 필요
-// import '../services/google_drive_auth.dart'; // 이 파일의 실제 경로 확인 필요
+import 'package:provider/provider.dart'; // Provider 임포트
+import '../layout/left_sidebar_layout.dart';
+import '../layout/bottom_section.dart';
 import '../services/google_drive_platform.dart';
-// import '../utils/web_crawler.dart'; // 기존 import 삭제
-import '../utils/ai_service.dart'; // 새로 만든 ai_service.dart import (경로 확인!)
-// import 'package:flutter_dotenv/flutter_dotenv.dart';
+import '../utils/ai_service.dart';
+import '../layout/bottom_section_controller.dart'; // 컨트롤러 임포트
 
 class HistoryPage extends StatefulWidget {
   const HistoryPage({super.key});
@@ -23,15 +22,13 @@ class _HistoryPageState extends State<HistoryPage> {
   List<Map<String, dynamic>> _visitHistory = [];
   final Set<String> _selectedTimestamps = {};
   String _status = '불러오는 중...';
-  final folderId =
-      '18gvXku0NzRbFrWJtsuI52dX0IJq_IE1f'; // Google Drive 폴더 ID는 필요시 사용
-  // 실제 사용하시는 폴더 ID로 유지하거나, 다른 방식으로 관리할 수 있습니다.
-  // 예시에서는 Google Drive 연동 로직은 그대로 유지합니다.
-  // final String folderId = 'YOUR_GOOGLE_DRIVE_FOLDER_ID'; // 여기에 실제 폴더 ID를 입력하세요.
-  final GlobalKey<CollapsibleBottomSectionState> _bottomSectionKey =
-      GlobalKey();
+  final folderId = '18gvXku0NzRbFrWJtsuI52dX0IJq_IE1f';
 
-  bool _isSummarizing = false; // 요약 중 상태 표시를 위한 변수
+  // GlobalKey 대신 BottomSectionController를 직접 사용합니다.
+  // final GlobalKey<CollapsibleBottomSectionState> _bottomSectionKey = GlobalKey();
+
+  // _isSummarizing은 이제 BottomSectionController에서 관리됩니다.
+  // bool _isSummarizing = false;
 
   @override
   void initState() {
@@ -40,10 +37,11 @@ class _HistoryPageState extends State<HistoryPage> {
   }
 
   Future<void> _loadVisitHistory() async {
-    if (!mounted) return; // 위젯이 dispose된 경우 setState 호출 방지
+    // mounted 검사는 여전히 중요합니다.
+    if (!mounted) return;
     setState(() => _status = '방문 기록 불러오는 중...');
-    final auth = GoogleDriveAuth(); // 공통 코드로 가능
-    // await auth.logout(); // 필요시 로그아웃 테스트
+    // ... 기존 _loadVisitHistory 로직 ...
+    final auth = GoogleDriveAuth();
     final token = await auth.getAccessToken();
     if (token == null) {
       if (!mounted) return;
@@ -53,7 +51,7 @@ class _HistoryPageState extends State<HistoryPage> {
 
     try {
       final url = Uri.parse(
-        'https://www.googleapis.com/drive/v3/files?q=%27$folderId%27+in+parents+and+name+contains+%27.jsonl%27&orderBy=createdTime+desc&pageSize=10', // pageSize 늘려서 여러 파일 고려 가능
+        'https://www.googleapis.com/drive/v3/files?q=%27$folderId%27+in+parents+and+name+contains+%27.jsonl%27&orderBy=createdTime+desc&pageSize=10',
       );
       final res = await http.get(
         url,
@@ -77,8 +75,6 @@ class _HistoryPageState extends State<HistoryPage> {
         return;
       }
 
-      // 여러 .jsonl 파일을 병합하거나, 가장 최신 파일 하나만 사용할 수 있습니다.
-      // 여기서는 가장 최신 파일 하나를 사용합니다.
       final fileId = data['files'][0]['id'];
       final history = await _downloadAndParseJsonl(token, fileId);
 
@@ -111,24 +107,30 @@ class _HistoryPageState extends State<HistoryPage> {
       throw Exception('파일 다운로드 실패 (상태: ${res.statusCode})');
     }
 
-    final body = utf8.decode(res.bodyBytes); // UTF-8로 디코딩
+    final body = utf8.decode(res.bodyBytes);
     final lines = const LineSplitter().convert(body);
     return lines
-        .where((line) => line.trim().isNotEmpty) // 빈 줄 제외
+        .where((line) => line.trim().isNotEmpty)
         .map<Map<String, dynamic>>((l) {
           try {
             return jsonDecode(l) as Map<String, dynamic>;
           } catch (e) {
             print("JSONL 파싱 오류: '$l', 오류: $e");
-            return {}; // 파싱 오류 시 빈 맵 반환 또는 오류 처리
+            return {};
           }
         })
-        .where((item) => item.isNotEmpty) // 파싱 오류로 빈 맵이 된 경우 제외
+        .where((item) => item.isNotEmpty)
         .toList();
   }
 
   void _handleSummarizeAction() async {
-    if (_isSummarizing) return; // 이미 요약 중이면 중복 실행 방지
+    // BottomSectionController 인스턴스 가져오기
+    final bottomController = Provider.of<BottomSectionController>(
+      context,
+      listen: false,
+    );
+
+    if (bottomController.isLoading) return; // 이미 요약 중이면 중복 실행 방지
 
     if (_selectedTimestamps.length == 1) {
       final selectedTimestamp = _selectedTimestamps.first;
@@ -144,23 +146,20 @@ class _HistoryPageState extends State<HistoryPage> {
 
       if (selectedUrl != null && selectedUrl.isNotEmpty) {
         if (!mounted) return;
-        setState(() {
-          _isSummarizing = true; // 요약 시작 상태
-          _bottomSectionKey.currentState?.updateSummary(
-            'URL 요약 중...\n$selectedUrl',
-          );
-        });
 
-        // ai_service.dart의 함수 호출로 변경
+        bottomController.setIsLoading(true); // 로딩 상태 시작
+        bottomController.updateSummary(
+          '',
+        ); // 기존 요약 내용 초기화 (CollapsibleBottomSection이 '요약 중...' 표시)
+        bottomController.updateSummary(
+          'URL 요약 중...\n$selectedUrl',
+        ); // URL 요약 중 메시지 표시
+
         final String? summary = await crawlAndSummarizeUrl(selectedUrl);
 
         if (!mounted) return; // 비동기 작업 후 위젯 상태 확인
-        _bottomSectionKey.currentState?.updateSummary(
-          summary ?? '요약에 실패했거나 내용이 없습니다.',
-        );
-        setState(() {
-          _isSummarizing = false; // 요약 완료 상태
-        });
+        bottomController.updateSummary(summary ?? '요약에 실패했거나 내용이 없습니다.');
+        bottomController.setIsLoading(false); // 로딩 상태 종료
 
         if (summary == null ||
             summary.contains("오류") ||
@@ -197,7 +196,6 @@ class _HistoryPageState extends State<HistoryPage> {
 
   @override
   Widget build(BuildContext context) {
-    // 방문 기록을 날짜별로 그룹화
     final Map<String, List<Map<String, dynamic>>> groupedByDate = {};
     for (var item in _visitHistory) {
       final timestamp = item['timestamp'] ?? item['visitTime']?.toString();
@@ -206,12 +204,14 @@ class _HistoryPageState extends State<HistoryPage> {
       groupedByDate.putIfAbsent(date, () => []).add(item);
     }
 
-    // 날짜 최신순으로 정렬
     final sortedDates =
         groupedByDate.keys.toList()..sort((a, b) => b.compareTo(a));
 
+    // BottomSectionController 인스턴스 가져오기 (listen: true로 변화 감지)
+    final bottomController = Provider.of<BottomSectionController>(context);
+
     return LeftSidebarLayout(
-      activePage: PageType.history, // PageType은 정의된 enum 값 사용
+      activePage: PageType.history,
       child: Column(
         children: [
           Container(
@@ -238,21 +238,20 @@ class _HistoryPageState extends State<HistoryPage> {
                       ),
                     )
                     : _visitHistory.isEmpty
-                    ? Center(child: Text(_status)) // '파일 없음' 또는 '오류' 메시지
+                    ? Center(child: Text(_status))
                     : ListView.builder(
                       itemCount: sortedDates.length,
                       itemBuilder: (context, index) {
                         final date = sortedDates[index];
                         final itemsOnDate =
                             groupedByDate[date]!..sort((a, b) {
-                              // 날짜 내에서는 시간 역순으로 정렬
                               final at =
                                   a['timestamp'] ?? a['visitTime']?.toString();
                               final bt =
                                   b['timestamp'] ?? b['visitTime']?.toString();
                               if (at == null && bt == null) return 0;
-                              if (at == null) return 1; // null을 뒤로
-                              if (bt == null) return -1; // null을 뒤로
+                              if (at == null) return 1;
+                              if (bt == null) return -1;
                               return bt.compareTo(at);
                             });
 
@@ -287,9 +286,9 @@ class _HistoryPageState extends State<HistoryPage> {
                                     .contains(timestamp);
                                 return ListTile(
                                   leading: Padding(
-                                    padding: EdgeInsets.zero, // 원하는 여백 설정
+                                    padding: EdgeInsets.zero,
                                     child: Transform.scale(
-                                      scale: 0.9, // 크기 축소
+                                      scale: 0.9,
                                       child: Checkbox(
                                         value: isChecked,
                                         activeColor: Colors.deepPurple,
@@ -328,10 +327,8 @@ class _HistoryPageState extends State<HistoryPage> {
                                         text: url,
                                         style: TextStyle(
                                           fontSize: 12,
-                                          color: Colors.blue, // 테마 색상 사용
-                                          decoration:
-                                              TextDecoration
-                                                  .none, // 밑줄 제거는 onTap으로
+                                          color: Colors.blue,
+                                          decoration: TextDecoration.none,
                                         ),
                                         recognizer:
                                             TapGestureRecognizer()
@@ -372,7 +369,7 @@ class _HistoryPageState extends State<HistoryPage> {
                                   contentPadding: EdgeInsets.symmetric(
                                     horizontal: 0,
                                     vertical: 0,
-                                  ), // 내부 패딩 조절
+                                  ),
                                 );
                               }).toList(),
                               if (index < sortedDates.length - 1)
@@ -384,12 +381,9 @@ class _HistoryPageState extends State<HistoryPage> {
                     ),
           ),
           CollapsibleBottomSection(
-            key: _bottomSectionKey,
+            // 로딩 상태는 이제 BottomSectionController에서 관리됩니다.
             onSummarizePressed:
-                _isSummarizing
-                    ? null
-                    : _handleSummarizeAction, // 요약 중일 때 버튼 비활성화
-            isLoading: _isSummarizing, // 로딩 상태 전달
+                bottomController.isLoading ? null : _handleSummarizeAction,
           ),
         ],
       ),
@@ -402,44 +396,22 @@ class _HistoryPageState extends State<HistoryPage> {
       const weekdays = ['월', '화', '수', '목', '금', '토', '일'];
       return '${date.year}년 ${date.month}월 ${date.day}일 (${weekdays[date.weekday - 1]})';
     } catch (_) {
-      return yyyyMMdd; // 파싱 실패 시 원본 반환
+      return yyyyMMdd;
     }
   }
 
   String _formatTime(String? isoString) {
     if (isoString == null) return '';
     try {
-      final dateTime = DateTime.parse(isoString).toLocal(); // 로컬 시간대로 변환
+      final dateTime = DateTime.parse(isoString).toLocal();
       final hour12 = dateTime.hour % 12 == 0 ? 12 : dateTime.hour % 12;
-      final ampm =
-          dateTime.hour < 12 || dateTime.hour == 24
-              ? '오전'
-              : '오후'; // 24시(자정)도 오전으로
+      final ampm = dateTime.hour < 12 || dateTime.hour == 24 ? '오전' : '오후';
       final minute = dateTime.minute.toString().padLeft(2, '0');
       return '$ampm $hour12:$minute';
     } catch (_) {
-      // ISO 문자열이 아닌 다른 형식의 시간 정보일 수 있음 (예: HH:mm:ss)
-      // 간단히 원본 반환하거나, 추가적인 시간 포맷 파싱 로직 필요
       return isoString.length > 5
           ? isoString.substring(isoString.length - 8, isoString.length - 3)
           : isoString;
     }
   }
 }
-
-// CollapsibleBottomSection 위젯과 LeftSidebarLayout 위젯, PageType enum의 정의가 필요합니다.
-// 예시:
-// enum PageType { home, history, settings }
-// class CollapsibleBottomSectionState extends State<CollapsibleBottomSection> {
-//   void updateSummary(String summary) { /* ... */ }
-//   @override
-//   Widget build(BuildContext context) { return Container(); }
-// }
-// class CollapsibleBottomSection extends StatefulWidget {
-//   final GlobalKey<CollapsibleBottomSectionState>? key;
-//   final VoidCallback? onSummarizePressed;
-//   final bool isLoading;
-//   const CollapsibleBottomSection({this.key, this.onSummarizePressed, this.isLoading = false}) : super(key: key);
-//   @override
-//   CollapsibleBottomSectionState createState() => CollapsibleBottomSectionState();
-// }

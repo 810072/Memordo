@@ -1,9 +1,12 @@
+// lib/layout/left_sidebar_layout.dart
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart'; // Provider 임포트
 import '../features/meeting_screen.dart';
 import '../features/calendar_page.dart';
 import '../features/graph_page.dart';
 import '../features/history.dart';
 import '../auth/login_page.dart';
+import 'bottom_section_controller.dart'; // 컨트롤러 임포트
 
 /// 현재 활성 페이지를 나타내는 열거형
 enum PageType { home, calendar, graph, history }
@@ -28,6 +31,12 @@ class LeftSidebarLayout extends StatelessWidget {
 
   // 좌측 사이드바 (아이콘을 통해 페이지 전환, 현재 활성 페이지의 아이콘는 표시하지 않음)
   Widget _buildSideBar(BuildContext context) {
+    // BottomSectionController 인스턴스 가져오기
+    final bottomController = Provider.of<BottomSectionController>(
+      context,
+      listen: false,
+    );
+
     return Container(
       width: 45,
       color: Colors.grey[200],
@@ -67,10 +76,10 @@ class LeftSidebarLayout extends StatelessWidget {
             ),
           ),
           const Spacer(),
-          _sideBarIcon(
-            Icons.align_vertical_bottom_rounded,
-            () => print('하단 영역 사라졌다 나왔다 하게 하는 기능 추가 예정'),
-          ),
+          // 하단 영역 토글 버튼
+          _sideBarIcon(Icons.align_vertical_bottom_rounded, () {
+            bottomController.toggleVisibility(); // 하단 영역 가시성 토글
+          }),
           _sideBarIcon(Icons.logout, () {
             Navigator.pushReplacement(
               context,
