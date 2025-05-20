@@ -174,7 +174,7 @@ class CollapsibleBottomSectionState extends State<CollapsibleBottomSection> {
                               : controller
                                   .summaryText
                                   .isEmpty // 로딩 중이 아니면서 텍스트가 비어있을 때
-                              ? '"내용 요약" 버튼을 누르세요.'
+                              ? '요약할 항목을 히스토리에서 선택 후 "내용 요약" 버튼을 누르세요.'
                               : controller.summaryText, // 실제 요약 내용
                           style: TextStyle(
                             fontSize: 14,
