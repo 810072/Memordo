@@ -8,7 +8,8 @@ import 'package:html/parser.dart' as parser; // HTML 파싱
 
 // --- 환경 설정 ---
 // .env 파일에 PYTHON_BACKEND_URL=http://10.0.2.2:5000 와 같이 정의
-final String _pythonBackendBaseUrl = dotenv.env['PYTHON_BACKEND_URL'] ?? 'http://localhost:5000';
+final String _pythonBackendBaseUrl =
+    dotenv.env['PYTHON_BACKEND_URL'] ?? 'http://localhost:5001';
 // === Python 백엔드 API 호출 함수 ===
 
 /// 범용 작업을 Python 백엔드에 요청합니다. (요약, 메모, 키워드, 일반 채팅 등)
@@ -23,31 +24,34 @@ Future<String?> callBackendTask({
 }) async {
   final Uri url = Uri.parse('$_pythonBackendBaseUrl/api/execute_task');
   final Map<String, String> headers = {'Content-Type': 'application/json'};
-  final Map<String, dynamic> body = {
-    'task_type': taskType,
-    'text': text,
-  };
+  final Map<String, dynamic> body = {'task_type': taskType, 'text': text};
   if (model != null) {
     body['model'] = model;
   }
 
   print('[AI_SERVICE] Backend Task Request: ${url.toString()}');
-  print('[AI_SERVICE] Task Type: $taskType, Text (간략히): ${text.substring(0, text.length > 50 ? 50 : text.length)}...');
+  print(
+    '[AI_SERVICE] Task Type: $taskType, Text (간략히): ${text.substring(0, text.length > 50 ? 50 : text.length)}...',
+  );
 
   try {
-    final response = await http.post(
-      url,
-      headers: headers,
-      body: jsonEncode(body),
-    ).timeout(const Duration(seconds: 180)); // AI 작업은 시간이 걸릴 수 있으므로 타임아웃 설정
+    final response = await http
+        .post(url, headers: headers, body: jsonEncode(body))
+        .timeout(const Duration(seconds: 180)); // AI 작업은 시간이 걸릴 수 있으므로 타임아웃 설정
 
     if (response.statusCode == 200) {
-      final data = jsonDecode(utf8.decode(response.bodyBytes)); // 한글 응답을 위해 UTF-8 디코딩
+      final data = jsonDecode(
+        utf8.decode(response.bodyBytes),
+      ); // 한글 응답을 위해 UTF-8 디코딩
       final String? result = data['result']?.toString().trim();
-      print('[AI_SERVICE] Backend Task Success. Result (간략히): ${result?.substring(0, result.length > 50 ? 50 : result.length)}...');
+      print(
+        '[AI_SERVICE] Backend Task Success. Result (간략히): ${result?.substring(0, result.length > 50 ? 50 : result.length)}...',
+      );
       return result;
     } else {
-      print('[AI_SERVICE] ❌ Backend Task Failed (${response.statusCode}) for task: $taskType');
+      print(
+        '[AI_SERVICE] ❌ Backend Task Failed (${response.statusCode}) for task: $taskType',
+      );
       try {
         final errorData = jsonDecode(utf8.decode(response.bodyBytes));
         print('[AI_SERVICE] Error Body: $errorData');
@@ -58,7 +62,9 @@ Future<String?> callBackendTask({
       }
     }
   } catch (e) {
-    print('[AI_SERVICE] ❌ Exception during Backend Task Call for task $taskType: $e');
+    print(
+      '[AI_SERVICE] ❌ Exception during Backend Task Call for task $taskType: $e',
+    );
     return "통신 중 예외 발생: $e";
   }
 }
@@ -70,21 +76,25 @@ String _adjustUrlIfNaverBlog(String url) {
   final uri = Uri.tryParse(url);
   if (uri != null &&
       uri.host.contains('blog.naver.com') &&
-      uri.pathSegments.isNotEmpty) { // pathSegments가 최소 1개 이상 있어야 logNo 등을 참조 가능
+      uri.pathSegments.isNotEmpty) {
+    // pathSegments가 최소 1개 이상 있어야 logNo 등을 참조 가능
     String blogId = "";
     String logNo = "";
 
-    if (uri.pathSegments.length >= 2 && uri.pathSegments[0].isNotEmpty && uri.pathSegments[1].isNotEmpty) {
-        blogId = uri.pathSegments[0];
-        logNo = uri.pathSegments[1];
-    } else if (uri.queryParameters.containsKey('blogId') && uri.queryParameters.containsKey('logNo')) {
-        // 모바일 URL 등에서 blogId와 logNo가 쿼리 파라미터로 오는 경우
-        blogId = uri.queryParameters['blogId']!;
-        logNo = uri.queryParameters['logNo']!;
+    if (uri.pathSegments.length >= 2 &&
+        uri.pathSegments[0].isNotEmpty &&
+        uri.pathSegments[1].isNotEmpty) {
+      blogId = uri.pathSegments[0];
+      logNo = uri.pathSegments[1];
+    } else if (uri.queryParameters.containsKey('blogId') &&
+        uri.queryParameters.containsKey('logNo')) {
+      // 모바일 URL 등에서 blogId와 logNo가 쿼리 파라미터로 오는 경우
+      blogId = uri.queryParameters['blogId']!;
+      logNo = uri.queryParameters['logNo']!;
     } else {
-        // blogId와 logNo를 찾을 수 없는 경우 원본 URL 반환
-        print('[AI_SERVICE] 네이버 블로그 URL 형식이지만 blogId, logNo 추출 불가: $url');
-        return url;
+      // blogId와 logNo를 찾을 수 없는 경우 원본 URL 반환
+      print('[AI_SERVICE] 네이버 블로그 URL 형식이지만 blogId, logNo 추출 불가: $url');
+      return url;
     }
     // 네이버는 PostView.naver로 요청하면 내부적으로 리다이렉션 처리하기도 함.
     // 혹은 직접 PostView.nhn 이나 최신 포맷으로 구성.
@@ -104,13 +114,27 @@ String _extractTextFromHtml(String htmlBody) {
   textBuffer.writeln('웹 페이지 제목: $title\n');
 
   // 주요 콘텐츠 영역 우선 탐색 (더 많은 선택자 추가 가능)
-  final mainSelectors = ['article', 'main', '.post-content', '#articleBodyContents', '#content', '.tds-main'];
+  final mainSelectors = [
+    'article',
+    'main',
+    '.post-content',
+    '#articleBodyContents',
+    '#content',
+    '.tds-main',
+  ];
   bool mainContentLoaded = false;
   for (String selector in mainSelectors) {
     document.querySelectorAll(selector).forEach((element) {
       // 스크립트, 스타일 태그 내용 제외
-      element.querySelectorAll('script, style, noscript, iframe, nav, footer, header, .advertisement, .ads').forEach((e) => e.remove());
-      String elementText = element.text.trim().replaceAllMapped(RegExp(r'\s{2,}'), (match) => ' ');
+      element
+          .querySelectorAll(
+            'script, style, noscript, iframe, nav, footer, header, .advertisement, .ads',
+          )
+          .forEach((e) => e.remove());
+      String elementText = element.text.trim().replaceAllMapped(
+        RegExp(r'\s{2,}'),
+        (match) => ' ',
+      );
       if (elementText.isNotEmpty) {
         textBuffer.writeln(elementText);
         mainContentLoaded = true;
@@ -122,14 +146,22 @@ String _extractTextFromHtml(String htmlBody) {
   // 주요 콘텐츠가 없으면 body 전체에서 p, div 태그 위주로 추출 (노이즈 많을 수 있음)
   if (!mainContentLoaded) {
     document.body?.querySelectorAll('p, div, li, span').forEach((element) {
-      element.querySelectorAll('script, style, noscript, iframe, nav, footer, header, .advertisement, .ads').forEach((e) => e.remove());
-      String elementText = element.text.trim().replaceAllMapped(RegExp(r'\s{2,}'), (match) => ' ');
-      if (elementText.length > 30) { // 너무 짧은 텍스트는 제외 (노이즈 줄이기)
+      element
+          .querySelectorAll(
+            'script, style, noscript, iframe, nav, footer, header, .advertisement, .ads',
+          )
+          .forEach((e) => e.remove());
+      String elementText = element.text.trim().replaceAllMapped(
+        RegExp(r'\s{2,}'),
+        (match) => ' ',
+      );
+      if (elementText.length > 30) {
+        // 너무 짧은 텍스트는 제외 (노이즈 줄이기)
         textBuffer.writeln(elementText);
       }
     });
   }
-  
+
   String result = textBuffer.toString().trim();
   // 연속된 개행 문자 정리
   result = result.replaceAll(RegExp(r'\n\s*\n'), '\n\n');
@@ -143,10 +175,14 @@ Future<String?> crawlAndSummarizeUrl(String urlString) async {
     final String adjustedUrl = _adjustUrlIfNaverBlog(urlString);
     print('[AI_SERVICE] 🌐 최종 크롤링 URL: $adjustedUrl');
 
-    final response = await http.get(Uri.parse(adjustedUrl)).timeout(const Duration(seconds: 30));
+    final response = await http
+        .get(Uri.parse(adjustedUrl))
+        .timeout(const Duration(seconds: 30));
 
     if (response.statusCode == 200) {
-      print('[AI_SERVICE] ✅ 웹 페이지 HTML 수신 성공 (길이: ${response.bodyBytes.length}). 파싱 및 텍스트 추출 중...');
+      print(
+        '[AI_SERVICE] ✅ 웹 페이지 HTML 수신 성공 (길이: ${response.bodyBytes.length}). 파싱 및 텍스트 추출 중...',
+      );
       // UTF-8로 먼저 시도, 안되면 meta 태그의 charset 확인 또는 다른 인코딩 시도 (http 패키지는 보통 알아서 처리)
       String htmlBody;
       try {
@@ -163,13 +199,16 @@ Future<String?> crawlAndSummarizeUrl(String urlString) async {
 
       final String extractedText = _extractTextFromHtml(htmlBody);
 
-      if (extractedText.isEmpty || extractedText.length < 50) { // 요약할 내용이 너무 적은 경우
+      if (extractedText.isEmpty || extractedText.length < 50) {
+        // 요약할 내용이 너무 적은 경우
         print('[AI_SERVICE] ⚠️ 웹 페이지에서 요약할 충분한 텍스트를 추출하지 못했습니다.');
         return "웹 페이지에서 요약할 내용을 충분히 추출하지 못했습니다.";
       }
 
-      print('[AI_SERVICE] 📄 추출된 텍스트 길이: ${extractedText.length}. 백엔드에 요약 요청...');
-      
+      print(
+        '[AI_SERVICE] 📄 추출된 텍스트 길이: ${extractedText.length}. 백엔드에 요약 요청...',
+      );
+
       // 길이 제한 (백엔드 또는 Gemini 모델의 최대 토큰 제한 고려)
       const maxLengthForApi = 150000; // 예시: 15만자 (실제로는 토큰 기반이어야 함)
       String textToSummarize = extractedText;
@@ -184,7 +223,9 @@ Future<String?> crawlAndSummarizeUrl(String urlString) async {
         text: textToSummarize,
       );
     } else {
-      print('[AI_SERVICE] ❌ 웹 페이지 요청 실패: ${response.statusCode} for $adjustedUrl');
+      print(
+        '[AI_SERVICE] ❌ 웹 페이지 요청 실패: ${response.statusCode} for $adjustedUrl',
+      );
       return "웹 페이지를 가져오는 데 실패했습니다 (상태 코드: ${response.statusCode}).";
     }
   } catch (e, s) {

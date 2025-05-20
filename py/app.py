@@ -330,4 +330,4 @@ if __name__ == '__main__':
     # host='0.0.0.0'은 모든 네트워크 인터페이스에서 접속 허용 (개발 시 편리, 실제 배포 시 보안 고려)
     # debug=True는 개발 중에만 사용, 코드 변경 시 자동 재시작 및 디버깅 정보 제공
     print("Flask 서버를 시작합니다...")
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5001, debug=True)

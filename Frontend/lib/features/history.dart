@@ -22,7 +22,14 @@ class _HistoryPageState extends State<HistoryPage> {
   List<Map<String, dynamic>> _visitHistory = [];
   final Set<String> _selectedTimestamps = {};
   String _status = '불러오는 중...';
-  final folderId = '18gvXku0NzRbFrWJtsuI52dX0IJq_IE1f';
+
+  // final folderId = '18gvXku0NzRbFrWJtsuI52dX0IJq_IE1f'; // Google Drive 폴더 ID는 필요시 사용
+  // 실제 사용하시는 폴더 ID로 유지하거나, 다른 방식으로 관리할 수 있습니다.
+  // 예시에서는 Google Drive 연동 로직은 그대로 유지합니다.
+  final String folderId =
+      '1q0swdZkkZ_QIDnDnCK3EgJeWkQB3O5gb'; // 여기에 실제 폴더 ID를 입력하세요.
+  final GlobalKey<CollapsibleBottomSectionState> _bottomSectionKey =
+      GlobalKey();
 
   // GlobalKey 대신 BottomSectionController를 직접 사용합니다.
   // final GlobalKey<CollapsibleBottomSectionState> _bottomSectionKey = GlobalKey();
@@ -60,7 +67,9 @@ class _HistoryPageState extends State<HistoryPage> {
 
       if (res.statusCode != 200) {
         if (!mounted) return;
+
         await auth.logout();
+
         setState(
           () => _status = 'Google Drive 파일 목록 가져오기 실패 (상태: ${res.statusCode})',
         );
@@ -146,7 +155,6 @@ class _HistoryPageState extends State<HistoryPage> {
 
       if (selectedUrl != null && selectedUrl.isNotEmpty) {
         if (!mounted) return;
-
         bottomController.setIsLoading(true); // 로딩 상태 시작
         bottomController.updateSummary(
           '',
@@ -267,11 +275,14 @@ class _HistoryPageState extends State<HistoryPage> {
                                 _formatDateKorean(date),
                                 style: const TextStyle(
                                   fontSize: 15,
+
                                   fontWeight: FontWeight.bold,
                                   color: Colors.blueGrey,
                                 ),
                               ),
+
                               const SizedBox(height: 0),
+
                               ...itemsOnDate.map((item) {
                                 final title =
                                     item['title']?.toString() ??
@@ -314,6 +325,7 @@ class _HistoryPageState extends State<HistoryPage> {
                                     title,
                                     style: const TextStyle(
                                       fontSize: 13,
+
                                       fontWeight: FontWeight.w500,
                                       overflow: TextOverflow.ellipsis,
                                     ),
@@ -327,6 +339,7 @@ class _HistoryPageState extends State<HistoryPage> {
                                         text: url,
                                         style: TextStyle(
                                           fontSize: 12,
+
                                           color: Colors.blue,
                                           decoration: TextDecoration.none,
                                         ),
