@@ -1,14 +1,16 @@
+// lib/features/meeting_screen.dart
 import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
-import 'package:provider/provider.dart'; // Provider 임포트
+import 'package:provider/provider.dart';
+import 'package:file_picker/file_picker.dart'; // file_picker 임포트
 
 import '../layout/bottom_section.dart';
 import '../layout/left_sidebar_layout.dart';
 import '../utils/web_helper.dart';
 import '../utils/ai_service.dart';
-import '../layout/bottom_section_controller.dart'; // 컨트롤러 임포트
+import '../layout/bottom_section_controller.dart';
 
 class MeetingScreen extends StatefulWidget {
   const MeetingScreen({super.key});
@@ -20,10 +22,6 @@ class MeetingScreen extends StatefulWidget {
 class _MeetingScreenState extends State<MeetingScreen> {
   final TextEditingController _textEditingController = TextEditingController();
   String _saveStatus = '';
-  // _isSummarizing은 이제 BottomSectionController에서 관리됩니다.
-  // bool _isSummarizing = false;
-  // GlobalKey 대신 BottomSectionController를 직접 사용합니다.
-  // final GlobalKey<CollapsibleBottomSectionState> _bottomSectionKey = GlobalKey();
   String? _lastSavedDirectoryPath;
 
   /// ✅ 사용자 홈에 Memordo_Notes 폴더가 없으면 생성하고 경로 반환
@@ -87,6 +85,8 @@ class _MeetingScreenState extends State<MeetingScreen> {
     }
 
     if (kIsWeb) {
+      // 웹 환경에서는 downloadMarkdownWeb 함수가 파일 이름을 인자로 받음
+      // 웹에서는 파일 저장 대화상자를 직접 띄울 수 없으므로, 기본 이름을 제공
       downloadMarkdownWeb(
         content,
         'memordo_note_${DateTime.now().millisecondsSinceEpoch}.md',
@@ -95,19 +95,37 @@ class _MeetingScreenState extends State<MeetingScreen> {
       setState(() {
         _saveStatus = "웹에서 다운로드를 시작합니다 ✅";
       });
-    } else if (Platform.isMacOS || Platform.isWindows) {
+    } else if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
       try {
-        final saveDir = await getOrCreateNoteFolderPath();
-        final fileName = 'note_${DateTime.now().millisecondsSinceEpoch}.md';
-        final filePath = p.join(saveDir, fileName);
-        final file = File(filePath);
-        _lastSavedDirectoryPath = saveDir;
+        // file_picker의 saveFile 함수를 사용하여 사용자에게 파일 이름과 위치를 물어봄
+        // 초기 디렉토리는 마지막 저장 경로를 사용하거나, 없으면 기본 폴더를 사용
+        String? initialDirectory =
+            _lastSavedDirectoryPath ?? await getOrCreateNoteFolderPath();
 
-        await file.writeAsString(content);
-        if (!mounted) return;
-        setState(() {
-          _saveStatus = "저장 완료: $filePath";
-        });
+        String? filePath = await FilePicker.platform.saveFile(
+          dialogTitle: '노트 저장',
+          fileName:
+              '새_노트_${DateTime.now().year}-${DateTime.now().month}-${DateTime.now().day}.md', // 기본 파일명 제안
+          initialDirectory: initialDirectory,
+          type: FileType.custom,
+          allowedExtensions: ['md'],
+        );
+
+        if (filePath != null) {
+          final file = File(filePath);
+          await file.writeAsString(content);
+          _lastSavedDirectoryPath = p.dirname(filePath); // 마지막 저장 경로 업데이트
+          if (!mounted) return;
+          setState(() {
+            _saveStatus = "저장 완료: $filePath";
+          });
+        } else {
+          // 사용자가 저장을 취소함
+          if (!mounted) return;
+          setState(() {
+            _saveStatus = "파일 저장이 취소되었습니다.";
+          });
+        }
       } catch (e) {
         if (!mounted) return;
         setState(() {
@@ -119,6 +137,67 @@ class _MeetingScreenState extends State<MeetingScreen> {
       setState(() {
         _saveStatus =
             "${Platform.operatingSystem} 플랫폼은 아직 파일 저장 기능이 지원되지 않습니다 🛑";
+      });
+    }
+  }
+
+  /// ✅ Markdown 파일 불러오기 함수
+  Future<void> _loadMarkdown() async {
+    String? content;
+    String? fileName;
+
+    if (kIsWeb) {
+      // 웹 환경에서는 web_helper를 통해 파일 선택
+      content = await pickFileWeb();
+      if (content != null) {
+        // 웹에서는 파일 이름을 직접 얻기 어렵지만, 여기서는 예시로 '불러온 파일'로 설정
+        fileName = '불러온 파일';
+      }
+    } else if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
+      try {
+        FilePickerResult? result = await FilePicker.platform.pickFiles(
+          type: FileType.custom,
+          allowedExtensions: ['md', 'txt'], // 마크다운 및 텍스트 파일 허용
+        );
+
+        if (result != null && result.files.single.path != null) {
+          File file = File(result.files.single.path!);
+          content = await file.readAsString();
+          fileName = p.basename(file.path);
+        } else {
+          // 사용자가 선택을 취소함
+          if (!mounted) return;
+          setState(() {
+            _saveStatus = "파일 선택이 취소되었습니다.";
+          });
+          return;
+        }
+      } catch (e) {
+        if (!mounted) return;
+        setState(() {
+          _saveStatus = "파일 불러오기 오류 ❌: $e";
+        });
+        print('Error loading file: $e');
+        return;
+      }
+    } else {
+      if (!mounted) return;
+      setState(() {
+        _saveStatus =
+            "${Platform.operatingSystem} 플랫폼은 아직 파일 불러오기 기능이 지원되지 않습니다 🛑";
+      });
+      return;
+    }
+
+    // 파일 내용이 성공적으로 로드되면 TextField에 설정
+    if (content != null && mounted) {
+      setState(() {
+        _textEditingController.text = content!;
+        _saveStatus = "파일 불러오기 완료: ${fileName ?? '알 수 없는 파일'} ✅";
+      });
+    } else if (mounted) {
+      setState(() {
+        _saveStatus = "파일을 불러오지 못했거나 내용이 없습니다.";
       });
     }
   }
@@ -251,6 +330,16 @@ class _MeetingScreenState extends State<MeetingScreen> {
                         ),
                       ),
                       const SizedBox(width: 8),
+                      ElevatedButton.icon(
+                        icon: const Icon(Icons.folder_open, size: 18),
+                        label: const Text('노트 불러오기'),
+                        onPressed: _loadMarkdown,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blueGrey[700],
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(width: 8), // 버튼 사이 간격 추가
 
                       ElevatedButton.icon(
                         icon: const Icon(Icons.folder_open, size: 18),
@@ -292,7 +381,6 @@ class _MeetingScreenState extends State<MeetingScreen> {
             ),
           ),
           CollapsibleBottomSection(
-            // key는 더 이상 필요 없습니다.
             onSummarizePressed:
                 bottomController.isLoading ? null : _handleSummarizeAction,
           ),

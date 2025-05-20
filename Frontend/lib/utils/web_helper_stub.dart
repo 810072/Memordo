@@ -4,3 +4,8 @@
 void downloadMarkdownWeb(String content, String fileName) {
   // 아무 작업도 하지 않음
 }
+
+/// 웹이 아닌 환경에서는 이 함수가 실행됨 (스텁 구현)
+Future<String?> pickFileWeb() async {
+  return null; // 웹이 아닌 환경에서는 파일 선택 기능 없음
+}
