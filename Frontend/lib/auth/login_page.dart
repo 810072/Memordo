@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../services/auth_token.dart'; // JWT 저장용
 
 import 'email_check_page.dart';
 import 'find_id_page.dart';
@@ -44,8 +45,17 @@ class _LoginPageState extends State<LoginPage> {
       );
 
       if (response.statusCode == 200) {
-        print('로그인 성공: ${response.body}');
-        Navigator.pushReplacementNamed(context, '/main');
+        final data = jsonDecode(response.body);
+        final token = data['accessToken']; // 서버 응답 구조에 맞춰 키 확인
+
+        if (token != null) {
+          setStoredAccessToken(token);
+          print('✅ JWT accessToken 저장됨');
+          Navigator.pushReplacementNamed(context, '/main');
+        } else {
+          _showSnackBar('로그인 성공했지만 accessToken이 없습니다.');
+          print('⚠️ 서버 응답에 accessToken 없음: ${response.body}');
+        }
       } else {
         print('로그인 실패: ${response.statusCode}, ${response.body}');
         _showSnackBar('로그인 실패: 이메일 또는 비밀번호를 확인해주세요.');
