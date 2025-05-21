@@ -1,7 +1,11 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
-import 'dart:convert';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'email_check_page.dart';
 import 'find_id_page.dart';
@@ -12,31 +16,21 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  // 이메일과 비밀번호 입력 필드 컨트롤러
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-
-  // 키보드 이벤트 처리를 위한 포커스 노드
   final FocusNode _focusNode = FocusNode();
-
-  // 현재 눌린 키들을 추적하기 위한 Set
   final Set<LogicalKeyboardKey> _pressedKeys = {};
-
-  // 로그인 버튼 애니메이션 상태 (true일 경우 눌림 상태)
   bool _isButtonPressed = false;
 
-  // API 서버 주소
   final String baseUrl = 'https://aidoctorgreen.com';
   final String apiPrefix = '/memo/api';
 
-  // 로그인 요청 함수
   Future<void> _login(BuildContext context) async {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
 
-    // 이메일이나 비밀번호가 비어있을 경우 안내
     if (email.isEmpty || password.isEmpty) {
-      print('이메일과 비밀번호를 입력해주세요.');
+      _showSnackBar('이메일과 비밀번호를 입력해주세요.');
       return;
     }
 
@@ -49,44 +43,129 @@ class _LoginPageState extends State<LoginPage> {
         body: jsonEncode({'email': email, 'password': password}),
       );
 
-      // 로그인 성공 시 메인 페이지로 이동
       if (response.statusCode == 200) {
         print('로그인 성공: ${response.body}');
         Navigator.pushReplacementNamed(context, '/main');
       } else {
         print('로그인 실패: ${response.statusCode}, ${response.body}');
+        _showSnackBar('로그인 실패: 이메일 또는 비밀번호를 확인해주세요.');
       }
     } catch (e) {
       print('로그인 오류: $e');
+      _showSnackBar('로그인 중 오류가 발생했습니다.');
     }
   }
 
-  // 애니메이션 효과와 함께 로그인 요청 실행
-  Future<void> _triggerLoginWithAnimation() async {
-    setState(() => _isButtonPressed = true); // 버튼을 눌린 상태로 설정
+  Future<void> _signInWithGoogle() async {
+    final clientId = dotenv.env['GOOGLE_CLIENT_ID_WEB'];
+    final redirectUri = dotenv.env['REDIRECT_URI'];
 
-    await Future.delayed(Duration(milliseconds: 10)); // 짧은 눌림 효과
-    await _login(context); // 로그인 요청 실행
+    final authUrl = Uri.https('accounts.google.com', '/o/oauth2/v2/auth', {
+      'response_type': 'code',
+      'client_id': clientId!,
+      'redirect_uri': redirectUri!,
+      'scope': 'openid email profile',
+      'prompt': 'consent',
+      'access_type': 'offline',
+    });
 
-    setState(() => _isButtonPressed = false); // 버튼 상태 복원
+    try {
+      if (await canLaunchUrl(authUrl)) {
+        await launchUrl(authUrl, mode: LaunchMode.externalApplication);
+      } else {
+        throw '브라우저 열기 실패: $authUrl';
+      }
+
+      final code = await _waitForCode(redirectUri);
+
+      // ✅ 코드 값 확인 및 로깅
+      if (code == null || code.isEmpty) {
+        _showSnackBar('Google 로그인 실패: code가 비어 있습니다.');
+        print('❌ 받은 code가 null 또는 빈 값입니다.');
+        return;
+      }
+
+      print('✅ 받은 Google 인증 code: $code');
+
+      final response = await http.post(
+        Uri.parse('$baseUrl$apiPrefix/google-login'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'code': code}),
+      );
+
+      if (response.statusCode == 200) {
+        print('${response.body}');
+        print('✅ 서버 인증 성공: ${response.body}');
+        Navigator.pushReplacementNamed(context, '/main');
+      } else {
+        print('❌ 서버 인증 실패: ${response.statusCode}, ${response.body}');
+        _showSnackBar('Google 로그인 실패: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('에러 코드 : ${e}');
+      print('⚠️ Google 로그인 오류: $e');
+      _showSnackBar('Google 로그인 중 오류 발생');
+    }
   }
 
-  // 키 이벤트 핸들링 함수
+  Future<String?> _waitForCode(String redirectUri) async {
+    final int port = Uri.parse(redirectUri).port;
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, port);
+    print('✅ 서버가 인증 코드를 기다리는 중입니다. (http://localhost:$port)');
+
+    final HttpRequest request = await server.first;
+    final Uri uri = request.uri;
+    final String? code = uri.queryParameters['code'];
+
+    // 응답 보내기
+    request.response
+      ..statusCode = 200
+      ..headers.contentType = ContentType.html
+      ..write('''
+      <html>
+        <head><title>로그인 완료</title></head>
+        <body>
+          <h2>✅ 로그인 처리가 완료되었습니다.</h2>
+          <p>이 창은 곧 닫아주세요.</p>
+        </body>
+      </html>
+    ''');
+    await request.response.close();
+    await server.close();
+
+    if (code == null) {
+      print('❌ 인증 코드가 전달되지 않았습니다.');
+    } else {
+      print('✅ 인증 코드 수신 완료: $code');
+    }
+
+    return code;
+  }
+
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _triggerLoginWithAnimation() async {
+    setState(() => _isButtonPressed = true);
+    await Future.delayed(Duration(milliseconds: 10));
+    await _login(context);
+    setState(() => _isButtonPressed = false);
+  }
+
   void _handleKey(RawKeyEvent event) {
     final key = event.logicalKey;
 
     if (event is RawKeyDownEvent) {
-      // 이미 눌린 키는 무시
       if (_pressedKeys.contains(key)) return;
-
       _pressedKeys.add(key);
 
-      // 엔터 키 입력 시 애니메이션 포함 로그인 실행
       if (key == LogicalKeyboardKey.enter) {
         _triggerLoginWithAnimation();
       }
     } else if (event is RawKeyUpEvent) {
-      // 키가 떼어질 경우 Set에서 제거
       _pressedKeys.remove(key);
     }
   }
@@ -96,8 +175,8 @@ class _LoginPageState extends State<LoginPage> {
     return Scaffold(
       body: RawKeyboardListener(
         focusNode: _focusNode,
-        autofocus: true, // 화면 진입 시 자동 포커싱
-        onKey: _handleKey, // 키 입력 처리 함수 지정
+        autofocus: true,
+        onKey: _handleKey,
         child: Center(
           child: Container(
             width: 400,
@@ -105,7 +184,6 @@ class _LoginPageState extends State<LoginPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // 이메일 입력 필드
                 TextField(
                   controller: _emailController,
                   decoration: InputDecoration(
@@ -116,16 +194,12 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                 ),
                 SizedBox(height: 16),
-
-                // 비밀번호 입력 필드
                 TextField(
                   controller: _passwordController,
                   obscureText: true,
                   decoration: InputDecoration(labelText: 'Password'),
                 ),
                 SizedBox(height: 32),
-
-                // 로그인 버튼 (눌림 애니메이션 반영)
                 SizedBox(
                   width: double.infinity,
                   height: 48,
@@ -139,14 +213,13 @@ class _LoginPageState extends State<LoginPage> {
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.deepPurple,
-                        elevation:
-                            _isButtonPressed ? 2 : 6, // 눌렸을 때 낮은 elevation
+                        elevation: _isButtonPressed ? 2 : 6,
                         padding:
                             _isButtonPressed
                                 ? EdgeInsets.symmetric(vertical: 10)
                                 : EdgeInsets.symmetric(vertical: 14),
                       ),
-                      onPressed: () => _login(context),
+                      onPressed: _triggerLoginWithAnimation,
                       child: Text(
                         'LOGIN',
                         style: TextStyle(
@@ -160,45 +233,49 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                   ),
                 ),
+                SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton(
+                    onPressed: _signInWithGoogle,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.black87,
+                      side: BorderSide(color: Colors.grey),
+                    ),
+                    child: Text("Google로 로그인"),
+                  ),
+                ),
                 SizedBox(height: 24),
-
-                // 회원가입 링크
                 InkWell(
-                  onTap: () {
-                    Navigator.pushNamed(context, '/signup');
-                  },
+                  onTap: () => Navigator.pushNamed(context, '/signup'),
                   child: Text(
                     "Don't have an account? Sign up",
                     style: TextStyle(color: Colors.blue),
                   ),
                 ),
                 SizedBox(height: 16),
-
-                // 아이디/비밀번호 찾기 링크
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
                     InkWell(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => FindIdPage()),
-                        );
-                      },
+                      onTap:
+                          () => Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => FindIdPage()),
+                          ),
                       child: Text(
                         "아이디 찾기",
                         style: TextStyle(color: Colors.blue),
                       ),
                     ),
                     InkWell(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => EmailCheckPage(),
+                      onTap:
+                          () => Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => EmailCheckPage()),
                           ),
-                        );
-                      },
                       child: Text(
                         "비밀번호 찾기",
                         style: TextStyle(color: Colors.blue),

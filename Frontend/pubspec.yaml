@@ -45,6 +45,7 @@ dependencies:
   provider: ^6.1.5
   google_sign_in: ^6.1.5
 
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
