@@ -18,8 +18,23 @@
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
 	<string>$(FLUTTER_BUILD_NAME)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.199937581171-ls3qjroqd86i4c6umuptkijjqdokcnid</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>GIDClientID</key>
+	<string>199937581171-ls3qjroqd86i4c6umuptkijjqdokcnid.apps.googleusercontent.com</string>
+	<key>KeychainSharing</key>
+	<array>
+		<string>$(AppIdentifierPrefix)com.example.app</string>
+	</array>
 	<key>LSMinimumSystemVersion</key>
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
 	<key>NSHumanReadableCopyright</key>
@@ -28,16 +43,10 @@
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
-	<key>GIDClientID</key>
-	<string>199937581171-ls3qjroqd86i4c6umuptkijjqdokcnid.apps.googleusercontent.com</string>
-	<key>CFBundleURLTypes</key>
+
+	<key>com.apple.security.application-groups</key>
 	<array>
-  		<dict>
-    		<key>CFBundleURLSchemes</key>
-    		<array>
-     		 <string>com.googleusercontent.apps.199937581171-ls3qjroqd86i4c6umuptkijjqdokcnid</string>
-   	 	</array>
-  		</dict>
-	</array>
+    <string>com.example.firstApp2</string>
+</array>
 </dict>
 </plist>
