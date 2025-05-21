@@ -4,13 +4,22 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
-import 'package:file_picker/file_picker.dart'; // file_picker 임포트
+import 'package:file_picker/file_picker.dart';
 
 import '../layout/bottom_section.dart';
 import '../layout/left_sidebar_layout.dart';
 import '../utils/web_helper.dart';
 import '../utils/ai_service.dart';
 import '../layout/bottom_section_controller.dart';
+
+// 오른쪽 패널에 표시될 메모 정보를 담는 클래스
+class LocalMemo {
+  final String fileName;
+  final String filePath;
+  // String? lastModified; // 필요시 마지막 수정일 추가
+
+  LocalMemo({required this.fileName, required this.filePath});
+}
 
 class MeetingScreen extends StatefulWidget {
   const MeetingScreen({super.key});
@@ -24,6 +33,19 @@ class _MeetingScreenState extends State<MeetingScreen> {
   String _saveStatus = '';
   String? _lastSavedDirectoryPath;
 
+  // --- 오른쪽 메모 목록 패널 관련 상태 ---
+  bool _isMemoListVisible = false;
+  List<LocalMemo> _savedMemosList = [];
+  bool _isLoadingMemos = false;
+  // --- ---
+
+  @override
+  void initState() {
+    super.initState();
+    // 앱 시작 시 또는 필요에 따라 초기 메모 스캔
+    // _scanForMemos(); // initState에서 호출하면 초기 로딩 가능
+  }
+
   /// ✅ 사용자 홈에 Memordo_Notes 폴더가 없으면 생성하고 경로 반환
   Future<String> getOrCreateNoteFolderPath() async {
     final home =
@@ -33,42 +55,17 @@ class _MeetingScreenState extends State<MeetingScreen> {
       throw Exception('사용자 홈 디렉터리를 찾을 수 없습니다.');
     }
 
-    final folderPath =
-        Platform.isMacOS
-            ? p.join(home, 'Memordo_Notes')
-            : p.join(home, 'Documents', 'Memordo_Notes');
+    final folderPath = Platform.isMacOS
+        ? p.join(home, 'Memordo_Notes')
+        : p.join(home, 'Documents', 'Memordo_Notes');
 
     final directory = Directory(folderPath);
     if (!await directory.exists()) {
       await directory.create(recursive: true);
       print('📁 폴더 생성됨: $folderPath');
     } else {
-      print('📁 폴더 이미 존재함: $folderPath');
+      // print('📁 폴더 이미 존재함: $folderPath');
     }
-
-    return folderPath;
-  }
-
-  /// ✅ 이전 방식: 중복됨 (필요 시 유지 가능)
-  Future<String> getCustomSavePath() async {
-    final home =
-        Platform.environment['USERPROFILE'] ?? Platform.environment['HOME'];
-
-    if (home == null) {
-      throw Exception('사용자 홈 디렉터리를 찾을 수 없습니다.');
-    }
-
-    final folderPath =
-        Platform.isMacOS
-            ? p.join(home, 'Memordo_Notes')
-            : p.join(home, 'Documents', 'Memordo_Notes');
-
-    final directory = Directory(folderPath);
-    if (!await directory.exists()) {
-      await directory.create(recursive: true);
-      print('📁 폴더 생성됨: $folderPath');
-    }
-
     return folderPath;
   }
 
@@ -85,8 +82,6 @@ class _MeetingScreenState extends State<MeetingScreen> {
     }
 
     if (kIsWeb) {
-      // 웹 환경에서는 downloadMarkdownWeb 함수가 파일 이름을 인자로 받음
-      // 웹에서는 파일 저장 대화상자를 직접 띄울 수 없으므로, 기본 이름을 제공
       downloadMarkdownWeb(
         content,
         'memordo_note_${DateTime.now().millisecondsSinceEpoch}.md',
@@ -97,15 +92,13 @@ class _MeetingScreenState extends State<MeetingScreen> {
       });
     } else if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
       try {
-        // file_picker의 saveFile 함수를 사용하여 사용자에게 파일 이름과 위치를 물어봄
-        // 초기 디렉토리는 마지막 저장 경로를 사용하거나, 없으면 기본 폴더를 사용
         String? initialDirectory =
             _lastSavedDirectoryPath ?? await getOrCreateNoteFolderPath();
 
         String? filePath = await FilePicker.platform.saveFile(
           dialogTitle: '노트 저장',
           fileName:
-              '새_노트_${DateTime.now().year}-${DateTime.now().month}-${DateTime.now().day}.md', // 기본 파일명 제안
+              '새_노트_${DateTime.now().year}-${DateTime.now().month}-${DateTime.now().day}.md',
           initialDirectory: initialDirectory,
           type: FileType.custom,
           allowedExtensions: ['md'],
@@ -114,13 +107,16 @@ class _MeetingScreenState extends State<MeetingScreen> {
         if (filePath != null) {
           final file = File(filePath);
           await file.writeAsString(content);
-          _lastSavedDirectoryPath = p.dirname(filePath); // 마지막 저장 경로 업데이트
+          _lastSavedDirectoryPath = p.dirname(filePath);
           if (!mounted) return;
           setState(() {
             _saveStatus = "저장 완료: $filePath";
           });
+          // 저장 후 메모 목록 갱신 (오른쪽 패널이 열려있다면)
+          if (_isMemoListVisible) {
+            _scanForMemos();
+          }
         } else {
-          // 사용자가 저장을 취소함
           if (!mounted) return;
           setState(() {
             _saveStatus = "파일 저장이 취소되었습니다.";
@@ -147,25 +143,23 @@ class _MeetingScreenState extends State<MeetingScreen> {
     String? fileName;
 
     if (kIsWeb) {
-      // 웹 환경에서는 web_helper를 통해 파일 선택
       content = await pickFileWeb();
       if (content != null) {
-        // 웹에서는 파일 이름을 직접 얻기 어렵지만, 여기서는 예시로 '불러온 파일'로 설정
-        fileName = '불러온 파일';
+        fileName = '불러온 파일 (웹)';
       }
     } else if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
       try {
         FilePickerResult? result = await FilePicker.platform.pickFiles(
           type: FileType.custom,
-          allowedExtensions: ['md', 'txt'], // 마크다운 및 텍스트 파일 허용
+          allowedExtensions: ['md', 'txt'],
         );
 
         if (result != null && result.files.single.path != null) {
           File file = File(result.files.single.path!);
           content = await file.readAsString();
           fileName = p.basename(file.path);
+           _lastSavedDirectoryPath = p.dirname(file.path); // 불러온 파일의 디렉토리도 기억
         } else {
-          // 사용자가 선택을 취소함
           if (!mounted) return;
           setState(() {
             _saveStatus = "파일 선택이 취소되었습니다.";
@@ -189,7 +183,6 @@ class _MeetingScreenState extends State<MeetingScreen> {
       return;
     }
 
-    // 파일 내용이 성공적으로 로드되면 TextField에 설정
     if (content != null && mounted) {
       setState(() {
         _textEditingController.text = content!;
@@ -202,11 +195,15 @@ class _MeetingScreenState extends State<MeetingScreen> {
     }
   }
 
-  /// ✅ 폴더 탐색기 열기 함수 (플랫폼별 실행 명령)
+  /// ✅ 폴더 탐색기 열기 함수
   Future<void> openFolderInExplorer(String folderPath) async {
-    final directory = Directory(folderPath);
+    // ... (기존 코드와 동일) ...
+     final directory = Directory(folderPath);
     if (!await directory.exists()) {
       print('❌ 폴더가 존재하지 않습니다: $folderPath');
+      if(mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("지정된 폴더를 찾을 수 없습니다: $folderPath")));
+      }
       return;
     }
 
@@ -218,12 +215,15 @@ class _MeetingScreenState extends State<MeetingScreen> {
       await Process.run('xdg-open', [folderPath]);
     } else {
       print('❌ 현재 플랫폼에서는 폴더 열기 기능이 지원되지 않습니다.');
+       if(mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("현재 플랫폼에서는 폴더 열기 기능이 지원되지 않습니다.")));
+      }
     }
   }
 
   /// ✅ 텍스트를 AI 백엔드로 요약 요청
   Future<void> _handleSummarizeAction() async {
-    // BottomSectionController 인스턴스 가져오기
+    // ... (기존 코드와 동일, 에러 메시지 등 개선 가능) ...
     final bottomController = Provider.of<BottomSectionController>(
       context,
       listen: false,
@@ -245,8 +245,8 @@ class _MeetingScreenState extends State<MeetingScreen> {
     }
 
     if (!mounted) return;
-    bottomController.setIsLoading(true); // 로딩 상태 시작
-    bottomController.updateSummary(''); // 기존 요약 내용 초기화
+    bottomController.setIsLoading(true); 
+    bottomController.updateSummary(''); 
 
     String? summary;
     try {
@@ -260,7 +260,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
     } finally {
       if (!mounted) return;
       bottomController.updateSummary(summary ?? '요약에 실패했거나 내용이 없습니다.');
-      bottomController.setIsLoading(false); // 로딩 상태 종료
+      bottomController.setIsLoading(false); 
     }
 
     if (summary == null || summary.contains("오류") || summary.contains("실패")) {
@@ -276,114 +276,328 @@ class _MeetingScreenState extends State<MeetingScreen> {
     }
   }
 
-  /// ✅ UI 정의
-  @override
-  Widget build(BuildContext context) {
-    // BottomSectionController 인스턴스 가져오기 (listen: true로 변화 감지)
-    final bottomController = Provider.of<BottomSectionController>(context);
+  // --- 오른쪽 메모 목록 패널 관련 메소드 ---
+  void _toggleMemoListVisibility() {
+    setState(() {
+      _isMemoListVisible = !_isMemoListVisible;
+    });
+    // 패널이 열릴 때 메모 스캔 (웹 환경 제외)
+    if (_isMemoListVisible && !kIsWeb) {
+      _scanForMemos();
+    }
+  }
 
-    return LeftSidebarLayout(
-      activePage: PageType.home,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Container(
-            height: 40,
-            color: Colors.grey[300],
-            alignment: Alignment.centerLeft,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: const Text(
-              '메인 화면 - 새 메모 작성',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-          ),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
+  Future<void> _scanForMemos() async {
+    if (!mounted) return;
+    setState(() {
+      _isLoadingMemos = true;
+      _savedMemosList = []; 
+    });
+
+    try {
+      final notesDir = await getOrCreateNoteFolderPath();
+      final directory = Directory(notesDir);
+      if (await directory.exists()) {
+        final List<LocalMemo> memos = [];
+        await for (var entity in directory.list().handleError((error) {
+            print("Error listing directory: $error");
+            if(mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('메모 폴더 접근 중 오류: $error')),
+                );
+            }
+        })) {
+          if (entity is File && p.extension(entity.path).toLowerCase() == '.md') {
+            memos.add(LocalMemo(
+              fileName: p.basenameWithoutExtension(entity.path), // 확장자 제외한 파일명
+              filePath: entity.path,
+            ));
+          }
+        }
+        if (mounted) {
+          // 파일 이름순으로 정렬 (선택 사항)
+          memos.sort((a, b) => a.fileName.compareTo(b.fileName));
+          setState(() {
+            _savedMemosList = memos;
+          });
+        }
+      }
+    } catch (e) {
+      print('Error scanning memos: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('메모 목록을 불러오는 중 오류 발생: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingMemos = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadSelectedMemo(LocalMemo memo) async {
+    try {
+      final file = File(memo.filePath);
+      if (await file.exists()) {
+        final content = await file.readAsString();
+        if (mounted) {
+          setState(() {
+            _textEditingController.text = content;
+            _saveStatus = "파일 불러오기 완료: ${memo.fileName}.md ✅";
+             _isMemoListVisible = false; // 선택 후 패널 닫기
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _saveStatus = "파일을 찾을 수 없습니다: ${memo.fileName}.md";
+          });
+           ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('파일을 찾을 수 없습니다: ${memo.fileName}.md')),
+          );
+        }
+      }
+    } catch (e) {
+      print('Error loading selected memo: $e');
+      if (mounted) {
+        setState(() {
+          _saveStatus = "파일 읽기 오류: $e";
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('메모를 불러오는 중 오류 발생: $e')),
+        );
+      }
+    }
+  }
+
+  Widget _buildMemoListPanel() {
+    return Material( // Material 위젯으로 감싸서 Theming 적용 및 시각적 개선
+      elevation: 4.0, // 패널에 그림자 효과
+      child: Container(
+        width: 280,
+        color: Theme.of(context).canvasColor, // 테마의 캔버스 색 사용
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _textEditingController,
-                      maxLines: null,
-                      expands: true,
-                      textAlignVertical: TextAlignVertical.top,
-                      decoration: const InputDecoration(
-                        hintText: '여기에 글을 작성하세요...',
-                        border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.all(12),
-                      ),
-                      style: const TextStyle(fontSize: 15, height: 1.5),
-                    ),
+                  Text(
+                    "저장된 메모",
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                   ),
-                  const SizedBox(height: 12),
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.start,
                     children: [
-                      ElevatedButton.icon(
-                        icon: const Icon(Icons.save_alt_outlined, size: 18),
-                        label: const Text('.md 파일로 저장'),
-                        onPressed: _saveMarkdown,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blueGrey[700],
-                          foregroundColor: Colors.white,
-                        ),
+                       IconButton(
+                        icon: const Icon(Icons.refresh, size: 20),
+                        tooltip: "새로고침",
+                        onPressed: _isLoadingMemos ? null : _scanForMemos,
                       ),
-                      const SizedBox(width: 8),
-                      ElevatedButton.icon(
-                        icon: const Icon(Icons.folder_open, size: 18),
-                        label: const Text('노트 불러오기'),
-                        onPressed: _loadMarkdown,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blueGrey[700],
-                          foregroundColor: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(width: 8), // 버튼 사이 간격 추가
-
-                      ElevatedButton.icon(
-                        icon: const Icon(Icons.folder_open, size: 18),
-                        label: const Text('폴더 열기'),
-                        onPressed: () async {
-                          try {
-                            final path = await getOrCreateNoteFolderPath();
-                            await openFolderInExplorer(path);
-                          } catch (e) {
-                            print('❌ 폴더 열기 실패: $e');
-                            if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('폴더 열기에 실패했습니다: $e')),
-                              );
-                            }
-                          }
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blueGrey[700],
-                          foregroundColor: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-
-                      Expanded(
-                        child: Text(
-                          _saveStatus,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 20),
+                        tooltip: "닫기",
+                        onPressed: _toggleMemoListVisibility,
                       ),
                     ],
-                  ),
+                  )
                 ],
               ),
             ),
+            Divider(height: 1, color: Theme.of(context).dividerColor),
+            if (_isLoadingMemos)
+              const Expanded(child: Center(child: CircularProgressIndicator()))
+            else if (_savedMemosList.isEmpty)
+              Expanded(
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Text(
+                      "저장된 메모가 없습니다.\n'.md 파일로 저장' 기능을 사용해보세요.",
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Theme.of(context).hintColor),
+                    ),
+                  ),
+                ),
+              )
+            else
+              Expanded(
+                child: ListView.separated(
+                  itemCount: _savedMemosList.length,
+                  separatorBuilder: (context, index) => Divider(height: 1, indent: 16, endIndent: 16, color: Theme.of(context).dividerColor.withOpacity(0.5)),
+                  itemBuilder: (context, index) {
+                    final memo = _savedMemosList[index];
+                    return ListTile(
+                      title: Text(memo.fileName, style: const TextStyle(fontWeight: FontWeight.w500)),
+                      // subtitle: Text(memo.filePath, maxLines: 1, overflow: TextOverflow.ellipsis), // 필요시 경로 표시
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 0),
+                      dense: true,
+                      onTap: () => _loadSelectedMemo(memo),
+                    );
+                  },
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+  // --- ---
+
+  /// ✅ UI 정의
+  @override
+  Widget build(BuildContext context) {
+    final bottomController = Provider.of<BottomSectionController>(context);
+
+    // 메인 콘텐츠 영역을 별도 위젯이나 메소드로 분리하면 가독성이 좋아집니다.
+    Widget mainContentArea = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          height: 48,
+          // color: Colors.grey[100], // 기존 색상 또는 테마 색상 사용
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+           decoration: BoxDecoration(
+            color: Theme.of(context).appBarTheme.backgroundColor ?? Colors.grey[100], // 테마 AppBar 배경색 또는 기본값
+            border: Border(bottom: BorderSide(color: Theme.of(context).dividerColor))
           ),
-          CollapsibleBottomSection(
-            onSummarizePressed:
-                bottomController.isLoading ? null : _handleSummarizeAction,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '메인 화면 - 새 메모 작성',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600, fontSize: 18),
+              ),
+              if (!kIsWeb) // 웹에서는 파일 시스템 접근이 다르므로 일단 숨김
+                IconButton(
+                  icon: Icon(
+                    _isMemoListVisible ? Icons.menu_open : Icons.menu, 
+                    color: Theme.of(context).iconTheme.color ?? Colors.deepPurple.shade400,
+                  ),
+                  tooltip: "저장된 메모 목록 보기/숨기기",
+                  onPressed: _toggleMemoListVisibility,
+                ),
+            ],
           ),
+        ),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0), // 하단 패딩은 CollapsibleBottomSection 전까지
+            child: Column(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _textEditingController,
+                    maxLines: null,
+                    expands: true,
+                    textAlignVertical: TextAlignVertical.top,
+                    decoration: InputDecoration(
+                      hintText: '여기에 글을 작성하세요...',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8.0),
+                        borderSide: BorderSide(color: Colors.grey.shade400)
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8.0),
+                        borderSide: BorderSide(color: Theme.of(context).primaryColor, width: 1.5)
+                      ),
+                      contentPadding: const EdgeInsets.all(16),
+                    ),
+                    style: const TextStyle(fontSize: 16, height: 1.6),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  children: [
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.save_alt_outlined, size: 18),
+                      label: const Text('.md 파일로 저장'),
+                      onPressed: _saveMarkdown,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blueGrey[700],
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.file_upload_outlined, size: 18), // 아이콘 변경
+                      label: const Text('노트 불러오기'),
+                      onPressed: _loadMarkdown,
+                       style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blueGrey[700],
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.snippet_folder_outlined, size: 18), // 아이콘 변경
+                      label: const Text('저장 폴더 열기'),
+                      onPressed: () async {
+                        if (kIsWeb) {
+                           ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text("웹 환경에서는 폴더 열기를 지원하지 않습니다.")),
+                          );
+                          return;
+                        }
+                        try {
+                          final path = await getOrCreateNoteFolderPath();
+                          await openFolderInExplorer(path);
+                        } catch (e) {
+                          print('❌ 폴더 열기 실패: $e');
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('폴더 열기에 실패했습니다: $e')),
+                            );
+                          }
+                        }
+                      },
+                       style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blueGrey[700],
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Text(
+                        _saveStatus,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Theme.of(context).hintColor,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        maxLines: 1,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12), // CollapsibleBottomSection 전 간격
+              ],
+            ),
+          ),
+        ),
+        CollapsibleBottomSection(
+          onSummarizePressed:
+              bottomController.isLoading ? null : _handleSummarizeAction,
+        ),
+      ],
+    );
+
+    return LeftSidebarLayout(
+      activePage: PageType.home,
+      child: Row( // 메인 콘텐츠와 오른쪽 패널을 Row로 배치
+        children: [
+          Expanded(
+            child: mainContentArea, // 기존 메인 콘텐츠
+          ),
+          if (_isMemoListVisible && !kIsWeb) _buildMemoListPanel(), // 조건부로 오른쪽 패널 표시 (웹 제외)
         ],
       ),
     );
