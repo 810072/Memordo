@@ -4,12 +4,11 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
-import 'package:provider/provider.dart'; // Provider 임포트
+import 'package:provider/provider.dart';
 import '../layout/left_sidebar_layout.dart';
 import '../layout/bottom_section.dart';
-import '../services/google_drive_platform.dart';
 import '../utils/ai_service.dart';
-import '../layout/bottom_section_controller.dart'; // 컨트롤러 임포트
+import '../layout/bottom_section_controller.dart';
 
 class HistoryPage extends StatefulWidget {
   const HistoryPage({super.key});
@@ -22,20 +21,8 @@ class _HistoryPageState extends State<HistoryPage> {
   List<Map<String, dynamic>> _visitHistory = [];
   final Set<String> _selectedTimestamps = {};
   String _status = '불러오는 중...';
-
-  // final folderId = '18gvXku0NzRbFrWJtsuI52dX0IJq_IE1f'; // Google Drive 폴더 ID는 필요시 사용
-  // 실제 사용하시는 폴더 ID로 유지하거나, 다른 방식으로 관리할 수 있습니다.
-  // 예시에서는 Google Drive 연동 로직은 그대로 유지합니다.
-  final String folderId =
-      '1q0swdZkkZ_QIDnDnCK3EgJeWkQB3O5gb'; // 여기에 실제 폴더 ID를 입력하세요.
   final GlobalKey<CollapsibleBottomSectionState> _bottomSectionKey =
       GlobalKey();
-
-  // GlobalKey 대신 BottomSectionController를 직접 사용합니다.
-  // final GlobalKey<CollapsibleBottomSectionState> _bottomSectionKey = GlobalKey();
-
-  // _isSummarizing은 이제 BottomSectionController에서 관리됩니다.
-  // bool _isSummarizing = false;
 
   @override
   void initState() {
@@ -43,16 +30,60 @@ class _HistoryPageState extends State<HistoryPage> {
     _loadVisitHistory();
   }
 
+  Future<String?> getStoredAccessTokenFromServer(String accessToken) async {
+    final response = await http.get(
+      Uri.parse('https://yourserver.com/google-access-token'),
+      headers: {'Authorization': 'Bearer $accessToken'},
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return data['googleAccessToken'];
+    } else {
+      print('❌ 서버에서 access token 가져오기 실패: ${response.body}');
+      return null;
+    }
+  }
+
+  Future<String?> _fetchFolderId(String token, String folderName) async {
+    final query =
+        "mimeType='application/vnd.google-apps.folder' and name='${Uri.encodeComponent(folderName)}'";
+    final url = Uri.parse(
+      'https://www.googleapis.com/drive/v3/files?q=$query&fields=files(id,name)&spaces=drive',
+    );
+
+    final res = await http.get(
+      url,
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    if (res.statusCode == 200) {
+      final data = jsonDecode(res.body);
+      final files = data['files'] as List;
+      if (files.isNotEmpty) {
+        return files[0]['id'];
+      }
+    }
+
+    print('❌ 폴더 검색 실패: ${res.body}');
+    return null;
+  }
+
   Future<void> _loadVisitHistory() async {
-    // mounted 검사는 여전히 중요합니다.
     if (!mounted) return;
     setState(() => _status = '방문 기록 불러오는 중...');
-    // ... 기존 _loadVisitHistory 로직 ...
-    final auth = GoogleDriveAuth();
-    final token = await auth.getAccessToken();
+
+    final token = await getStoredAccessToken();
     if (token == null) {
       if (!mounted) return;
-      setState(() => _status = 'Google 로그인에 실패했습니다. 다시 시도해주세요.');
+      setState(() => _status = '로그인 정보가 만료되었거나 토큰이 없습니다.');
+      return;
+    }
+
+    final folderId = await _fetchFolderId(token, '방문기록');
+    if (folderId == null) {
+      if (!mounted) return;
+      setState(() => _status = '방문기록 폴더를 찾을 수 없습니다.');
       return;
     }
 
@@ -67,9 +98,6 @@ class _HistoryPageState extends State<HistoryPage> {
 
       if (res.statusCode != 200) {
         if (!mounted) return;
-
-        await auth.logout();
-
         setState(
           () => _status = 'Google Drive 파일 목록 가져오기 실패 (상태: ${res.statusCode})',
         );
@@ -133,13 +161,12 @@ class _HistoryPageState extends State<HistoryPage> {
   }
 
   void _handleSummarizeAction() async {
-    // BottomSectionController 인스턴스 가져오기
     final bottomController = Provider.of<BottomSectionController>(
       context,
       listen: false,
     );
 
-    if (bottomController.isLoading) return; // 이미 요약 중이면 중복 실행 방지
+    if (bottomController.isLoading) return;
 
     if (_selectedTimestamps.length == 1) {
       final selectedTimestamp = _selectedTimestamps.first;
@@ -155,19 +182,15 @@ class _HistoryPageState extends State<HistoryPage> {
 
       if (selectedUrl != null && selectedUrl.isNotEmpty) {
         if (!mounted) return;
-        bottomController.setIsLoading(true); // 로딩 상태 시작
-        bottomController.updateSummary(
-          '',
-        ); // 기존 요약 내용 초기화 (CollapsibleBottomSection이 '요약 중...' 표시)
-        bottomController.updateSummary(
-          'URL 요약 중...\n$selectedUrl',
-        ); // URL 요약 중 메시지 표시
+        bottomController.setIsLoading(true);
+        bottomController.updateSummary('');
+        bottomController.updateSummary('URL 요약 중...\n$selectedUrl');
 
         final String? summary = await crawlAndSummarizeUrl(selectedUrl);
 
-        if (!mounted) return; // 비동기 작업 후 위젯 상태 확인
+        if (!mounted) return;
         bottomController.updateSummary(summary ?? '요약에 실패했거나 내용이 없습니다.');
-        bottomController.setIsLoading(false); // 로딩 상태 종료
+        bottomController.setIsLoading(false);
 
         if (summary == null ||
             summary.contains("오류") ||

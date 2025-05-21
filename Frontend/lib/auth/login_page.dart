@@ -64,9 +64,10 @@ class _LoginPageState extends State<LoginPage> {
       'response_type': 'code',
       'client_id': clientId!,
       'redirect_uri': redirectUri!,
-      'scope': 'openid email profile',
-      'prompt': 'consent',
+      'scope':
+          'openid email profile https://www.googleapis.com/auth/drive.readonly',
       'access_type': 'offline',
+      'prompt': 'consent',
     });
 
     try {
