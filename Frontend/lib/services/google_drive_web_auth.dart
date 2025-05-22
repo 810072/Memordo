@@ -15,7 +15,7 @@ const _storage = FlutterSecureStorage();
 html.WindowBase? _authPopup;
 
 class GoogleDriveAuth {
-  final String _clientId = dotenv.env['GOOGLE_CLIENT_WEB_ID'] ?? '';
+  final String _clientId = dotenv.env['GOOGLE_CLIENT_ID_WEB'] ?? '';
 
   // 요청할 권한 범위
   final List<String> _scopes = [
@@ -24,9 +24,9 @@ class GoogleDriveAuth {
   ];
 
   // 리디렉션 경로 및 URI 설정
-  final String _redirectPath = '/oauth2callback.html';
-  final String _redirectUri =
-      html.window.location.origin + '/oauth2callback.html';
+  final String _redirectPath = '/callback';
+
+  final String _redirectUri = html.window.location.origin + '/callback';
 
   // 인증 흐름 결과를 기다리기 위한 Completer
   Completer<String>? _authCompleter;
@@ -101,12 +101,16 @@ class GoogleDriveAuth {
 
   /// Access Token을 반환하거나 로그인 진행
   Future<String?> getAccessToken() async {
-    final token = await _storage.read(key: 'google_access_token');
+    final token = "";
 
-    if (token != null) {
-      print('[GoogleDriveAuth] 저장된 토큰 사용');
-      return token;
-    }
+    // 토큰 만료시 작동 안함
+    // final token = await _storage.read(key: 'google_access_token');
+
+    // if (token != null) {
+    //   print('[GoogleDriveAuth] 저장된 토큰 사용');
+    //   token = null;
+    //   return token;
+    // } else {}
 
     print('[GoogleDriveAuth] 저장된 토큰 없음 → 로그인 진행');
 

@@ -28,9 +28,11 @@ class GoogleDriveAuth {
 
   // Access Token 가져오기 (기존 getAccessToken 대체)
   Future<String?> getAccessToken() async {
-    // 1. 저장된 유효한 토큰 확인 (선택 사항: Refresh Token 로직 추가 시 유용)
-    String? accessToken = await _storage.read(key: 'google_access_token');
+    // 1. 저장된 유효한 토큰 확인 (선택 사항: Refresh Token 로직 추가 시 유용) -> 리프레쉬토큰으로 확인 하는 로직 만들어야함
+    // String? accessToken = await _storage.read(key: 'google_access_token');
     // TODO: 토큰 만료 시간 확인 및 Refresh Token 로직 추가
+
+    String? accessToken = null;
 
     if (accessToken != null) {
       print("저장된 Access Token 사용");
