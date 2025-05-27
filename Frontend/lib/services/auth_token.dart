@@ -133,3 +133,33 @@ Future<void> fetchSecureData() async {
   );
   print('결과: ${response.body}');
 }
+
+Future<bool> hasValidTokens() async {
+  final accessToken = await getStoredAccessToken();
+  final refreshToken = await getStoredRefreshToken();
+  return (accessToken != null && accessToken.isNotEmpty) ||
+      (refreshToken != null && refreshToken.isNotEmpty);
+}
+
+Future<bool> tryAutoLogin() async {
+  final accessToken = await getStoredAccessToken();
+
+  if (accessToken != null && accessToken.isNotEmpty) {
+    return true; // accessToken 존재 시 바로 로그인 처리
+  }
+
+  final refreshToken = await getStoredRefreshToken();
+  if (refreshToken == null || refreshToken.isEmpty) {
+    return false;
+  }
+
+  // refreshToken으로 accessToken 갱신 시도
+  try {
+    await refreshAccessTokenIfNeeded(); // 실패 시 예외 발생
+    final newToken = await getStoredAccessToken();
+    return newToken != null && newToken.isNotEmpty;
+  } catch (e) {
+    print('🔒 자동 로그인 실패: $e');
+    return false;
+  }
+}

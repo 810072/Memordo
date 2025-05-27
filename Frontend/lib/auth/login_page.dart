@@ -26,13 +26,6 @@ class _LoginPageState extends State<LoginPage> {
   final String baseUrl = 'https://aidoctorgreen.com';
   final String apiPrefix = '/memo/api';
 
-  Future<bool> hasValidTokens() async {
-    final accessToken = await getStoredAccessToken();
-    final refreshToken = await getStoredRefreshToken();
-    return (accessToken != null && accessToken.isNotEmpty) ||
-        (refreshToken != null && refreshToken.isNotEmpty);
-  }
-
   Future<void> _login(BuildContext context) async {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
