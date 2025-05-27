@@ -1,6 +1,8 @@
+import 'package:flutter/material.dart'; // ✅ Navigator, BuildContext 사용 시 필수!
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 final _storage = FlutterSecureStorage();
 
@@ -34,6 +36,10 @@ Future<String?> getStoredGoogleAccessToken() async {
 
 Future<String?> getStoredGoogleRefreshToken() async {
   return await _storage.read(key: 'google_refresh_token');
+}
+
+Future<String?> getStoredGoogleTokenExpiry() async {
+  return await _storage.read(key: 'google_token_expiry');
 }
 
 Future<void> clearAllTokens() async {
@@ -70,6 +76,10 @@ Future<void> refreshAccessTokenIfNeeded() async {
     }
 
     print('✅ accessToken 갱신 성공');
+  } else if (response.statusCode == 403) {
+    // 🔴 리프레시 토큰 만료 또는 위조
+    print('🔴 refreshToken 만료됨 → 로그아웃 필요');
+    throw Exception('refreshToken 만료');
   } else {
     print('❌ accessToken 갱신 실패: ${response.body}');
     throw Exception('accessToken 갱신 실패');
@@ -78,6 +88,7 @@ Future<void> refreshAccessTokenIfNeeded() async {
 
 Future<http.Response> authorizedRequest(
   Uri url, {
+  required BuildContext context, // ✅ context 추가
   String method = 'GET',
   Map<String, String>? headers,
   Object? body,
@@ -96,10 +107,16 @@ Future<http.Response> authorizedRequest(
     response = await _sendRequest(method, url, headers, body);
     if (response.statusCode == 401) {
       // accessToken 만료 → refresh 시도
-      await refreshAccessTokenIfNeeded();
-      token = await getStoredAccessToken();
-      headers['Authorization'] = 'Bearer $token';
-      response = await _sendRequest(method, url, headers, body);
+      try {
+        await refreshAccessTokenIfNeeded();
+        token = await getStoredAccessToken();
+        headers['Authorization'] = 'Bearer $token';
+        response = await _sendRequest(method, url, headers, body);
+      } catch (e) {
+        print('❌ refreshToken도 만료됨 → 로그아웃');
+        await logoutUser(context); // ✅ 자동 로그아웃
+        rethrow;
+      }
     }
   } catch (e) {
     print('❌ 요청 실패: $e');
@@ -127,9 +144,10 @@ Future<http.Response> _sendRequest(
   }
 }
 
-Future<void> fetchSecureData() async {
+Future<void> fetchSecureData(BuildContext context) async {
   final response = await authorizedRequest(
     Uri.parse('https://aidoctorgreen.com/memo/api/secure-data'),
+    context: context,
   );
   print('결과: ${response.body}');
 }
@@ -161,5 +179,92 @@ Future<bool> tryAutoLogin() async {
   } catch (e) {
     print('🔒 자동 로그인 실패: $e');
     return false;
+  }
+}
+
+Future<Map<String, dynamic>?> fetchTokenStatus(BuildContext context) async {
+  try {
+    final response = await authorizedRequest(
+      Uri.parse('https://aidoctorgreen.com/memo/api/token/status'),
+      context: context, // ✅ context 추가
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return data;
+    } else {
+      print('❌ 토큰 상태 불러오기 실패: ${response.statusCode}');
+      return null;
+    }
+  } catch (e) {
+    print('❌ 오류: $e');
+    return null;
+  }
+}
+
+Future<void> logoutUser(BuildContext context) async {
+  await clearAllTokens(); // 모든 토큰 삭제
+
+  if (context.mounted) {
+    Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+  }
+
+  Future<bool> hasValidGoogleAccessToken() async {
+    final accessToken = await getStoredGoogleAccessToken();
+    final expiryRaw = await _storage.read(key: 'google_token_expiry');
+
+    if (accessToken == null || accessToken.isEmpty || expiryRaw == null) {
+      return false;
+    }
+
+    final expiry = DateTime.tryParse(expiryRaw);
+    if (expiry == null) return false;
+
+    return DateTime.now().isBefore(expiry); // 유효 시간 이내
+  }
+}
+
+Future<void> refreshGoogleAccessTokenIfNeeded() async {
+  final expiryRaw = await _storage.read(key: 'google_token_expiry');
+  final refreshToken = await getStoredGoogleRefreshToken();
+
+  if (refreshToken == null || expiryRaw == null) {
+    print('⚠️ 구글 리프레시 토큰 또는 만료 시간이 없습니다.');
+    return;
+  }
+
+  final expiry = DateTime.tryParse(expiryRaw);
+  if (expiry == null || DateTime.now().isBefore(expiry)) {
+    print('✅ 아직 구글 access token이 유효합니다.');
+    return;
+  }
+
+  final response = await http.post(
+    Uri.parse('https://oauth2.googleapis.com/token'),
+    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+    body: {
+      'client_id': dotenv.env['GOOGLE_CLIENT_ID']!,
+      'client_secret': dotenv.env['GOOGLE_CLIENT_SECRET']!,
+      'grant_type': 'refresh_token',
+      'refresh_token': refreshToken,
+    },
+  );
+
+  if (response.statusCode == 200) {
+    final data = jsonDecode(response.body);
+    final newAccessToken = data['access_token'];
+    final expiresIn = data['expires_in'];
+    final expiryDate = DateTime.now().add(Duration(seconds: expiresIn));
+
+    await setStoredGoogleAccessToken(newAccessToken);
+    await _storage.write(
+      key: 'google_token_expiry',
+      value: expiryDate.toIso8601String(),
+    );
+
+    print('🔄 Google access token 자동 갱신 성공');
+  } else {
+    print('❌ Google 토큰 갱신 실패: ${response.statusCode}, ${response.body}');
+    throw Exception('Google access token 재발급 실패');
   }
 }

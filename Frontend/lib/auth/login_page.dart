@@ -51,24 +51,29 @@ class _LoginPageState extends State<LoginPage> {
         final accessToken = data['accessToken'];
         final refreshToken = data['refreshToken'];
 
-        if (accessToken != null && refreshToken != null) {
-          await setStoredAccessToken(accessToken);
-          await setStoredRefreshToken(refreshToken);
-          print('✅ 자체 accessToken, refreshToken 저장 완료');
-        } else {
-          print('⚠️ 자체 토큰 누락됨');
-        }
-
         // 2차: 구글 토큰
         final googleAccessToken = data['googleAccessToken'];
         final googleRefreshToken = data['googleRefreshToken'];
 
-        if (googleAccessToken != null && googleRefreshToken != null) {
+        if (accessToken != null) {
+          await setStoredAccessToken(accessToken);
+          final check = await getStoredAccessToken();
+          print('📦 accessToken 저장 확인: $check');
+        }
+        if (refreshToken != null) {
+          await setStoredRefreshToken(refreshToken);
+          final check = await getStoredRefreshToken();
+          print('📦 refreshToken 저장 확인: $check');
+        }
+        if (googleAccessToken != null) {
           await setStoredGoogleAccessToken(googleAccessToken);
+          final check = await getStoredGoogleAccessToken();
+          print('📦 googleAccessToken 저장 확인: $check');
+        }
+        if (googleRefreshToken != null) {
           await setStoredGoogleRefreshToken(googleRefreshToken);
-          print('✅ Google accessToken, refreshToken 저장 완료');
-        } else {
-          print('⚠️ Google 토큰 누락됨');
+          final check = await getStoredGoogleRefreshToken();
+          print('📦 googleRefreshToken 저장 확인: $check');
         }
 
         Navigator.pushReplacementNamed(context, '/main');
@@ -121,8 +126,29 @@ class _LoginPageState extends State<LoginPage> {
       );
 
       if (response.statusCode == 200) {
-        print('${response.body}');
-        print('✅ 서버 인증 성공: ${response.body}');
+        final data = jsonDecode(response.body);
+
+        final accessToken = data['accessToken'];
+        final refreshToken = data['refreshToken'];
+        final googleAccessToken = data['googleAccessToken'];
+        final googleRefreshToken = data['googleRefreshToken'];
+
+        if (accessToken != null) {
+          await setStoredAccessToken(accessToken);
+          print('✅ accessToken 저장 완료: $accessToken');
+        }
+        if (refreshToken != null) {
+          await setStoredRefreshToken(refreshToken);
+          print('✅ refreshToken 저장 완료: $refreshToken');
+        }
+        if (googleAccessToken != null) {
+          await setStoredGoogleAccessToken(googleAccessToken);
+          print('✅ googleAccessToken 저장 완료: $googleAccessToken');
+        }
+        if (googleRefreshToken != null) {
+          await setStoredGoogleRefreshToken(googleRefreshToken);
+          print('✅ googleRefreshToken 저장 완료: $googleRefreshToken');
+        }
         Navigator.pushReplacementNamed(context, '/main');
       } else {
         print('❌ 서버 인증 실패: ${response.statusCode}, ${response.body}');

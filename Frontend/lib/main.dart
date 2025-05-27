@@ -10,15 +10,17 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart'; // Provider 임포트
 import 'layout/bottom_section_controller.dart'; // 새로 생성한 컨트롤러 임포트
 import 'auth/splash_page.dart';
+import 'providers/token_status_provider.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: 'assets/.env');
-
   runApp(
-    ChangeNotifierProvider(
-      // MyApp을 ChangeNotifierProvider로 래핑
-      create: (context) => BottomSectionController(), // 컨트롤러 인스턴스 생성
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => BottomSectionController()),
+        ChangeNotifierProvider(create: (_) => TokenStatusProvider()), // ✅ 정상 등록
+      ],
       child: const MyApp(),
     ),
   );

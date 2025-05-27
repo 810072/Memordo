@@ -101,16 +101,14 @@ class GoogleDriveAuth {
 
   /// Access Token을 반환하거나 로그인 진행
   Future<String?> getAccessToken() async {
-    final token = "";
+    final token = await _storage.read(key: 'google_access_token');
+    print("토큰!!!!!!!! :");
+    print(token);
 
-    // 토큰 만료시 작동 안함
-    // final token = await _storage.read(key: 'google_access_token');
-
-    // if (token != null) {
-    //   print('[GoogleDriveAuth] 저장된 토큰 사용');
-    //   token = null;
-    //   return token;
-    // } else {}
+    if (token != null && token.isNotEmpty) {
+      print('[GoogleDriveAuth] 저장된 토큰 사용');
+      return token;
+    }
 
     print('[GoogleDriveAuth] 저장된 토큰 없음 → 로그인 진행');
 
@@ -180,7 +178,7 @@ class GoogleDriveAuth {
 
   /// 토큰 저장
   void _handleTokenReceived(String accessToken) {
-    print('[GoogleDriveAuth] 토큰 저장 중');
+    print('[GoogleDriveAuth] 토큰 저장 중: $accessToken');
     _storage.write(key: 'google_access_token', value: accessToken);
   }
 

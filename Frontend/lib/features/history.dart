@@ -10,6 +10,10 @@ import '../layout/bottom_section.dart';
 import '../services/google_drive_platform.dart';
 import '../utils/ai_service.dart';
 import '../layout/bottom_section_controller.dart'; // 컨트롤러 임포트
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../services/auth_token.dart'; // accessToken 관련 함수
+import 'package:flutter_dotenv/flutter_dotenv.dart'; // 구글 토큰 갱신 시 필요
+import '../auth/login_page.dart';
 
 class HistoryPage extends StatefulWidget {
   const HistoryPage({super.key});
@@ -23,51 +27,51 @@ class _HistoryPageState extends State<HistoryPage> {
   final Set<String> _selectedTimestamps = {};
   String _status = '불러오는 중...';
 
-  // GlobalKey 대신 BottomSectionController를 직접 사용합니다.
-  // final GlobalKey<CollapsibleBottomSectionState> _bottomSectionKey = GlobalKey();
-
-  // _isSummarizing은 이제 BottomSectionController에서 관리됩니다.
-  // bool _isSummarizing = false;
-
   @override
   void initState() {
     super.initState();
-    _loadVisitHistory();
+    // _loadVisitHistory();
+    _checkTokensThenLoad();
   }
 
-  // Future<String?> _getFolderIdByName(String folderName, String token) async {
-  //   final url = Uri.parse(
-  //     'https://www.googleapis.com/drive/v3/files?q=mimeType=%27application/vnd.google-apps.folder%27+and+name=%27$folderName%27&fields=files(id,name)&pageSize=1',
-  //   );
-  //   final res = await http.get(
-  //     url,
-  //     headers: {'Authorization': 'Bearer $token'},
-  //   );
+  Future<void> _checkTokensThenLoad() async {
+    final accessToken = await getStoredAccessToken();
+    final googleAccessToken = await getStoredGoogleAccessToken();
+    print("!!!!!!!! accessToken : ");
+    print(accessToken);
+    print("!!!!!!!! googleAccessToken : ");
+    print(googleAccessToken);
 
-  //   if (res.statusCode == 200) {
-  //     final data = jsonDecode(res.body);
-  //     final files = data['files'] as List;
-  //     if (files.isNotEmpty) {
-  //       return files[0]['id'];
-  //     }
-  //   } else {
-  //     print('폴더 ID 조회 실패 (상태: ${res.statusCode}): ${res.body}');
-  //   }
-  //   return null;
-  // }
+    // 자체 accessToken이 없는 경우
+    if (accessToken == null || accessToken.isEmpty) {
+      if (googleAccessToken == null || googleAccessToken.isEmpty) {
+        if (!mounted) return;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => LoginPage()),
+        );
+        return;
+      }
+      print('✅ 구글 accessToken 확인됨 (웹에서는 바로 사용)');
+    }
+
+    _loadVisitHistory(); // ✅ accessToken 또는 googleAccessToken 준비됨
+  }
 
   Future<void> _loadVisitHistory() async {
     setState(() => _status = '방문 기록 불러오는 중...');
-    final auth = GoogleDriveAuth();
-    final token = await auth.getAccessToken();
+    print("_loadVisitHistory !!!!!!");
+    // final auth = GoogleDriveAuth();
 
-    if (token == null) {
+    final googleAccessToken = await getStoredGoogleAccessToken();
+
+    if (googleAccessToken == null || googleAccessToken.isEmpty) {
       setState(() => _status = 'Google 인증 실패');
       return;
     }
 
     const folderName = 'memordo';
-    final folderId = await _getFolderIdByName(folderName, token);
+    final folderId = await _getFolderIdByName(folderName, googleAccessToken);
     if (folderId == null) {
       setState(() => _status = 'memordo 폴더를 찾을 수 없습니다.');
       return;
@@ -79,7 +83,7 @@ class _HistoryPageState extends State<HistoryPage> {
 
     final res = await http.get(
       url,
-      headers: {'Authorization': 'Bearer $token'},
+      headers: {'Authorization': 'Bearer $googleAccessToken'},
     );
 
     if (res.statusCode != 200) {
@@ -96,7 +100,7 @@ class _HistoryPageState extends State<HistoryPage> {
     }
 
     final fileId = files[0]['id'];
-    final history = await _downloadAndParseJsonl(token, fileId);
+    final history = await _downloadAndParseJsonl(googleAccessToken, fileId);
 
     setState(() {
       _visitHistory = history;
