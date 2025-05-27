@@ -303,3 +303,23 @@ a:hover {
   color: #888;                     /* 글자 색상 */
   margin-top: 30px;                /* 위쪽 여백 */
 }
+
+.search-container {
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+#search-input {
+  padding: 8px 15px;
+  border-radius: 20px;
+  border: 1px solid #ddd;
+  width: 50%;
+  box-sizing: border-box;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.3s;
+}
+
+#search-input:focus {
+  border-color: #275efe;
+}

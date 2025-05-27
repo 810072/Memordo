@@ -176,4 +176,52 @@ document.addEventListener('DOMContentLoaded', () => {
   chrome.storage.local.get('visitedUrls', (data) => {
     renderHistory(data.visitedUrls);
   });
+
+// 초성 추출 함수
+  function getChosung(text) {
+    const CHOSUNG_LIST = [
+      'ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ',
+      'ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ',
+      'ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'
+    ];
+
+    let result = "";
+    for (let i = 0; i < text.length; i++) {
+      const code = text.charCodeAt(i) - 44032;
+      if (code > -1 && code < 11172) {
+        result += CHOSUNG_LIST[Math.floor(code / 588)];
+      } else {
+        result += text[i];
+      }
+    }
+    return result;
+  }
+
+  // 검색 로직 수정 (초성 포함)
+  document.getElementById('search-input').addEventListener('input', function(event) {
+    const query = event.target.value.trim().toLowerCase();
+
+    document.querySelectorAll('.date-group').forEach(group => {
+      let groupHasMatch = false;
+
+      group.querySelectorAll('li').forEach(item => {
+        const title = item.querySelector('.entry-title').textContent.toLowerCase();
+        const url = item.querySelector('a').textContent.toLowerCase();
+
+        const titleChosung = getChosung(title);
+        const queryChosung = getChosung(query);
+
+        const match = title.includes(query) || 
+                      url.includes(query) || 
+                      titleChosung.includes(queryChosung);
+
+        item.style.display = match ? '' : 'none';
+        
+        if (match) groupHasMatch = true;
+      });
+
+      group.style.display = groupHasMatch ? '' : 'none';
+    });
+  });
+
 });
