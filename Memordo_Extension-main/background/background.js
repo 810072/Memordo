@@ -22,7 +22,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 
     chrome.storage.local.get(['visitedUrls'], (localData) => {
       const visited = localData.visitedUrls || [];
-      // const normalizedNewUrl = normalizeUrl(tab.url);
+      const normalizedNewUrl = normalizeUrl(tab.url);
       // URL 중복 확인 (기존과 동일)
       const alreadyVisited = visited.some(entry => normalizeUrl(entry.url) === normalizedNewUrl);
       if (!alreadyVisited) {
@@ -43,16 +43,16 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 });
 
 //URL 정규화 함수
-// function normalizeUrl(url) {
-//   try {
-//     const parsed = new URL(url);
-//     const ignoredParams = ['page', 'timestamp'];
-//     ignoredParams.forEach(param => parsed.searchParams.delete(param));
-//     return parsed.origin + parsed.pathname;
-//   } catch (e) {
-//     return url;
-//   }
-// }
+function normalizeUrl(url) {
+  try {
+    const parsed = new URL(url);
+    const ignoredParams = ['page', 'timestamp'];
+    ignoredParams.forEach(param => parsed.searchParams.delete(param));
+    return parsed.origin + parsed.pathname;
+  } catch (e) {
+    return url;
+  }
+}
 
 // 인증 토큰 받기
 function getAuthToken(callback) {
