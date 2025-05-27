@@ -323,3 +323,11 @@ a:hover {
 #search-input:focus {
   border-color: #275efe;
 }
+
+#result-count {
+  margin-top: 8px; /* 검색창과 약간의 간격 */
+  font-size: 13px;
+  color: #555;
+  text-align: center;
+  opacity: 0.9;
+}

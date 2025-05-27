@@ -196,10 +196,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     return result;
   }
+  const resultCount = document.getElementById('result-count');
 
-  // 검색 로직 수정 (초성 포함)
   document.getElementById('search-input').addEventListener('input', function(event) {
     const query = event.target.value.trim().toLowerCase();
+    let matchedCount = 0; // 결과 개수 카운트
 
     document.querySelectorAll('.date-group').forEach(group => {
       let groupHasMatch = false;
@@ -211,17 +212,21 @@ document.addEventListener('DOMContentLoaded', () => {
         const titleChosung = getChosung(title);
         const queryChosung = getChosung(query);
 
-        const match = title.includes(query) || 
-                      url.includes(query) || 
+        const match = title.includes(query) ||
+                      url.includes(query) ||
                       titleChosung.includes(queryChosung);
 
         item.style.display = match ? '' : 'none';
         
-        if (match) groupHasMatch = true;
+        if (match) {
+          groupHasMatch = true;
+          matchedCount++; // 검색 결과 개수 증가
+        }
       });
 
       group.style.display = groupHasMatch ? '' : 'none';
     });
-  });
 
+    resultCount.textContent = query ? `검색 결과: ${matchedCount}개` : ''; // 입력 시만 표시
+  });
 });
