@@ -6,6 +6,7 @@ import '../features/calendar_page.dart';
 import '../features/graph_page.dart';
 import '../features/history.dart';
 import '../auth/login_page.dart';
+import '../services/auth_token.dart';
 import 'bottom_section_controller.dart'; // 컨트롤러 임포트
 
 /// 현재 활성 페이지를 나타내는 열거형
@@ -80,9 +81,11 @@ class LeftSidebarLayout extends StatelessWidget {
           _sideBarIcon(Icons.align_vertical_bottom_rounded, () {
             bottomController.toggleVisibility(); // 하단 영역 가시성 토글
           }),
-          _sideBarIcon(Icons.logout, () {
+          _sideBarIcon(Icons.logout, () async {
+            await clearAllTokens();
             Navigator.pushReplacement(
               context,
+
               MaterialPageRoute(builder: (_) => LoginPage()),
             );
           }),

@@ -26,6 +26,13 @@ class _LoginPageState extends State<LoginPage> {
   final String baseUrl = 'https://aidoctorgreen.com';
   final String apiPrefix = '/memo/api';
 
+  Future<bool> hasValidTokens() async {
+    final accessToken = await getStoredAccessToken();
+    final refreshToken = await getStoredRefreshToken();
+    return (accessToken != null && accessToken.isNotEmpty) ||
+        (refreshToken != null && refreshToken.isNotEmpty);
+  }
+
   Future<void> _login(BuildContext context) async {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
@@ -46,16 +53,32 @@ class _LoginPageState extends State<LoginPage> {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final token = data['accessToken']; // 서버 응답 구조에 맞춰 키 확인
 
-        if (token != null) {
-          setStoredAccessToken(token);
-          print('✅ JWT accessToken 저장됨');
-          Navigator.pushReplacementNamed(context, '/main');
+        // 1차: 자체 토큰
+        final accessToken = data['accessToken'];
+        final refreshToken = data['refreshToken'];
+
+        if (accessToken != null && refreshToken != null) {
+          await setStoredAccessToken(accessToken);
+          await setStoredRefreshToken(refreshToken);
+          print('✅ 자체 accessToken, refreshToken 저장 완료');
         } else {
-          _showSnackBar('로그인 성공했지만 accessToken이 없습니다.');
-          print('⚠️ 서버 응답에 accessToken 없음: ${response.body}');
+          print('⚠️ 자체 토큰 누락됨');
         }
+
+        // 2차: 구글 토큰
+        final googleAccessToken = data['googleAccessToken'];
+        final googleRefreshToken = data['googleRefreshToken'];
+
+        if (googleAccessToken != null && googleRefreshToken != null) {
+          await setStoredGoogleAccessToken(googleAccessToken);
+          await setStoredGoogleRefreshToken(googleRefreshToken);
+          print('✅ Google accessToken, refreshToken 저장 완료');
+        } else {
+          print('⚠️ Google 토큰 누락됨');
+        }
+
+        Navigator.pushReplacementNamed(context, '/main');
       } else {
         print('로그인 실패: ${response.statusCode}, ${response.body}');
         _showSnackBar('로그인 실패: 이메일 또는 비밀번호를 확인해주세요.');
