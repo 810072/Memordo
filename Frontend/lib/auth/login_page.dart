@@ -26,6 +26,7 @@ class _LoginPageState extends State<LoginPage> {
   final String baseUrl = 'https://aidoctorgreen.com';
   final String apiPrefix = '/memo/api';
 
+  //일반 로그인
   Future<void> _login(BuildContext context) async {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
@@ -87,6 +88,7 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  //구글 로그인
   Future<void> _signInWithGoogle() async {
     final clientId = dotenv.env['GOOGLE_CLIENT_ID_WEB'];
     final redirectUri = dotenv.env['REDIRECT_URI'];
@@ -161,6 +163,7 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  //구글 로그인 인증 (웹페이지부분) -> 인증 완료시 페이지
   Future<String?> _waitForCode(String redirectUri) async {
     final int port = Uri.parse(redirectUri).port;
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, port);
@@ -179,7 +182,7 @@ class _LoginPageState extends State<LoginPage> {
         <head><title>로그인 완료</title></head>
         <body>
           <h2>✅ 로그인 처리가 완료되었습니다.</h2>
-          <p>이 창은 곧 닫아주세요.</p>
+          <p>이 창을 닫아주세요.</p>
         </body>
       </html>
     ''');

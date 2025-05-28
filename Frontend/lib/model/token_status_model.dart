@@ -19,4 +19,6 @@ class TokenStatus {
       googleRefreshTokenValid: json['googleRefreshTokenValid'] ?? false,
     );
   }
+
+  Object? get token => null;
 }

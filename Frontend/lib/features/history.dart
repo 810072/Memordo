@@ -7,13 +7,14 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:provider/provider.dart'; // Provider 임포트
 import '../layout/left_sidebar_layout.dart';
 import '../layout/bottom_section.dart';
-import '../services/google_drive_platform.dart';
 import '../utils/ai_service.dart';
 import '../layout/bottom_section_controller.dart'; // 컨트롤러 임포트
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../services/auth_token.dart'; // accessToken 관련 함수
 import 'package:flutter_dotenv/flutter_dotenv.dart'; // 구글 토큰 갱신 시 필요
 import '../auth/login_page.dart';
+import 'dart:io'; // ✅ HttpServer, HttpRequest, InternetAddress, ContentType 제공
+import '../services/auth_token.dart'; // JWT 저장용
 
 class HistoryPage extends StatefulWidget {
   const HistoryPage({super.key});
@@ -23,6 +24,9 @@ class HistoryPage extends StatefulWidget {
 }
 
 class _HistoryPageState extends State<HistoryPage> {
+  final String baseUrl = 'https://aidoctorgreen.com';
+  final String apiPrefix = '/memo/api';
+
   List<Map<String, dynamic>> _visitHistory = [];
   final Set<String> _selectedTimestamps = {};
   String _status = '불러오는 중...';
@@ -37,27 +41,55 @@ class _HistoryPageState extends State<HistoryPage> {
   Future<void> _checkTokensThenLoad() async {
     final accessToken = await getStoredAccessToken();
     final googleAccessToken = await getStoredGoogleAccessToken();
-    print("!!!!!!!! accessToken : ");
-    print(accessToken);
-    print("!!!!!!!! googleAccessToken : ");
-    print(googleAccessToken);
+    final googleRefreshToken = await getStoredGoogleRefreshToken();
 
-    // 자체 accessToken이 없는 경우
+    // 자체 토큰 확인
     if (accessToken == null || accessToken.isEmpty) {
-      if (googleAccessToken == null || googleAccessToken.isEmpty) {
-        if (!mounted) return;
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => LoginPage()),
-        );
+      print('❗ accessToken 없음 → refresh 시도');
+
+      try {
+        await refreshAccessTokenIfNeeded(); // 🔄 access token 재발급
+        final newToken = await getStoredAccessToken();
+
+        if (newToken == null || newToken.isEmpty) {
+          throw Exception('accessToken 재발급 실패');
+        }
+        print('✅ accessToken 재발급 성공');
+      } catch (e) {
+        print('❌ accessToken 재발급 실패: $e');
+        _navigateToLogin();
         return;
       }
-      print('✅ 구글 accessToken 확인됨 (웹에서는 바로 사용)');
     }
 
+    // 구글 토큰 확인
+    if (googleAccessToken == null || googleAccessToken.isEmpty) {
+      print('❗ Google accessToken 없음');
+
+      if (googleRefreshToken == null || googleRefreshToken.isEmpty) {
+        print('❌ Google refreshToken 없음 → 로그인 필요');
+        _signInWithGoogle();
+        return;
+      }
+
+      try {
+        await refreshGoogleAccessTokenIfNeeded(); // 🔄 구글 access token 재발급
+        final refreshed = await getStoredGoogleAccessToken();
+
+        if (refreshed == null || refreshed.isEmpty) {
+          throw Exception('Google accessToken 재발급 실패');
+        }
+        print('✅ Google accessToken 재발급 성공');
+      } catch (e) {
+        print('❌ Google accessToken 갱신 실패: $e');
+        _signInWithGoogle();
+        return;
+      }
+    }
     _loadVisitHistory(); // ✅ accessToken 또는 googleAccessToken 준비됨
   }
 
+  //구글 파일 히스토리 가져오기
   Future<void> _loadVisitHistory() async {
     setState(() => _status = '방문 기록 불러오는 중...');
     print("_loadVisitHistory !!!!!!");
@@ -106,6 +138,127 @@ class _HistoryPageState extends State<HistoryPage> {
       _visitHistory = history;
       _status = '총 ${history.length}개의 방문 기록을 불러왔습니다.';
     });
+  }
+
+  void _navigateToLogin() {
+    if (!mounted) return;
+    Navigator.pushReplacementNamed(context, '/login');
+  }
+
+  //구글 로그인
+  Future<void> _signInWithGoogle() async {
+    final clientId = dotenv.env['GOOGLE_CLIENT_ID_WEB'];
+    final redirectUri = dotenv.env['REDIRECT_URI'];
+
+    final authUrl = Uri.https('accounts.google.com', '/o/oauth2/v2/auth', {
+      'response_type': 'code',
+      'client_id': clientId!,
+      'redirect_uri': redirectUri!,
+      'scope':
+          'openid email profile https://www.googleapis.com/auth/drive.readonly',
+      'access_type': 'offline',
+      'prompt': 'consent',
+    });
+
+    try {
+      if (await canLaunchUrl(authUrl)) {
+        await launchUrl(authUrl, mode: LaunchMode.externalApplication);
+      } else {
+        throw '브라우저 열기 실패: $authUrl';
+      }
+
+      final code = await _waitForCode(redirectUri);
+
+      // ✅ 코드 값 확인 및 로깅
+      if (code == null || code.isEmpty) {
+        _showSnackBar('Google 로그인 실패: code가 비어 있습니다.');
+        print('❌ 받은 code가 null 또는 빈 값입니다.');
+        return;
+      }
+
+      print('✅ 받은 Google 인증 code: $code');
+
+      final response = await http.post(
+        Uri.parse('$baseUrl$apiPrefix/google-login'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'code': code}),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        final accessToken = data['accessToken'];
+        final refreshToken = data['refreshToken'];
+        final googleAccessToken = data['googleAccessToken'];
+        final googleRefreshToken = data['googleRefreshToken'];
+
+        if (accessToken != null) {
+          await setStoredAccessToken(accessToken);
+          print('✅ accessToken 저장 완료: $accessToken');
+        }
+        if (refreshToken != null) {
+          await setStoredRefreshToken(refreshToken);
+          print('✅ refreshToken 저장 완료: $refreshToken');
+        }
+        if (googleAccessToken != null) {
+          await setStoredGoogleAccessToken(googleAccessToken);
+          print('✅ googleAccessToken 저장 완료: $googleAccessToken');
+        }
+        if (googleRefreshToken != null) {
+          await setStoredGoogleRefreshToken(googleRefreshToken);
+          print('✅ googleRefreshToken 저장 완료: $googleRefreshToken');
+        }
+        Navigator.pushReplacementNamed(context, '/main');
+      } else {
+        print('❌ 서버 인증 실패: ${response.statusCode}, ${response.body}');
+        _showSnackBar('Google 로그인 실패: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('에러 코드 : ${e}');
+      print('⚠️ Google 로그인 오류: $e');
+      _showSnackBar('Google 로그인 중 오류 발생');
+    }
+  }
+
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  //구글 로그인 인증 (웹페이지부분) -> 인증 완료시 페이지
+  Future<String?> _waitForCode(String redirectUri) async {
+    final int port = Uri.parse(redirectUri).port;
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, port);
+    print('✅ 서버가 인증 코드를 기다리는 중입니다. (http://localhost:$port)');
+
+    final HttpRequest request = await server.first;
+    final Uri uri = request.uri;
+    final String? code = uri.queryParameters['code'];
+
+    // 응답 보내기
+    request.response
+      ..statusCode = 200
+      ..headers.contentType = ContentType.html
+      ..write('''
+      <html>
+        <head><title>로그인 완료</title></head>
+        <body>
+          <h2>✅ 로그인 처리가 완료되었습니다.</h2>
+          <p>이 창을 닫아주세요.</p>
+        </body>
+      </html>
+    ''');
+    await request.response.close();
+    await server.close();
+
+    if (code == null) {
+      print('❌ 인증 코드가 전달되지 않았습니다.');
+    } else {
+      print('✅ 인증 코드 수신 완료: $code');
+    }
+
+    return code;
   }
 
   Future<List<Map<String, dynamic>>> _downloadAndParseJsonl(
@@ -430,22 +583,25 @@ class _HistoryPageState extends State<HistoryPage> {
           : isoString;
     }
   }
-}
 
-Future<String?> _getFolderIdByName(String folderName, String token) async {
-  final url = Uri.parse(
-    'https://www.googleapis.com/drive/v3/files?q=mimeType=%27application/vnd.google-apps.folder%27+and+name=%27$folderName%27&fields=files(id,name)&pageSize=1',
-  );
-  final res = await http.get(url, headers: {'Authorization': 'Bearer $token'});
+  Future<String?> _getFolderIdByName(String folderName, String token) async {
+    final url = Uri.parse(
+      'https://www.googleapis.com/drive/v3/files?q=mimeType=%27application/vnd.google-apps.folder%27+and+name=%27$folderName%27&fields=files(id,name)&pageSize=1',
+    );
+    final res = await http.get(
+      url,
+      headers: {'Authorization': 'Bearer $token'},
+    );
 
-  if (res.statusCode == 200) {
-    final data = jsonDecode(res.body);
-    final files = data['files'] as List;
-    if (files.isNotEmpty) {
-      return files[0]['id'];
+    if (res.statusCode == 200) {
+      final data = jsonDecode(res.body);
+      final files = data['files'] as List;
+      if (files.isNotEmpty) {
+        return files[0]['id'];
+      }
+    } else {
+      print('폴더 ID 조회 실패 (상태: ${res.statusCode}): ${res.body}');
     }
-  } else {
-    print('폴더 ID 조회 실패 (상태: ${res.statusCode}): ${res.body}');
+    return null;
   }
-  return null;
 }

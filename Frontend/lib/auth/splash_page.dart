@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../features/meeting_screen.dart';
-import '../auth/login_page.dart';
 import '../providers/token_status_provider.dart';
 
 class SplashPage extends StatefulWidget {
@@ -15,31 +13,38 @@ class _SplashPageState extends State<SplashPage> {
   @override
   void initState() {
     super.initState();
-    _init();
+    _checkLoginStatus();
   }
 
-  Future<void> _init() async {
-    final tokenProvider = context.read<TokenStatusProvider>();
-    await tokenProvider.loadStatus(context); // ✅ context 전달
+  Future<void> _checkLoginStatus() async {
+    final provider = Provider.of<TokenStatusProvider>(context, listen: false);
+    await provider.loadFromCache();
 
-    final status = tokenProvider.status;
+    await Future.delayed(const Duration(seconds: 2)); // 로딩 효과용 딜레이
 
-    if (status != null &&
-        (status.accessTokenValid || status.refreshTokenValid)) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const MeetingScreen()),
-      );
+    if (!mounted) return;
+    if (provider.isLoaded) {
+      Navigator.pushReplacementNamed(context, '/main');
     } else {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => LoginPage()),
-      );
+      Navigator.pushReplacementNamed(context, '/login');
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    return Scaffold(
+      body: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(32.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Image.asset('assets/logo.png', width: 150, height: 150),
+            const SizedBox(height: 24),
+            const CircularProgressIndicator(),
+          ],
+        ),
+      ),
+    );
   }
 }

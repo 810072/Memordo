@@ -11,6 +11,9 @@ import '../layout/left_sidebar_layout.dart';
 import '../utils/web_helper.dart';
 import '../utils/ai_service.dart';
 import '../layout/bottom_section_controller.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../services/auth_token.dart';
+import '../providers/token_status_provider.dart';
 
 // 오른쪽 패널에 표시될 메모 정보를 담는 클래스
 class LocalMemo {
@@ -44,6 +47,24 @@ class _MeetingScreenState extends State<MeetingScreen> {
     super.initState();
     // 앱 시작 시 또는 필요에 따라 초기 메모 스캔
     // _scanForMemos(); // initState에서 호출하면 초기 로딩 가능
+    _checkStoredTokens();
+  }
+
+  Future<void> _checkStoredTokens() async {
+    final accessToken = await getStoredAccessToken();
+    final refreshToken = await getStoredRefreshToken();
+
+    if (accessToken != null && accessToken.isNotEmpty) {
+      print('✅ 저장된 accessToken: ${accessToken.substring(0, 10)}...');
+    } else {
+      print('❌ accessToken 없음');
+    }
+
+    if (refreshToken != null && refreshToken.isNotEmpty) {
+      print('🌀 저장된 refreshToken: ${refreshToken.substring(0, 10)}...');
+    } else {
+      print('❌ refreshToken 없음');
+    }
   }
 
   /// ✅ 사용자 홈에 Memordo_Notes 폴더가 없으면 생성하고 경로 반환
@@ -55,9 +76,10 @@ class _MeetingScreenState extends State<MeetingScreen> {
       throw Exception('사용자 홈 디렉터리를 찾을 수 없습니다.');
     }
 
-    final folderPath = Platform.isMacOS
-        ? p.join(home, 'Memordo_Notes')
-        : p.join(home, 'Documents', 'Memordo_Notes');
+    final folderPath =
+        Platform.isMacOS
+            ? p.join(home, 'Memordo_Notes')
+            : p.join(home, 'Documents', 'Memordo_Notes');
 
     final directory = Directory(folderPath);
     if (!await directory.exists()) {
@@ -158,7 +180,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
           File file = File(result.files.single.path!);
           content = await file.readAsString();
           fileName = p.basename(file.path);
-           _lastSavedDirectoryPath = p.dirname(file.path); // 불러온 파일의 디렉토리도 기억
+          _lastSavedDirectoryPath = p.dirname(file.path); // 불러온 파일의 디렉토리도 기억
         } else {
           if (!mounted) return;
           setState(() {
@@ -198,11 +220,13 @@ class _MeetingScreenState extends State<MeetingScreen> {
   /// ✅ 폴더 탐색기 열기 함수
   Future<void> openFolderInExplorer(String folderPath) async {
     // ... (기존 코드와 동일) ...
-     final directory = Directory(folderPath);
+    final directory = Directory(folderPath);
     if (!await directory.exists()) {
       print('❌ 폴더가 존재하지 않습니다: $folderPath');
-      if(mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("지정된 폴더를 찾을 수 없습니다: $folderPath")));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("지정된 폴더를 찾을 수 없습니다: $folderPath")),
+        );
       }
       return;
     }
@@ -215,8 +239,10 @@ class _MeetingScreenState extends State<MeetingScreen> {
       await Process.run('xdg-open', [folderPath]);
     } else {
       print('❌ 현재 플랫폼에서는 폴더 열기 기능이 지원되지 않습니다.');
-       if(mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("현재 플랫폼에서는 폴더 열기 기능이 지원되지 않습니다.")));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("현재 플랫폼에서는 폴더 열기 기능이 지원되지 않습니다.")),
+        );
       }
     }
   }
@@ -245,8 +271,8 @@ class _MeetingScreenState extends State<MeetingScreen> {
     }
 
     if (!mounted) return;
-    bottomController.setIsLoading(true); 
-    bottomController.updateSummary(''); 
+    bottomController.setIsLoading(true);
+    bottomController.updateSummary('');
 
     String? summary;
     try {
@@ -260,7 +286,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
     } finally {
       if (!mounted) return;
       bottomController.updateSummary(summary ?? '요약에 실패했거나 내용이 없습니다.');
-      bottomController.setIsLoading(false); 
+      bottomController.setIsLoading(false);
     }
 
     if (summary == null || summary.contains("오류") || summary.contains("실패")) {
@@ -291,7 +317,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
     if (!mounted) return;
     setState(() {
       _isLoadingMemos = true;
-      _savedMemosList = []; 
+      _savedMemosList = [];
     });
 
     try {
@@ -300,18 +326,23 @@ class _MeetingScreenState extends State<MeetingScreen> {
       if (await directory.exists()) {
         final List<LocalMemo> memos = [];
         await for (var entity in directory.list().handleError((error) {
-            print("Error listing directory: $error");
-            if(mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('메모 폴더 접근 중 오류: $error')),
-                );
-            }
+          print("Error listing directory: $error");
+          if (mounted) {
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text('메모 폴더 접근 중 오류: $error')));
+          }
         })) {
-          if (entity is File && p.extension(entity.path).toLowerCase() == '.md') {
-            memos.add(LocalMemo(
-              fileName: p.basenameWithoutExtension(entity.path), // 확장자 제외한 파일명
-              filePath: entity.path,
-            ));
+          if (entity is File &&
+              p.extension(entity.path).toLowerCase() == '.md') {
+            memos.add(
+              LocalMemo(
+                fileName: p.basenameWithoutExtension(
+                  entity.path,
+                ), // 확장자 제외한 파일명
+                filePath: entity.path,
+              ),
+            );
           }
         }
         if (mounted) {
@@ -325,9 +356,9 @@ class _MeetingScreenState extends State<MeetingScreen> {
     } catch (e) {
       print('Error scanning memos: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('메모 목록을 불러오는 중 오류 발생: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('메모 목록을 불러오는 중 오류 발생: $e')));
       }
     } finally {
       if (mounted) {
@@ -347,7 +378,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
           setState(() {
             _textEditingController.text = content;
             _saveStatus = "파일 불러오기 완료: ${memo.fileName}.md ✅";
-             _isMemoListVisible = false; // 선택 후 패널 닫기
+            _isMemoListVisible = false; // 선택 후 패널 닫기
           });
         }
       } else {
@@ -355,7 +386,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
           setState(() {
             _saveStatus = "파일을 찾을 수 없습니다: ${memo.fileName}.md";
           });
-           ScaffoldMessenger.of(context).showSnackBar(
+          ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('파일을 찾을 수 없습니다: ${memo.fileName}.md')),
           );
         }
@@ -366,15 +397,16 @@ class _MeetingScreenState extends State<MeetingScreen> {
         setState(() {
           _saveStatus = "파일 읽기 오류: $e";
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('메모를 불러오는 중 오류 발생: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('메모를 불러오는 중 오류 발생: $e')));
       }
     }
   }
 
   Widget _buildMemoListPanel() {
-    return Material( // Material 위젯으로 감싸서 Theming 적용 및 시각적 개선
+    return Material(
+      // Material 위젯으로 감싸서 Theming 적용 및 시각적 개선
       elevation: 4.0, // 패널에 그림자 효과
       child: Container(
         width: 280,
@@ -389,11 +421,13 @@ class _MeetingScreenState extends State<MeetingScreen> {
                 children: [
                   Text(
                     "저장된 메모",
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   Row(
                     children: [
-                       IconButton(
+                      IconButton(
                         icon: const Icon(Icons.refresh, size: 20),
                         tooltip: "새로고침",
                         onPressed: _isLoadingMemos ? null : _scanForMemos,
@@ -404,7 +438,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
                         onPressed: _toggleMemoListVisibility,
                       ),
                     ],
-                  )
+                  ),
                 ],
               ),
             ),
@@ -428,13 +462,25 @@ class _MeetingScreenState extends State<MeetingScreen> {
               Expanded(
                 child: ListView.separated(
                   itemCount: _savedMemosList.length,
-                  separatorBuilder: (context, index) => Divider(height: 1, indent: 16, endIndent: 16, color: Theme.of(context).dividerColor.withOpacity(0.5)),
+                  separatorBuilder:
+                      (context, index) => Divider(
+                        height: 1,
+                        indent: 16,
+                        endIndent: 16,
+                        color: Theme.of(context).dividerColor.withOpacity(0.5),
+                      ),
                   itemBuilder: (context, index) {
                     final memo = _savedMemosList[index];
                     return ListTile(
-                      title: Text(memo.fileName, style: const TextStyle(fontWeight: FontWeight.w500)),
+                      title: Text(
+                        memo.fileName,
+                        style: const TextStyle(fontWeight: FontWeight.w500),
+                      ),
                       // subtitle: Text(memo.filePath, maxLines: 1, overflow: TextOverflow.ellipsis), // 필요시 경로 표시
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 0),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16.0,
+                        vertical: 0,
+                      ),
                       dense: true,
                       onTap: () => _loadSelectedMemo(memo),
                     );
@@ -461,22 +507,31 @@ class _MeetingScreenState extends State<MeetingScreen> {
           height: 48,
           // color: Colors.grey[100], // 기존 색상 또는 테마 색상 사용
           padding: const EdgeInsets.symmetric(horizontal: 16),
-           decoration: BoxDecoration(
-            color: Theme.of(context).appBarTheme.backgroundColor ?? Colors.grey[100], // 테마 AppBar 배경색 또는 기본값
-            border: Border(bottom: BorderSide(color: Theme.of(context).dividerColor))
+          decoration: BoxDecoration(
+            color:
+                Theme.of(context).appBarTheme.backgroundColor ??
+                Colors.grey[100], // 테마 AppBar 배경색 또는 기본값
+            border: Border(
+              bottom: BorderSide(color: Theme.of(context).dividerColor),
+            ),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
                 '메인 화면 - 새 메모 작성',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600, fontSize: 18),
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 18,
+                ),
               ),
               if (!kIsWeb) // 웹에서는 파일 시스템 접근이 다르므로 일단 숨김
                 IconButton(
                   icon: Icon(
-                    _isMemoListVisible ? Icons.menu_open : Icons.menu, 
-                    color: Theme.of(context).iconTheme.color ?? Colors.deepPurple.shade400,
+                    _isMemoListVisible ? Icons.menu_open : Icons.menu,
+                    color:
+                        Theme.of(context).iconTheme.color ??
+                        Colors.deepPurple.shade400,
                   ),
                   tooltip: "저장된 메모 목록 보기/숨기기",
                   onPressed: _toggleMemoListVisibility,
@@ -486,7 +541,12 @@ class _MeetingScreenState extends State<MeetingScreen> {
         ),
         Expanded(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0), // 하단 패딩은 CollapsibleBottomSection 전까지
+            padding: const EdgeInsets.fromLTRB(
+              16,
+              16,
+              16,
+              0,
+            ), // 하단 패딩은 CollapsibleBottomSection 전까지
             child: Column(
               children: [
                 Expanded(
@@ -499,11 +559,14 @@ class _MeetingScreenState extends State<MeetingScreen> {
                       hintText: '여기에 글을 작성하세요...',
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8.0),
-                        borderSide: BorderSide(color: Colors.grey.shade400)
+                        borderSide: BorderSide(color: Colors.grey.shade400),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8.0),
-                        borderSide: BorderSide(color: Theme.of(context).primaryColor, width: 1.5)
+                        borderSide: BorderSide(
+                          color: Theme.of(context).primaryColor,
+                          width: 1.5,
+                        ),
                       ),
                       contentPadding: const EdgeInsets.all(16),
                     ),
@@ -521,28 +584,42 @@ class _MeetingScreenState extends State<MeetingScreen> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blueGrey[700],
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 10),
                     ElevatedButton.icon(
-                      icon: const Icon(Icons.file_upload_outlined, size: 18), // 아이콘 변경
+                      icon: const Icon(
+                        Icons.file_upload_outlined,
+                        size: 18,
+                      ), // 아이콘 변경
                       label: const Text('노트 불러오기'),
                       onPressed: _loadMarkdown,
-                       style: ElevatedButton.styleFrom(
+                      style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blueGrey[700],
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 10),
                     ElevatedButton.icon(
-                      icon: const Icon(Icons.snippet_folder_outlined, size: 18), // 아이콘 변경
+                      icon: const Icon(
+                        Icons.snippet_folder_outlined,
+                        size: 18,
+                      ), // 아이콘 변경
                       label: const Text('저장 폴더 열기'),
                       onPressed: () async {
                         if (kIsWeb) {
-                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text("웹 환경에서는 폴더 열기를 지원하지 않습니다.")),
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text("웹 환경에서는 폴더 열기를 지원하지 않습니다."),
+                            ),
                           );
                           return;
                         }
@@ -558,10 +635,13 @@ class _MeetingScreenState extends State<MeetingScreen> {
                           }
                         }
                       },
-                       style: ElevatedButton.styleFrom(
+                      style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blueGrey[700],
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 16),
@@ -592,12 +672,14 @@ class _MeetingScreenState extends State<MeetingScreen> {
 
     return LeftSidebarLayout(
       activePage: PageType.home,
-      child: Row( // 메인 콘텐츠와 오른쪽 패널을 Row로 배치
+      child: Row(
+        // 메인 콘텐츠와 오른쪽 패널을 Row로 배치
         children: [
           Expanded(
             child: mainContentArea, // 기존 메인 콘텐츠
           ),
-          if (_isMemoListVisible && !kIsWeb) _buildMemoListPanel(), // 조건부로 오른쪽 패널 표시 (웹 제외)
+          if (_isMemoListVisible && !kIsWeb)
+            _buildMemoListPanel(), // 조건부로 오른쪽 패널 표시 (웹 제외)
         ],
       ),
     );
