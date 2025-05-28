@@ -1,26 +1,25 @@
+// lib/main.dart
 import 'package:flutter/material.dart';
 import 'auth/login_page.dart';
 import 'auth/signup_page.dart';
 import 'auth/email_check_page.dart';
-import 'auth/password_reset_page.dart';
+import 'auth/password_reset_page.dart'; // ✅ 임포트 추가
 import 'auth/find_id_page.dart';
-import 'layout/left_sidebar_layout.dart';
 import 'features/meeting_screen.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:provider/provider.dart'; // Provider 임포트
-import 'layout/bottom_section_controller.dart'; // 새로 생성한 컨트롤러 임포트
-import 'auth/splash_page.dart';
-import 'providers/token_status_provider.dart';
+import 'package:provider/provider.dart';
+import 'layout/ai_summary_controller.dart'; // ✅ 이름 변경된 컨트롤러 임포트
+import 'features/calendar_page.dart';
+import 'features/graph_page.dart';
+import 'features/history.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: 'assets/.env');
+
   runApp(
-    MultiProvider(
-      providers: [
-        ChangeNotifierProvider(create: (_) => BottomSectionController()),
-        ChangeNotifierProvider(create: (_) => TokenStatusProvider()), // ✅ 정상 등록
-      ],
+    ChangeNotifierProvider(
+      create: (context) => AiSummaryController(), // ✅ AiSummaryController 사용
       child: const MyApp(),
     ),
   );
@@ -33,13 +32,36 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: const SplashPage(), // ✅ 자동 판단 페이지로 교체
+      theme: ThemeData(
+        // ✅ 기본 테마 설정 (선택 사항)
+        primaryColor: const Color(0xFF3d98f4),
+        scaffoldBackgroundColor: const Color(0xFFF1F5F9),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.white,
+          foregroundColor: Color(0xFF1E293B),
+          elevation: 1.0,
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8.0),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          ),
+        ),
+      ),
+      initialRoute: '/login',
       routes: {
         '/login': (context) => LoginPage(),
         '/signup': (context) => SignUpPage(),
-        '/main': (context) => MeetingScreen(),
+        '/main': (context) => const MeetingScreen(), // ✅ MeetingScreen 사용
+        '/calendar': (context) => const CalendarPage(), // ✅ CalendarPage 사용
+        '/graph': (context) => const GraphPage(), // ✅ GraphPage 사용
+        '/history': (context) => const HistoryPage(), // ✅ HistoryPage 사용
         '/emailCheck': (context) => EmailCheckPage(),
-        '/findId': (context) => FindIdPage(),
+        '/findId': (context) => const FindIdPage(),
+        // PasswordResetPage는 email을 받아야 하므로 routes보다는 MaterialPageRoute로 직접 호출하는 것이 일반적입니다.
+        // '/passwordReset': (context) => PasswordResetPage(email: 'test@test.com'), // 예시
       },
     );
   }

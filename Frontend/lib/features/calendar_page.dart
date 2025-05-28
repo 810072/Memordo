@@ -1,9 +1,9 @@
+// lib/features/calendar_page.dart
 import 'package:flutter/material.dart';
-import 'package:table_calendar/table_calendar.dart'; // 달력 위젯 라이브러리 임포트
-import '../layout/left_sidebar_layout.dart'; // 좌측 사이드바 레이아웃 임포트
-import '../layout/bottom_section.dart'; // 하단 액션 영역 위젯 임포트
+import 'package:table_calendar/table_calendar.dart';
+import '../layout/main_layout.dart';
+import 'page_type.dart';
 
-// 달력 페이지 위젯
 class CalendarPage extends StatefulWidget {
   const CalendarPage({super.key});
 
@@ -11,100 +11,136 @@ class CalendarPage extends StatefulWidget {
   State<CalendarPage> createState() => _CalendarPageState();
 }
 
-// CalendarPage 위젯의 상태를 관리하는 클래스
 class _CalendarPageState extends State<CalendarPage> {
-  // 달력에서 현재 포커스된 날짜
   DateTime _focusedDay = DateTime.now();
-  // 달력에서 선택된 날짜
   DateTime? _selectedDay;
-  // 달력 표시 형식 (월, 2주, 주)
   CalendarFormat _calendarFormat = CalendarFormat.month;
 
-  // 오늘 날짜로 이동하는 함수
   void _goToToday() {
     setState(() {
-      _focusedDay = DateTime.now(); // 포커스된 날짜를 오늘로 설정
-      _selectedDay = DateTime.now(); // 선택된 날짜를 오늘로 설정
+      _focusedDay = DateTime.now();
+      _selectedDay = DateTime.now();
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    return LeftSidebarLayout(
-      // 좌측 사이드바 레이아웃 사용
-      activePage: PageType.calendar, // 현재 활성화된 페이지 타입을 달력으로 설정
+    return MainLayout(
+      // ✅ MainLayout 사용
+      activePage: PageType.calendar,
       child: Column(
-        // 메인 콘텐츠 영역 구성
         children: [
-          _buildTopBar(), // 상단 바 위젯 빌드
-          Expanded(child: _buildCalendarView()), // 남은 공간을 달력 뷰로 채움
-          // 하단에 Collapse 가능한 액션 영역 위젯 추가
-          const CollapsibleBottomSection(),
+          _buildTopBar(), // ✅ 상단 바
+          Expanded(child: _buildCalendarView()), // ✅ 달력 뷰
+          // CollapsibleBottomSection 제거
         ],
       ),
     );
   }
 
-  // 상단 바 위젯: 제목, "2 Weeks" 버튼과 "Today" 버튼 포함 (현재 2 Weeks 버튼 없음)
   Widget _buildTopBar() {
     return Container(
-      height: 40,
-      color: Colors.grey[300], // 배경색
-      padding: const EdgeInsets.symmetric(horizontal: 16), // 좌우 여백
+      // ✅ 수정된 Container
+      height: 50,
+      // color: Colors.white, // <--- 이 줄 삭제
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      decoration: BoxDecoration(
+        color: Colors.white, // <--- color 속성을 BoxDecoration 안으로 이동
+        border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+      ),
       child: Row(
-        // 자식 위젯을 가로로 배치
-        mainAxisAlignment: MainAxisAlignment.spaceBetween, // 자식 위젯을 양 끝으로 정렬
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // 페이지 제목
           const Text(
             'Calendar',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
           ),
-          Row(
-            // 버튼들을 가로로 배치
-            children: [
-              // "Today" 버튼
-              ElevatedButton(onPressed: _goToToday, child: const Text('Today')),
-            ],
+          ElevatedButton(
+            onPressed: _goToToday, // _goToToday 함수는 그대로 유지
+            child: const Text('Today'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF3d98f4),
+              foregroundColor: Colors.white,
+            ),
           ),
         ],
       ),
     );
   }
 
-  // TableCalendar 위젯을 이용한 달력 뷰 빌드
   Widget _buildCalendarView() {
-    return TableCalendar(
-      firstDay: DateTime.utc(2010, 1, 1), // 달력에 표시할 첫 번째 날짜
-      lastDay: DateTime.utc(2030, 12, 31), // 달력에 표시할 마지막 날짜
-      focusedDay: _focusedDay, // 현재 포커스된 날짜
-      calendarFormat: _calendarFormat, // 현재 달력 표시 형식
-      onFormatChanged: (format) {
-        // 달력 형식 변경 시 호출
-        setState(() {
-          _calendarFormat = format; // 상태 변경 및 위젯 다시 빌드 요청
-        });
-      },
-      // 날짜 선택 여부를 판단하는 함수
-      selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
-      // 날짜가 선택되었을 때 호출되는 함수
-      onDaySelected: (selectedDay, focusedDay) {
-        setState(() {
-          _selectedDay = selectedDay; // 선택된 날짜 업데이트
-          _focusedDay = focusedDay; // 포커스된 날짜 업데이트
-        });
-      },
-      calendarStyle: const CalendarStyle(
-        // 달력 스타일 설정
-        todayDecoration: BoxDecoration(
-          // 오늘 날짜 디자인
-          color: Colors.blue, // 배경색
-          shape: BoxShape.circle, // 모양
+    return Padding(
+      // ✅ 전체 뷰에 패딩 추가
+      padding: const EdgeInsets.all(16.0),
+      child: Card(
+        // ✅ Card 뷰 적용
+        elevation: 3.0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12.0),
         ),
-        selectedDecoration: BoxDecoration(
-          // 선택된 날짜 디자인
-          color: Colors.orange, // 배경색
-          shape: BoxShape.circle, // 모양
+        child: Padding(
+          padding: const EdgeInsets.all(16.0), // ✅ Card 내부에 패딩 추가
+          child: TableCalendar(
+            firstDay: DateTime.utc(2010, 1, 1),
+            lastDay: DateTime.utc(2030, 12, 31),
+            focusedDay: _focusedDay,
+            calendarFormat: _calendarFormat,
+            onFormatChanged: (format) {
+              setState(() {
+                _calendarFormat = format;
+              });
+            },
+            selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
+            onDaySelected: (selectedDay, focusedDay) {
+              setState(() {
+                _selectedDay = selectedDay;
+                _focusedDay = focusedDay;
+              });
+            },
+            headerStyle: const HeaderStyle(
+              // ✅ 헤더 스타일
+              formatButtonVisible: true,
+              titleCentered: true,
+              titleTextStyle: TextStyle(
+                fontSize: 18.0,
+                fontWeight: FontWeight.w500,
+              ),
+              formatButtonTextStyle: TextStyle(color: Colors.white),
+              formatButtonDecoration: BoxDecoration(
+                color: Color(0xFF3d98f4),
+                borderRadius: BorderRadius.all(Radius.circular(12.0)),
+              ),
+              leftChevronIcon: Icon(
+                Icons.chevron_left,
+                color: Color(0xFF3d98f4),
+              ),
+              rightChevronIcon: Icon(
+                Icons.chevron_right,
+                color: Color(0xFF3d98f4),
+              ),
+            ),
+            calendarStyle: CalendarStyle(
+              // ✅ 달력 스타일
+              todayDecoration: BoxDecoration(
+                color: Colors.deepPurple.shade100, // ✅ 색상 변경
+                shape: BoxShape.circle,
+              ),
+              selectedDecoration: BoxDecoration(
+                color: Colors.deepPurple.shade400, // ✅ 색상 변경
+                shape: BoxShape.circle,
+              ),
+              weekendTextStyle: TextStyle(color: Colors.red.shade400),
+              outsideDaysVisible: false, // 해당 월 외 날짜 숨기기
+            ),
+            daysOfWeekStyle: DaysOfWeekStyle(
+              // ✅ 요일 스타일
+              weekendStyle: TextStyle(
+                color: Colors.red.shade600,
+                fontWeight: FontWeight.w500,
+              ),
+              weekdayStyle: TextStyle(fontWeight: FontWeight.w500),
+            ),
+          ),
         ),
       ),
     );
