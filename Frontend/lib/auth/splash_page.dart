@@ -18,22 +18,35 @@ class _SplashPageState extends State<SplashPage> {
   }
 
   Future<void> _checkLoginStatus() async {
-    // initState에서는 context를 직접 사용하기보다 addPostFrameCallback 사용 권장
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted) return;
-      final provider = Provider.of<TokenStatusProvider>(context, listen: false);
-      await provider.loadFromCache();
+    final provider = Provider.of<TokenStatusProvider>(context, listen: false);
+    await provider.loadStatus(context); // ✅ 반드시 호출!
 
-      // 최소 2초 대기 (로딩이 빨리 끝나도 스플래시를 잠시 보여줌)
-      await Future.delayed(const Duration(milliseconds: 2000));
+    print('⏳ 캐시에서 토큰 불러오는 중...');
+    await provider.loadFromCache();
+
+    if (!provider.isAuthenticated) {
+      print('🟥 캐시에 유효한 accessToken 없음 → 로그인 이동');
+      await provider.forceLogout(context);
+      return;
+    }
+
+    try {
+      print('🌐 서버로 토큰 유효성 확인 중...');
+      await provider.loadStatus(context); // 여기서 fetchTokenStatus 내부 호출
 
       if (!mounted) return;
-      if (provider.isLoaded) {
+
+      if (provider.isAuthenticated) {
+        print('🟢 서버 인증 완료 → 메인 화면');
         Navigator.pushReplacementNamed(context, '/main');
       } else {
-        Navigator.pushReplacementNamed(context, '/login');
+        print('🟡 서버 응답으로 accessToken 무효 → 로그인 이동');
+        await provider.forceLogout(context);
       }
-    });
+    } catch (e) {
+      print('❌ 예외 발생 (토큰 오류 또는 네트워크 문제): $e');
+      await provider.forceLogout(context);
+    }
   }
 
   @override

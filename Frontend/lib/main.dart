@@ -13,6 +13,10 @@ import 'features/calendar_page.dart';
 import 'features/graph_page.dart';
 import 'features/history.dart';
 
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
+final _storage = FlutterSecureStorage();
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: 'assets/.env');

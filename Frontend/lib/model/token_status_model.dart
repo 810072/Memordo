@@ -20,5 +20,13 @@ class TokenStatus {
     );
   }
 
-  Object? get token => null;
+  Map<String, dynamic> toJson() => {
+    'accessTokenValid': accessTokenValid,
+    'refreshTokenValid': refreshTokenValid,
+    'googleAccessTokenValid': googleAccessTokenValid,
+    'googleRefreshTokenValid': googleRefreshTokenValid,
+  };
+
+  bool get isFullyAuthenticated => accessTokenValid;
+  bool get isGoogleLinked => googleAccessTokenValid || googleRefreshTokenValid;
 }
