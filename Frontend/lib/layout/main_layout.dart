@@ -52,7 +52,7 @@ class _MainLayoutState extends State<MainLayout> {
             color: Color(0xFF475569),
           ), // text-slate-600
           onPressed: _toggleLeftPanel,
-          tooltip: 'Toggle Features',
+          tooltip: 'Toggle Sidebar',
         ),
         title: Row(
           children: const [

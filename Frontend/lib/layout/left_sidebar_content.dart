@@ -23,8 +23,8 @@ class LeftSidebarContent extends StatelessWidget {
       color: Colors.white,
       child: Container(
         padding: EdgeInsets.symmetric(
-          vertical: 20.0,
-          horizontal: isExpanded ? 10.0 : 5.0,
+          vertical: 10.0,
+          horizontal: isExpanded ? 3.0 : 5.0,
         ),
         child: Column(
           crossAxisAlignment:
@@ -87,15 +87,23 @@ class LeftSidebarContent extends StatelessWidget {
                 MaterialPageRoute(builder: (_) => const GraphPage()),
               ),
             ),
-            // _sideBarItem(
-            //   context, Icons.search_outlined, '검색', PageType.home, // Add a Search page later
-            //   () => print('검색'), isActiveOverride: true,
-            // ),
+            _sideBarItem(
+              context,
+              Icons.search_outlined,
+              '검색',
+              PageType.home, // Add a Search page later
+              () => print('검색'),
+              isActiveOverride: true,
+            ),
             const Spacer(),
-            // _sideBarItem(
-            //   context, Icons.settings_outlined, 'Settings', PageType.home, // Add a Settings page later
-            //   () => print('Settings'), isActiveOverride: true,
-            // ),
+            _sideBarItem(
+              context,
+              Icons.settings_outlined,
+              'Settings',
+              PageType.home, // Add a Settings page later
+              () => print('Settings'),
+              isActiveOverride: true,
+            ),
             _sideBarItem(
               context,
               Icons.logout_outlined,
@@ -135,7 +143,7 @@ class LeftSidebarContent extends StatelessWidget {
       message: isExpanded ? '' : text, // Show tooltip only when collapsed
       waitDuration: const Duration(milliseconds: 300),
       child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 5.0),
+        margin: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 2.0),
         decoration: BoxDecoration(
           color: bgColor,
           borderRadius: BorderRadius.circular(8.0),

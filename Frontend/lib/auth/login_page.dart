@@ -334,7 +334,7 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Memo App',
+                      'Memordo',
                       style: TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.bold,
@@ -507,9 +507,9 @@ class _LoginPageState extends State<LoginPage> {
                 ? Container() // 로딩 중 아이콘 숨김
                 : Container(
                   // 로고 크기 제어
-                  padding: const EdgeInsets.only(right: 8.0), // 로고와 텍스트 간격
-                  height: 20, // 로고 높이
-                  width: 20, // 로고 너비
+                  padding: const EdgeInsets.only(right: 0.0), // 로고와 텍스트 간격
+                  height: 30, // 로고 높이
+                  width: 30, // 로고 너비
                   child: Image.asset(
                     'assets/google_logo.png',
                     fit: BoxFit.contain,

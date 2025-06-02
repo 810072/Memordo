@@ -9,6 +9,11 @@ class BottomSectionController extends ChangeNotifier {
   bool get isLoading => _isLoading;
   bool get isVisible => _isVisible;
 
+  void clearSummary() {
+    _summaryText = '';
+    notifyListeners();
+  }
+
   void updateSummary(String summary) {
     _summaryText = summary;
     notifyListeners(); // 상태 변경 알림

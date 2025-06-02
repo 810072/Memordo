@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
-
+import '../layout/bottom_section_controller.dart';
 import '../layout/main_layout.dart'; // Import MainLayout
 import '../layout/right_sidebar_content.dart'; // Import RightSidebarContent
 import '../widgets/ai_summary_widget.dart'; // Import AiSummaryWidget
@@ -38,6 +38,14 @@ class _MeetingScreenState extends State<MeetingScreen> {
   void initState() {
     super.initState();
     _scanForMemos(); // Load memos on init
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final aiController = Provider.of<BottomSectionController>(
+        context,
+        listen: false,
+      );
+      aiController.clearSummary();
+    });
   }
 
   // ... (getOrCreateNoteFolderPath, _saveMarkdown, _loadMarkdown, openFolderInExplorer functions remain largely the same) ...
@@ -148,7 +156,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
   // --- End of existing functions to keep ---
 
   Future<void> _handleSummarizeAction() async {
-    final aiController = Provider.of<AiSummaryController>(
+    final aiController = Provider.of<BottomSectionController>(
       context,
       listen: false,
     );

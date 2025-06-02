@@ -1,14 +1,14 @@
 // lib/widgets/ai_summary_widget.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../layout/ai_summary_controller.dart';
+import '../layout/bottom_section_controller.dart';
 
 class AiSummaryWidget extends StatelessWidget {
   const AiSummaryWidget({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<AiSummaryController>(
+    return Consumer<BottomSectionController>(
       builder: (context, controller, child) {
         return Container(
           margin: const EdgeInsets.only(top: 24.0),

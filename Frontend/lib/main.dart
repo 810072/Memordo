@@ -12,7 +12,7 @@ import 'layout/ai_summary_controller.dart'; // ✅ 이름 변경된 컨트롤러
 import 'features/calendar_page.dart';
 import 'features/graph_page.dart';
 import 'features/history.dart';
-
+import 'layout/bottom_section_controller.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 final _storage = FlutterSecureStorage();
@@ -22,8 +22,13 @@ Future<void> main() async {
   await dotenv.load(fileName: 'assets/.env');
 
   runApp(
-    ChangeNotifierProvider(
-      create: (context) => AiSummaryController(), // ✅ AiSummaryController 사용
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (context) => AiSummaryController()),
+        ChangeNotifierProvider(
+          create: (context) => BottomSectionController(),
+        ), // 👉 추가!
+      ],
       child: const MyApp(),
     ),
   );
