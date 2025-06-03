@@ -1,6 +1,7 @@
-// lib/features/calendar_page.dart
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // 추가
+import 'dart:convert'; // JSON 변환을 위한 import
 import '../layout/main_layout.dart';
 import 'page_type.dart';
 
@@ -16,36 +17,69 @@ class _CalendarPageState extends State<CalendarPage> {
   DateTime? _selectedDay;
   CalendarFormat _calendarFormat = CalendarFormat.month;
 
-  void _goToToday() {
+  final Map<DateTime, String> _memoData = {};
+  final TextEditingController _memoController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFromPrefs(); // 앱 시작 시 메모 데이터 불러오기
+  }
+
+  @override
+  void dispose() {
+    _memoController.dispose();
+    super.dispose();
+  }
+
+  DateTime _pureDate(DateTime date) =>
+      DateTime(date.year, date.month, date.day);
+
+  void _saveMemo(DateTime date, String text) {
     setState(() {
-      _focusedDay = DateTime.now();
-      _selectedDay = DateTime.now();
+      _memoData[date] = text.trim();
     });
+    _saveToPrefs(); // 메모 저장할 때 영구 저장도
+  }
+
+  // 📦 메모를 SharedPreferences에 저장
+  Future<void> _saveToPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    final stringMap = _memoData.map(
+      (key, value) => MapEntry(key.toIso8601String(), value),
+    );
+    await prefs.setString('memoData', jsonEncode(stringMap));
+  }
+
+  // 📦 메모를 SharedPreferences에서 불러오기
+  Future<void> _loadFromPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    final jsonString = prefs.getString('memoData');
+    if (jsonString != null) {
+      final Map<String, dynamic> decoded = jsonDecode(jsonString);
+      setState(() {
+        _memoData.clear();
+        decoded.forEach((key, value) {
+          _memoData[DateTime.parse(key)] = value;
+        });
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return MainLayout(
-      // ✅ MainLayout 사용
       activePage: PageType.calendar,
-      child: Column(
-        children: [
-          _buildTopBar(), // ✅ 상단 바
-          Expanded(child: _buildCalendarView()), // ✅ 달력 뷰
-          // CollapsibleBottomSection 제거
-        ],
-      ),
+      child: Column(children: [_buildTopBar(), _buildCalendarWithMemo()]),
     );
   }
 
   Widget _buildTopBar() {
     return Container(
-      // ✅ 수정된 Container
       height: 50,
-      // color: Colors.white, // <--- 이 줄 삭제
       padding: const EdgeInsets.symmetric(horizontal: 24),
       decoration: BoxDecoration(
-        color: Colors.white, // <--- color 속성을 BoxDecoration 안으로 이동
+        color: Colors.white,
         border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
       ),
       child: Row(
@@ -56,7 +90,12 @@ class _CalendarPageState extends State<CalendarPage> {
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
           ),
           ElevatedButton(
-            onPressed: _goToToday, // _goToToday 함수는 그대로 유지
+            onPressed: () {
+              setState(() {
+                _focusedDay = DateTime.now();
+                _selectedDay = null;
+              });
+            },
             child: const Text('Today'),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF3d98f4),
@@ -68,80 +107,103 @@ class _CalendarPageState extends State<CalendarPage> {
     );
   }
 
-  Widget _buildCalendarView() {
-    return Padding(
-      // ✅ 전체 뷰에 패딩 추가
-      padding: const EdgeInsets.all(16.0),
-      child: Card(
-        // ✅ Card 뷰 적용
-        elevation: 3.0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12.0),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0), // ✅ Card 내부에 패딩 추가
-          child: TableCalendar(
-            firstDay: DateTime.utc(2010, 1, 1),
-            lastDay: DateTime.utc(2030, 12, 31),
-            focusedDay: _focusedDay,
-            calendarFormat: _calendarFormat,
-            onFormatChanged: (format) {
-              setState(() {
-                _calendarFormat = format;
-              });
-            },
-            selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
-            onDaySelected: (selectedDay, focusedDay) {
-              setState(() {
-                _selectedDay = selectedDay;
-                _focusedDay = focusedDay;
-              });
-            },
-            headerStyle: const HeaderStyle(
-              // ✅ 헤더 스타일
-              formatButtonVisible: true,
-              titleCentered: true,
-              titleTextStyle: TextStyle(
-                fontSize: 18.0,
-                fontWeight: FontWeight.w500,
+  Widget _buildCalendarWithMemo() {
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Card(
+          elevation: 3.0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12.0),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildCalendarView(),
+                  const SizedBox(height: 16),
+                  if (_selectedDay != null) _buildMemoSection(),
+                ],
               ),
-              formatButtonTextStyle: TextStyle(color: Colors.white),
-              formatButtonDecoration: BoxDecoration(
-                color: Color(0xFF3d98f4),
-                borderRadius: BorderRadius.all(Radius.circular(12.0)),
-              ),
-              leftChevronIcon: Icon(
-                Icons.chevron_left,
-                color: Color(0xFF3d98f4),
-              ),
-              rightChevronIcon: Icon(
-                Icons.chevron_right,
-                color: Color(0xFF3d98f4),
-              ),
-            ),
-            calendarStyle: CalendarStyle(
-              // ✅ 달력 스타일
-              todayDecoration: BoxDecoration(
-                color: Colors.deepPurple.shade100, // ✅ 색상 변경
-                shape: BoxShape.circle,
-              ),
-              selectedDecoration: BoxDecoration(
-                color: Colors.deepPurple.shade400, // ✅ 색상 변경
-                shape: BoxShape.circle,
-              ),
-              weekendTextStyle: TextStyle(color: Colors.red.shade400),
-              outsideDaysVisible: false, // 해당 월 외 날짜 숨기기
-            ),
-            daysOfWeekStyle: DaysOfWeekStyle(
-              // ✅ 요일 스타일
-              weekendStyle: TextStyle(
-                color: Colors.red.shade600,
-                fontWeight: FontWeight.w500,
-              ),
-              weekdayStyle: TextStyle(fontWeight: FontWeight.w500),
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildCalendarView() {
+    return TableCalendar(
+      firstDay: DateTime.utc(2010, 1, 1),
+      lastDay: DateTime.utc(2030, 12, 31),
+      focusedDay: _focusedDay,
+      calendarFormat: _calendarFormat,
+      selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
+      onDaySelected: (selectedDay, focusedDay) {
+        setState(() {
+          _selectedDay = selectedDay;
+          _focusedDay = focusedDay;
+          _memoController.text = _memoData[_pureDate(selectedDay)] ?? '';
+        });
+      },
+      eventLoader: (day) {
+        final pure = _pureDate(day);
+        if (_memoData.containsKey(pure) && _memoData[pure]!.isNotEmpty) {
+          return ['memo'];
+        }
+        return [];
+      },
+      calendarBuilders: CalendarBuilders(
+        markerBuilder: (context, date, events) {
+          if (events.isNotEmpty) {
+            return Positioned(
+              bottom: 10,
+              child: Container(
+                width: 6,
+                height: 6,
+                decoration: const BoxDecoration(
+                  color: Colors.green,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            );
+          }
+          return const SizedBox();
+        },
+      ),
+      onFormatChanged: (format) {
+        setState(() {
+          _calendarFormat = format;
+        });
+      },
+      headerStyle: const HeaderStyle(
+        formatButtonVisible: true,
+        titleCentered: true,
+      ),
+    );
+  }
+
+  Widget _buildMemoSection() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: TextField(
+        controller: _memoController,
+        maxLines: 10, // ← 더 시원하게 확장
+        style: const TextStyle(fontSize: 14), // ← 글씨도 살짝 키움
+        decoration: const InputDecoration(
+          hintText: "메모를 작성하세요.",
+          hintStyle: TextStyle(fontSize: 14, color: Colors.grey),
+          border: InputBorder.none,
+        ),
+        onChanged: (value) {
+          _saveMemo(_pureDate(_selectedDay!), value);
+        },
       ),
     );
   }
