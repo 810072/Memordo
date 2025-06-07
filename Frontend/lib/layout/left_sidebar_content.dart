@@ -6,6 +6,7 @@ import '../features/graph_page.dart';
 import '../features/history.dart';
 import '../auth/login_page.dart';
 import '../features/page_type.dart';
+import '../features/settings_page.dart'; // 경로 맞게 조정
 
 class LeftSidebarContent extends StatelessWidget {
   final bool isExpanded;
@@ -100,8 +101,13 @@ class LeftSidebarContent extends StatelessWidget {
               context,
               Icons.settings_outlined,
               'Settings',
-              PageType.home, // Add a Settings page later
-              () => print('Settings'),
+              PageType.settings, // 아마도 PageType에 settings를 새로 추가할 수도 있음
+              () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const SettingsPage()),
+                );
+              },
               isActiveOverride: true,
             ),
             _sideBarItem(

@@ -1,8 +1,7 @@
-// lib/features/graph_page.dart
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:flutter_graph_view/flutter_graph_view.dart';
 import 'package:vector_math/vector_math_64.dart' as vm;
+import 'package:graphview/GraphView.dart';
 import '../layout/main_layout.dart';
 import 'page_type.dart';
 
@@ -10,7 +9,6 @@ enum GraphAlgorithmType { random, fruchtermanReingold }
 
 class GraphPage extends StatefulWidget {
   const GraphPage({super.key});
-
   @override
   State<GraphPage> createState() => _GraphPageState();
 }
@@ -20,55 +18,49 @@ class _GraphPageState extends State<GraphPage> {
   double _scale = 1.0;
   final TransformationController _controller = TransformationController();
 
-  GraphAlgorithm _getSelectedAlgorithm() {
-    return RandomAlgorithm(
-      decorators: [
-        CoulombDecorator(),
-        HookeDecorator(),
-        CoulombCenterDecorator(),
-        HookeCenterDecorator(),
-        ForceDecorator(),
-        ForceMotionDecorator(),
-        TimeCounterDecorator(),
-      ],
-    );
+  final Graph graph = Graph();
+  late Algorithm _algorithm;
+  final Random random = Random();
+
+  @override
+  void initState() {
+    super.initState();
+    _generateGraph();
+    _updateAlgorithm();
+  }
+
+  void _generateGraph() {
+    graph.nodes.clear();
+    for (int i = 0; i < 20; i++) {
+      graph.addNode(Node.Id('Node $i'));
+    }
+    for (int i = 0; i < 25; i++) {
+      var nodeList = graph.nodes.toList();
+      var src = nodeList[random.nextInt(nodeList.length)];
+      var dst = nodeList[random.nextInt(nodeList.length)];
+      if (src != dst) {
+        graph.addEdge(src, dst);
+      }
+    }
+  }
+
+  void _updateAlgorithm() {
+    if (_currentAlgorithmType == GraphAlgorithmType.random) {
+      _algorithm = FruchtermanReingoldAlgorithm(iterations: 1000);
+    } else {
+      _algorithm = FruchtermanReingoldAlgorithm(iterations: 1500);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    var vertexes = <Map>[];
-    var r = Random();
-    for (var i = 0; i < 20; i++) {
-      vertexes.add({
-        'id': 'node$i',
-        'tag': 'tag${r.nextInt(9)}',
-        'tags': [
-          'tag${r.nextInt(9)}',
-          if (r.nextBool()) 'tag${r.nextInt(4)}',
-          if (r.nextBool()) 'tag${r.nextInt(8)}',
-        ],
-      });
-    }
-    var edges = <Map>[];
-    for (var i = 0; i < 20; i++) {
-      edges.add({
-        'srcId': 'node${(i % 8) + 8}',
-        'dstId': 'node$i',
-        'edgeName': 'edge${r.nextInt(3)}',
-        'ranking': DateTime.now().millisecond,
-      });
-    }
-    var data = {'vertexes': vertexes, 'edges': edges};
-
     return MainLayout(
-      // ✅ MainLayout 사용
       activePage: PageType.graph,
       child: Column(
         children: [
-          _buildTopBar(), // ✅ 상단 바
-          _buildControlPanel(), // ✅ 컨트롤 패널
-          Expanded(child: _buildGraphArea(data)), // ✅ 그래프 영역
-          // CollapsibleBottomSection 제거
+          _buildTopBar(),
+          _buildControlPanel(),
+          Expanded(child: _buildGraphArea()),
         ],
       ),
     );
@@ -76,12 +68,10 @@ class _GraphPageState extends State<GraphPage> {
 
   Widget _buildTopBar() {
     return Container(
-      // ✅ 수정된 Container
       height: 50,
-      // color: Colors.white, // <--- 이 줄 삭제
       padding: const EdgeInsets.symmetric(horizontal: 24),
       decoration: BoxDecoration(
-        color: Colors.white, // <--- color 속성을 BoxDecoration 안으로 이동
+        color: Colors.white,
         border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
       ),
       child: Row(
@@ -106,12 +96,10 @@ class _GraphPageState extends State<GraphPage> {
 
   Widget _buildControlPanel() {
     return Container(
-      // ✅ 수정된 Container
       padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
-      // color: Colors.white, // <--- 이 줄 삭제
       margin: const EdgeInsets.only(bottom: 1),
       decoration: BoxDecoration(
-        color: Colors.white, // <--- color 속성을 BoxDecoration 안으로 이동
+        color: Colors.white,
         border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
         boxShadow: [
           BoxShadow(
@@ -130,8 +118,7 @@ class _GraphPageState extends State<GraphPage> {
           ),
           const SizedBox(width: 10),
           DropdownButton<GraphAlgorithmType>(
-            value:
-                _currentAlgorithmType, // _currentAlgorithmType 변수는 State 내에 있어야 함
+            value: _currentAlgorithmType,
             items: const [
               DropdownMenuItem(
                 value: GraphAlgorithmType.random,
@@ -146,8 +133,9 @@ class _GraphPageState extends State<GraphPage> {
               if (newValue != null) {
                 setState(() {
                   _currentAlgorithmType = newValue;
+                  _updateAlgorithm();
                 });
-              } // setState 호출
+              }
             },
             underline: Container(height: 1, color: Colors.deepPurpleAccent),
             focusColor: Colors.transparent,
@@ -157,7 +145,7 @@ class _GraphPageState extends State<GraphPage> {
           const SizedBox(width: 10),
           Expanded(
             child: Slider(
-              value: _scale, // _scale 변수는 State 내에 있어야 함
+              value: _scale,
               min: 0.1,
               max: 2.0,
               divisions: 19,
@@ -165,12 +153,9 @@ class _GraphPageState extends State<GraphPage> {
               activeColor: Colors.deepPurple.shade400,
               inactiveColor: Colors.deepPurple.shade100,
               onChanged: (double value) {
-                // setState 호출
                 setState(() {
                   _scale = value;
-                  final center =
-                      _controller.value
-                          .getTranslation(); // _controller는 State 내에 있어야 함
+                  final center = _controller.value.getTranslation();
                   _controller.value =
                       vm.Matrix4.identity()
                         ..translate(center.x, center.y)
@@ -184,9 +169,8 @@ class _GraphPageState extends State<GraphPage> {
     );
   }
 
-  Widget _buildGraphArea(Map data) {
+  Widget _buildGraphArea() {
     return Container(
-      // ✅ 그래프 영역 스타일 개선
       color: Colors.grey.shade50,
       padding: const EdgeInsets.all(16.0),
       child: Container(
@@ -209,38 +193,18 @@ class _GraphPageState extends State<GraphPage> {
                   )
                   ..scale(_scale);
             _controller.value = initialTransform;
+
             return InteractiveViewer(
               transformationController: _controller,
-              boundaryMargin: const EdgeInsets.all(100), // 여백 조정
+              boundaryMargin: const EdgeInsets.all(100),
               minScale: 0.1,
               maxScale: 5.0,
-              child: FlutterGraphWidget(
-                data: data,
-                algorithm: _getSelectedAlgorithm(),
-                convertor: MapConvertor(),
-                options:
-                    Options()
-                      ..enableHit = false
-                      ..panelDelay = const Duration(milliseconds: 500)
-                      ..graphStyle =
-                          (GraphStyle()
-                            ..tagColor = {'tag8': Colors.orangeAccent.shade200}
-                            ..tagColorByIndex = [
-                              Colors.red.shade200,
-                              Colors.orange.shade200,
-                              Colors.yellow.shade200,
-                              Colors.green.shade200,
-                              Colors.blue.shade200,
-                              Colors.blueAccent.shade200,
-                              Colors.purple.shade200,
-                              Colors.pink.shade200,
-                              Colors.blueGrey.shade200,
-                              Colors.deepOrange.shade200,
-                            ])
-                      ..useLegend = true
-                      ..vertexPanelBuilder = vertexPanelBuilder
-                      ..edgeShape = EdgeLineShape()
-                      ..vertexShape = VertexCircleShape(),
+              child: GraphView(
+                graph: graph,
+                algorithm: _algorithm,
+                builder: (Node node) {
+                  return _nodeWidget(node.key!.value);
+                },
               ),
             );
           },
@@ -249,14 +213,15 @@ class _GraphPageState extends State<GraphPage> {
     );
   }
 
-  // ... (vertexPanelBuilder, edgePanelBuilder 동일) ...
-  Widget edgePanelBuilder(Edge edge, Viewfinder viewfinder) {
-    /* ... */
-    return Stack();
-  }
-
-  Widget vertexPanelBuilder(dynamic hoverVertex, Viewfinder viewfinder) {
-    /* ... */
-    return Stack();
+  Widget _nodeWidget(Object? nodeId) {
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.blue.shade100,
+        border: Border.all(color: Colors.blue),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(nodeId.toString()),
+    );
   }
 }
