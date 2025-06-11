@@ -6,7 +6,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
-import 'package:provider/provider.dart';
+import 'package:provider/provider.dart'; // Provider 임포트 유지
 import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -14,7 +14,8 @@ import '../layout/bottom_section_controller.dart';
 import '../layout/main_layout.dart';
 import '../layout/right_sidebar_content.dart';
 import '../widgets/ai_summary_widget.dart';
-import '../layout/ai_summary_controller.dart';
+import '../utils/ai_service.dart'; // AI 서비스 호출을 위해 추가
+import '../utils/web_helper.dart' as web_helper; // 웹 전용 헬퍼 함수를 위해 추가
 import 'page_type.dart';
 
 // 옵시디언 스타일 마크다운 에디터 컨트롤러 (커서 위치 수정 버전)
@@ -44,7 +45,7 @@ class ObsidianMarkdownController extends TextEditingController {
 
   @override
   TextSpan buildTextSpan({
-    required BuildContext context,
+    required BuildContext context, // context를 받아서 하위 함수로 전달
     TextStyle? style,
     required bool withComposing,
   }) {
@@ -53,10 +54,19 @@ class ObsidianMarkdownController extends TextEditingController {
       return TextSpan(text: '', style: style);
     }
 
-    return _buildStyledTextSpan(textValue, style ?? const TextStyle());
+    return _buildStyledTextSpan(
+      textValue,
+      style ?? const TextStyle(),
+      context,
+    ); // context 전달
   }
 
-  TextSpan _buildStyledTextSpan(String text, TextStyle defaultStyle) {
+  TextSpan _buildStyledTextSpan(
+    String text,
+    TextStyle defaultStyle,
+    BuildContext context,
+  ) {
+    // context 추가
     final List<TextSpan> spans = [];
     int currentIndex = 0;
 
@@ -141,7 +151,7 @@ class ObsidianMarkdownController extends TextEditingController {
       }
 
       // 스타일이 적용된 텍스트 추가
-      spans.add(_createStyledSpan(match, defaultStyle));
+      spans.add(_createStyledSpan(match, defaultStyle, context)); // context 전달
       currentIndex = match.end;
     }
 
@@ -161,16 +171,25 @@ class ObsidianMarkdownController extends TextEditingController {
     return start1 < end2 && end1 > start2;
   }
 
-  TextSpan _createStyledSpan(_StyleMatch match, TextStyle defaultStyle) {
+  TextSpan _createStyledSpan(
+    _StyleMatch match,
+    TextStyle defaultStyle,
+    BuildContext context,
+  ) {
+    // context 추가
     if (match.isLineStyle) {
       return _createLineStyledSpan(match, defaultStyle);
     } else {
-      return _createInlineStyledSpan(match, defaultStyle);
+      return _createInlineStyledSpan(
+        match,
+        defaultStyle,
+        context,
+      ); // context 전달
     }
   }
 
   TextSpan _createLineStyledSpan(_StyleMatch match, TextStyle defaultStyle) {
-    final String fullText = match.match.group(0)!;
+    // final String fullText = match.match.group(0)!; // 사용되지 않아 주석 처리
 
     switch (match.type) {
       case 'header':
@@ -236,11 +255,16 @@ class ObsidianMarkdownController extends TextEditingController {
         );
 
       default:
-        return TextSpan(text: fullText, style: defaultStyle);
+        return TextSpan(text: match.match.group(0)!, style: defaultStyle);
     }
   }
 
-  TextSpan _createInlineStyledSpan(_StyleMatch match, TextStyle defaultStyle) {
+  TextSpan _createInlineStyledSpan(
+    _StyleMatch match,
+    TextStyle defaultStyle,
+    BuildContext context,
+  ) {
+    // context 추가
     switch (match.type) {
       case 'bold':
         final content = match.match.group(1)!;
@@ -304,7 +328,17 @@ class ObsidianMarkdownController extends TextEditingController {
               style: _styleMap['link'] ?? defaultStyle,
               recognizer:
                   TapGestureRecognizer()
-                    ..onTap = () => launchUrl(Uri.parse(url)),
+                    ..onTap = () async {
+                      final uri = Uri.tryParse(url);
+                      if (uri != null && await canLaunchUrl(uri)) {
+                        await launchUrl(uri);
+                      } else {
+                        // context를 통해 SnackBar 표시
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('유효하지 않은 링크입니다: $url')),
+                        );
+                      }
+                    },
             ),
             TextSpan(
               text: '](',
@@ -362,17 +396,6 @@ class _StyleMatch {
   int get end => match.end;
 }
 
-// 매치 정보를 저장하는 헬퍼 클래스
-class _MatchInfo {
-  final RegExpMatch match;
-  final String type;
-
-  _MatchInfo(this.match, this.type);
-
-  int get start => match.start;
-  int get end => match.end;
-}
-
 class LocalMemo {
   final String fileName;
   final String filePath;
@@ -394,6 +417,9 @@ class _MeetingScreenState extends State<MeetingScreen> {
   String? _lastSavedDirectoryPath;
   List<LocalMemo> _savedMemosList = [];
   bool _isLoadingMemos = false;
+
+  // 힌트 텍스트를 보여줄지 여부
+  bool _showHintText = true;
 
   @override
   void initState() {
@@ -450,18 +476,28 @@ class _MeetingScreenState extends State<MeetingScreen> {
 
     _controller = ObsidianMarkdownController(styleMap: markdownStyles);
 
-    // 텍스트 변경 감지
+    // 텍스트 변경 감지 리스너 (ValueListenableBuilder 사용으로 setState 호출은 더 이상 필요 없음)
     _controller.addListener(() {
-      setState(() {});
+      // 힌트 텍스트 가시성 제어
+      if (_controller.text.isEmpty && !_showHintText) {
+        setState(() {
+          _showHintText = true;
+        });
+      } else if (_controller.text.isNotEmpty && _showHintText) {
+        setState(() {
+          _showHintText = false;
+        });
+      }
     });
 
     _scanForMemos();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final aiController = Provider.of<BottomSectionController>(
+      final bottomController = Provider.of<BottomSectionController>(
         context,
         listen: false,
       );
-      aiController.clearSummary();
+      bottomController.clearSummary();
+      bottomController.toggleVisibility(); // 초기에는 숨김 (AI 요약 영역)
     });
   }
 
@@ -472,7 +508,11 @@ class _MeetingScreenState extends State<MeetingScreen> {
     super.dispose();
   }
 
+  // 데스크톱 환경에서만 노트 폴더 경로를 가져옵니다.
   Future<String> getOrCreateNoteFolderPath() async {
+    if (kIsWeb) {
+      throw UnsupportedError('웹 환경에서는 로컬 파일 시스템에 접근할 수 없습니다.');
+    }
     final home =
         Platform.environment['USERPROFILE'] ?? Platform.environment['HOME'];
     if (home == null) throw Exception('사용자 홈 디렉터리를 찾을 수 없습니다.');
@@ -485,14 +525,28 @@ class _MeetingScreenState extends State<MeetingScreen> {
     return folderPath;
   }
 
+  // 마크다운 저장 함수
   Future<void> _saveMarkdown() async {
     final content = _controller.text;
-    if (content.isEmpty) return;
-    if (kIsWeb) {
+    if (content.isEmpty) {
+      if (!mounted) return; // mounted check
       setState(() {
-        _saveStatus = "웹에서는 파일 저장을 지원하지 않습니다.";
+        _saveStatus = "저장할 내용이 없습니다.";
+      });
+      return;
+    }
+
+    if (kIsWeb) {
+      // 웹 환경에서는 다운로드 방식으로 저장
+      final fileName =
+          '새_노트_${DateTime.now().year}-${DateTime.now().month}-${DateTime.now().day}_${DateTime.now().hour}${DateTime.now().minute}${DateTime.now().second}.md';
+      web_helper.downloadMarkdownWeb(content, fileName);
+      if (!mounted) return; // mounted check
+      setState(() {
+        _saveStatus = "파일 다운로드 완료: $fileName ✅";
       });
     } else {
+      // 데스크톱 환경에서는 파일 피커로 저장
       try {
         String? initialDirectory =
             _lastSavedDirectoryPath ?? await getOrCreateNoteFolderPath();
@@ -508,58 +562,107 @@ class _MeetingScreenState extends State<MeetingScreen> {
           final file = File(filePath);
           await file.writeAsString(content);
           _lastSavedDirectoryPath = p.dirname(filePath);
-          if (!mounted) return;
+          if (!mounted) return; // mounted check
           setState(() {
-            _saveStatus = "저장 완료: $filePath";
+            _saveStatus = "저장 완료: $filePath ✅";
           });
-          _scanForMemos();
+          _scanForMemos(); // 저장 후 목록 새로고침
+        } else {
+          if (!mounted) return; // mounted check
+          setState(() {
+            _saveStatus = "파일 저장이 취소되었습니다.";
+          });
         }
       } catch (e) {
+        if (!mounted) return; // mounted check
         setState(() {
-          _saveStatus = "파일 저장 중 오류 발생: $e";
+          _saveStatus = "파일 저장 중 오류 발생: $e ❌";
         });
       }
     }
   }
 
+  // 마크다운 불러오기 함수
   Future<void> _loadMarkdown() async {
     String? content;
     String? fileName;
     if (kIsWeb) {
-      setState(() {
-        _saveStatus = "웹에서는 파일 불러오기를 지원하지 않습니다.";
-      });
-      return;
+      // 웹 환경에서는 파일 선택기로 불러오기
+      try {
+        FilePickerResult? result = await FilePicker.platform.pickFiles(
+          type: FileType.custom,
+          allowedExtensions: ['md', 'txt'],
+          allowMultiple: false,
+        );
+        if (!mounted) return; // PickFiles 이후 mounted 체크
+
+        if (result != null && result.files.single.bytes != null) {
+          content = String.fromCharCodes(result.files.single.bytes!);
+          fileName = result.files.single.name;
+        } else {
+          if (!mounted) return; // mounted check
+          setState(() {
+            _saveStatus = "파일 불러오기가 취소되었습니다.";
+          });
+          return;
+        }
+      } catch (e) {
+        if (!mounted) return; // mounted check
+        setState(() {
+          _saveStatus = "파일 불러오기 오류: $e ❌";
+        });
+        return;
+      }
     } else {
+      // 데스크톱 환경에서는 파일 피커로 불러오기
       try {
         FilePickerResult? result = await FilePicker.platform.pickFiles(
           type: FileType.custom,
           allowedExtensions: ['md', 'txt'],
         );
+        if (!mounted) return; // PickFiles 이후 mounted 체크
+
         if (result != null && result.files.single.path != null) {
           File file = File(result.files.single.path!);
           content = await file.readAsString();
           fileName = p.basename(file.path);
           _lastSavedDirectoryPath = p.dirname(file.path);
+        } else {
+          if (!mounted) return; // mounted check
+          setState(() {
+            _saveStatus = "파일 불러오기가 취소되었습니다.";
+          });
+          return;
         }
       } catch (e) {
+        if (!mounted) return; // mounted check
         setState(() {
-          _saveStatus = "파일 불러오기 오류: $e";
+          _saveStatus = "파일 불러오기 오류: $e ❌";
         });
         return;
       }
     }
-    if (content != null && mounted) {
+    if (mounted) {
+      // mounted 체크
       setState(() {
-        _controller.text = content ?? '';
+        _controller.text = content ?? ''; // String? -> String
         _saveStatus = "파일 불러오기 완료: ${fileName ?? '알 수 없는 파일'} ✅";
+        _showHintText = content?.isEmpty ?? true; // String?의 isEmpty 접근
       });
     }
   }
 
+  // 로컬 메모 스캔 (웹 환경에서는 동작하지 않음)
   Future<void> _scanForMemos() async {
-    if (kIsWeb) return;
-    if (!mounted) return;
+    if (kIsWeb) {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingMemos = false; // 웹에서는 스캔하지 않으므로 로딩 해제
+        _savedMemosList = [];
+      });
+      return;
+    }
+    if (!mounted) return; // mounted check
     setState(() {
       _isLoadingMemos = true;
       _savedMemosList = [];
@@ -581,6 +684,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
           }
         }
         if (mounted) {
+          // mounted check
           memos.sort((a, b) => a.fileName.compareTo(b.fileName));
           setState(() {
             _savedMemosList = memos;
@@ -589,8 +693,13 @@ class _MeetingScreenState extends State<MeetingScreen> {
       }
     } catch (e) {
       debugPrint('메모 스캔 오류: $e');
+      if (!mounted) return; // mounted check
+      setState(() {
+        _saveStatus = "메모 스캔 중 오류 발생: $e ❌";
+      });
     } finally {
       if (mounted) {
+        // mounted check
         setState(() {
           _isLoadingMemos = false;
         });
@@ -598,31 +707,117 @@ class _MeetingScreenState extends State<MeetingScreen> {
     }
   }
 
+  // 선택된 메모 로드
   Future<void> _loadSelectedMemo(LocalMemo memo) async {
     try {
       final file = File(memo.filePath);
       if (await file.exists()) {
         final content = await file.readAsString();
         if (mounted) {
+          // mounted check
           setState(() {
             _controller.text = content;
             _saveStatus = "파일 불러오기 완료: ${memo.fileName}.md ✅";
+            _showHintText = content.isEmpty; // 불러온 내용이 없으면 힌트 표시
           });
         }
+      } else {
+        if (!mounted) return; // mounted check
+        setState(() {
+          _saveStatus = "선택된 메모 파일이 존재하지 않습니다. ❌";
+        });
       }
     } catch (e) {
       debugPrint('메모 로드 오류: $e');
+      if (!mounted) return; // mounted check
+      setState(() {
+        _saveStatus = "메모 로드 중 오류 발생: $e ❌";
+      });
+    }
+  }
+
+  // AI 요약 기능 (기존 AI Summarize 버튼 onPressed 수정)
+  Future<void> _summarizeContent() async {
+    final bottomController = Provider.of<BottomSectionController>(
+      // Provider.of 사용
+      context,
+      listen: false,
+    );
+
+    if (bottomController.isLoading) {
+      // 이미 요약 중
+      return;
+    }
+
+    final content = _controller.text.trim();
+    if (content.isEmpty || content.length < 50) {
+      // 너무 짧은 내용은 요약하지 않음
+      if (!mounted) return; // mounted check
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('요약할 내용이 너무 짧거나 없습니다 (최소 50자 필요).'),
+          backgroundColor: Colors.orangeAccent,
+        ),
+      );
+      return;
+    }
+
+    // AI 요약 영역을 보이도록 토글
+    if (!bottomController.isVisible) {
+      bottomController.toggleVisibility();
+    }
+
+    bottomController.setIsLoading(true);
+    bottomController.updateSummary('AI가 텍스트를 요약 중입니다...');
+
+    try {
+      final String? summary = await callBackendTask(
+        taskType: "summarize", // AI 서비스의 요약 작업 유형
+        text: content,
+      );
+
+      if (!mounted) return; // mounted check
+
+      if (summary != null && summary.isNotEmpty) {
+        bottomController.updateSummary(summary);
+      } else {
+        bottomController.updateSummary('요약에 실패했거나 내용이 없습니다.');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('텍스트 요약에 실패했습니다.'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return; // mounted check
+      bottomController.updateSummary('요약 중 오류 발생: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('텍스트 요약 중 오류가 발생했습니다: $e'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        // mounted check
+        bottomController.setIsLoading(false);
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final aiController = Provider.of<AiSummaryController>(context);
+    // AiSummaryController 대신 BottomSectionController를 사용
+    final bottomController = Provider.of<BottomSectionController>(
+      context,
+    ); // Provider.of 사용
+
     return MainLayout(
       activePage: PageType.home,
       rightSidebarChild:
           kIsWeb
-              ? null
+              ? null // 웹에서는 로컬 파일 스캔을 지원하지 않으므로 사이드바 숨김
               : RightSidebarContent(
                 isLoading: _isLoadingMemos,
                 memos: _savedMemosList,
@@ -674,13 +869,21 @@ class _MeetingScreenState extends State<MeetingScreen> {
                   ),
                   _buildButton(
                     Icons.auto_awesome_outlined,
-                    'AI Summarize',
-                    aiController.isLoading ? null : () {},
+                    bottomController.isLoading
+                        ? '요약 중...'
+                        : 'AI Summarize', // 텍스트 변경
+                    bottomController.isLoading
+                        ? null
+                        : _summarizeContent, // 실제 AI 요약 함수 연결
                     const Color(0xFFf39c12),
+                    isLoading: bottomController.isLoading, // 로딩 상태 전달
                   ),
                 ],
               ),
-              const AiSummaryWidget(),
+              const SizedBox(height: 20),
+              // AI 요약 위젯의 가시성은 BottomSectionController에서 관리
+              if (bottomController.isVisible) // isVisible 상태에 따라 표시
+                const AiSummaryWidget(),
               const SizedBox(height: 20),
               Text(
                 _saveStatus,
@@ -713,30 +916,37 @@ class _MeetingScreenState extends State<MeetingScreen> {
       ),
       child: Padding(
         padding: const EdgeInsets.all(20),
-        child: TextField(
-          controller: _controller,
-          focusNode: _focusNode,
-          style: const TextStyle(
-            fontSize: 16,
-            color: Color(0xFF2c3e50),
-            height: 1.6,
-            fontFamily: 'system-ui',
-          ),
-          cursorColor: const Color(0xFF3498db),
-          cursorWidth: 2,
-          maxLines: null,
-          expands: true,
-          textAlignVertical: TextAlignVertical.top,
-          decoration: const InputDecoration(
-            border: InputBorder.none,
-            hintText:
-                "# Start typing your markdown...\n\n**Bold text**\n*Italic text*\n`inline code`\n\n- List item\n- Another item\n\n> Quote text\n\n[Link](https://example.com)",
-            hintStyle: TextStyle(
-              color: Color(0xFFbdc3c7),
-              fontSize: 15,
-              height: 1.6,
-            ),
-          ),
+        child: ValueListenableBuilder<TextEditingValue>(
+          valueListenable: _controller,
+          builder: (context, value, child) {
+            return TextField(
+              controller: _controller,
+              focusNode: _focusNode,
+              style: const TextStyle(
+                fontSize: 16,
+                color: Color(0xFF2c3e50),
+                height: 1.6,
+                fontFamily: 'system-ui',
+              ),
+              cursorColor: const Color(0xFF3498db),
+              cursorWidth: 2,
+              maxLines: null,
+              expands: true,
+              textAlignVertical: TextAlignVertical.top,
+              decoration: InputDecoration(
+                border: InputBorder.none,
+                hintText:
+                    _showHintText
+                        ? "# Start typing your markdown...\n\n**Bold text**\n*Italic text*\n`inline code`\n\n- List item\n- Another item\n\n> Quote text\n\n[Link](https://example.com)"
+                        : null, // _showHintText 상태에 따라 힌트 텍스트 표시
+                hintStyle: const TextStyle(
+                  color: Color(0xFFbdc3c7),
+                  fontSize: 15,
+                  height: 1.6,
+                ),
+              ),
+            );
+          },
         ),
       ),
     );
@@ -748,9 +958,20 @@ class _MeetingScreenState extends State<MeetingScreen> {
     VoidCallback? onPressed,
     Color bgColor, {
     Color fgColor = Colors.white,
+    bool isLoading = false, // 로딩 상태 추가
   }) {
     return ElevatedButton.icon(
-      icon: Icon(icon, size: 18),
+      icon:
+          isLoading
+              ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              )
+              : Icon(icon, size: 18),
       label: Text(
         label,
         style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
