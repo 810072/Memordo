@@ -10,12 +10,13 @@ import 'dart:io';
 import '../layout/main_layout.dart'; // ✅ MainLayout 임포트
 import '../widgets/ai_summary_widget.dart'; // ✅ AiSummaryWidget 임포트
 import '../utils/ai_service.dart';
-import '../layout/ai_summary_controller.dart'; // ✅ AiSummaryController 임포트
+import '../layout/ai_summary_controller.dart'; // AiSummaryController는 이제 BottomSectionController로 대체될 예정이므로 굳이 여기서 사용하지 않습니다.
 import '../services/auth_token.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../auth/login_page.dart';
 import 'page_type.dart';
-import '../layout/bottom_section_controller.dart';
+import '../layout/bottom_section_controller.dart'; // BottomSectionController 사용
+import '../features/meeting_screen.dart'; // MeetingScreen 위젯을 사용하기 위해 필요
 
 class HistoryPage extends StatefulWidget {
   const HistoryPage({super.key});
@@ -382,8 +383,6 @@ class _HistoryPageState extends State<HistoryPage> {
       }
 
       if (selectedUrl != null && selectedUrl.isNotEmpty) {
-        // No await before these calls, so !mounted check isn't strictly needed here
-        // but good practice if any async was to be introduced before.
         setState(() {
           _showSummary = true; // ✅ Show the summary widget area
         });
@@ -436,6 +435,35 @@ class _HistoryPageState extends State<HistoryPage> {
     }
   }
 
+  // New function to navigate to MeetingScreen with summary
+  void _createNewMemoWithSummary() {
+    final bottomController = Provider.of<BottomSectionController>(
+      context,
+      listen: false,
+    );
+    final summary = bottomController.summaryText;
+
+    if (summary.isNotEmpty &&
+        summary != 'AI가 요약 중입니다...' &&
+        !summary.contains('요약에 실패') &&
+        !summary.contains('오류') &&
+        !summary.contains('내용이 없습니다')) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => MeetingScreen(initialText: summary),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('생성할 요약 내용이 없습니다.'),
+          backgroundColor: Colors.orangeAccent,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final Map<String, List<Map<String, dynamic>>> groupedByDate = {};
@@ -447,6 +475,10 @@ class _HistoryPageState extends State<HistoryPage> {
     }
     final sortedDates =
         groupedByDate.keys.toList()..sort((a, b) => b.compareTo(a));
+
+    final bottomController = Provider.of<BottomSectionController>(
+      context,
+    ); // Listen to changes
 
     return MainLayout(
       activePage: PageType.history,
@@ -722,28 +754,62 @@ class _HistoryPageState extends State<HistoryPage> {
                 if (_showSummary) // ✅ Conditionally display AiSummaryWidget
                   Expanded(
                     flex: 1,
-                    child: Container(
-                      margin: const EdgeInsets.only(
-                        top: 16.0,
-                        right: 16.0,
-                        bottom: 16.0,
-                        // left is implicitly handled by Expanded spacing or could be added: left: 8.0
-                      ),
-                      padding: const EdgeInsets.all(16.0),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12.0),
-                        boxShadow: [
-                          // Consistent shadow with the list view
-                          BoxShadow(
-                            color: Colors.grey.withOpacity(0.1),
-                            spreadRadius: 1,
-                            blurRadius: 3,
-                            offset: const Offset(0, 1),
+                    child: Column(
+                      // Use a Column to stack the summary and the new button
+                      children: [
+                        Container(
+                          margin: const EdgeInsets.only(
+                            top: 16.0,
+                            right: 16.0,
+                            bottom: 8.0, // Reduced bottom margin
                           ),
-                        ],
-                      ),
-                      child: AiSummaryWidget(),
+                          padding: const EdgeInsets.all(16.0),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12.0),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.grey.withOpacity(0.1),
+                                spreadRadius: 1,
+                                blurRadius: 3,
+                                offset: const Offset(0, 1),
+                              ),
+                            ],
+                          ),
+                          child: AiSummaryWidget(),
+                        ),
+                        // Add the "Create New Memo" button here
+                        if (!bottomController.isLoading &&
+                            bottomController.summaryText.isNotEmpty)
+                          Container(
+                            margin: const EdgeInsets.only(
+                              right: 16.0,
+                              bottom: 16.0,
+                            ),
+                            alignment: Alignment.centerRight,
+                            child: ElevatedButton.icon(
+                              icon: const Icon(
+                                Icons.note_add_outlined,
+                                size: 18,
+                              ),
+                              label: const Text("새 메모 작성"),
+                              onPressed: _createNewMemoWithSummary,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(
+                                  0xFF27ae60,
+                                ), // Green color
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 10,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8.0),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
               ],
