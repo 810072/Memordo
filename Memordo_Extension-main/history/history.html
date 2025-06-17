@@ -9,13 +9,20 @@
   <h2>방문 기록</h2>
   <div class="search-container">
     <input type="text" id="search-input" placeholder="검색어를 입력하세요">
-    <div id="result-count"></div> <!-- 결과 개수 표시 영역 추가 -->
+    <div id="result-count"></div>
   </div>
 
   <div class="action-bar">
     <button id="select-all-button">전체 선택</button>
     <button id="delete-selected-button">삭제</button>
+    <button id="bookmark-selected-button">북마크</button>
     <span id="delete-status"></span>
+    <span id="bookmark-status" class="status-message"></span>
+  </div>
+
+  <div class="filter-tabs">
+    <button id="filter-all" class="active">전체 기록</button>
+    <button id="filter-bookmarks">북마크</button>
   </div>
 
   <div id="history-list"></div>

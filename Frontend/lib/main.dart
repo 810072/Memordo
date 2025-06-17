@@ -15,11 +15,17 @@ import 'features/history.dart';
 import 'layout/bottom_section_controller.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+// ====== 아래 1줄 추가 (AI 백엔드 프로세스 실행/종료 연동) ======
+import 'services/AI_run.dart';
+
 final _storage = FlutterSecureStorage();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: 'assets/.env');
+
+  // ====== 앱 시작 시 Python 서버 자동 실행 ======
+  await BackendService.startPythonBackend();
 
   runApp(
     MultiProvider(
@@ -34,8 +40,38 @@ Future<void> main() async {
   );
 }
 
-class MyApp extends StatelessWidget {
+// ====== MyApp에 WidgetsBindingObserver로 앱 종료 감지 ======
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    // ====== 앱 종료 시 Python 서버 자동 종료 ======
+    BackendService.stopPythonBackend();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // 앱이 완전히 종료될 때 확실히 백엔드도 종료
+    if (state == AppLifecycleState.detached ||
+        state == AppLifecycleState.inactive) {
+      BackendService.stopPythonBackend();
+    }
+    super.didChangeAppLifecycleState(state);
+  }
 
   @override
   Widget build(BuildContext context) {

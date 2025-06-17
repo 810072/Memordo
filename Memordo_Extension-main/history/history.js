@@ -5,7 +5,15 @@ document.addEventListener('DOMContentLoaded', () => {
   const deleteButton = document.getElementById('delete-selected-button');
   const deleteStatus = document.getElementById('delete-status');
   const actionBar = document.querySelector('.action-bar');
-  const selectAllButton = document.getElementById('select-all-button'); // "전체 선택" 버튼 참조
+  const selectAllButton = document.getElementById('select-all-button');
+  const bookmarkSelectedButton = document.getElementById('bookmark-selected-button'); // 북마크 버튼 참조 추가
+  const bookmarkStatus = document.getElementById('bookmark-status'); // 북마크 상태 메시지 요소
+
+  // 필터 탭 버튼 참조
+  const filterAllButton = document.getElementById('filter-all');
+  const filterBookmarksButton = document.getElementById('filter-bookmarks');
+
+  let currentFilter = 'all'; // 'all' 또는 'bookmarks'
 
   // 버튼 텍스트 애니메이션 설정 함수
   function setupButtonAnimation(button) {
@@ -15,7 +23,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   setupButtonAnimation(deleteButton);
-  setupButtonAnimation(selectAllButton); // "전체 선택" 버튼도 애니메이션 적용
+  setupButtonAnimation(selectAllButton);
+  setupButtonAnimation(bookmarkSelectedButton); // 북마크 버튼도 애니메이션 적용
 
   // 액션 바 표시/숨김 상태 업데이트 함수
   function updateActionBarVisibility() {
@@ -28,7 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // --- ▼▼▼ "전체 선택" 버튼 상태 및 텍스트 업데이트 함수 ▼▼▼ ---
+  // "전체 선택" 버튼 상태 및 텍스트 업데이트 함수
   function updateSelectAllButtonState() {
     if (!selectAllButton) return;
 
@@ -36,59 +45,95 @@ document.addEventListener('DOMContentLoaded', () => {
     const totalItems = itemCheckboxes.length;
     const checkedItems = historyList.querySelectorAll('.history-item-checkbox:checked').length;
 
-    let buttonText = "전체 선택"; // 기본 텍스트
+    let buttonText = "전체 선택";
     if (totalItems > 0 && totalItems === checkedItems) {
-      buttonText = "전체 해제"; // 모든 항목이 선택된 경우
+      buttonText = "전체 해제";
     }
-    // 버튼 텍스트 변경 및 애니메이션 재설정
     selectAllButton.textContent = buttonText;
     setupButtonAnimation(selectAllButton);
 
-    // 항목이 없으면 "전체 선택" 버튼 비활성화 (또는 숨김 처리도 가능)
     selectAllButton.disabled = totalItems === 0;
-    if (totalItems === 0 && actionBar) { // 항목 없으면 액션바도 숨김
+    if (totalItems === 0 && actionBar) {
         actionBar.classList.remove('visible');
     }
   }
-  // --- ▲▲▲ "전체 선택" 버튼 상태 업데이트 함수 끝 ▲▲▲ ---
 
 
-  // --- ▼▼▼ "전체 선택" 버튼 클릭 이벤트 리스너 ▼▼▼ ---
+  // "전체 선택" 버튼 클릭 이벤트 리스너
   if (selectAllButton) {
     selectAllButton.addEventListener('click', () => {
       const itemCheckboxes = historyList.querySelectorAll('.history-item-checkbox');
-      // 현재 모든 항목이 선택되어 있는지 여부로 토글 결정
       const areAllSelected = Array.from(itemCheckboxes).every(cb => cb.checked) && itemCheckboxes.length > 0;
 
       itemCheckboxes.forEach(checkbox => {
-        checkbox.checked = !areAllSelected; // 전체 선택/해제 토글
+        checkbox.checked = !areAllSelected;
       });
 
-      updateActionBarVisibility(); // 액션 바 상태 업데이트
-      updateSelectAllButtonState(); // "전체 선택" 버튼 상태 및 텍스트 업데이트
+      updateActionBarVisibility();
+      updateSelectAllButtonState();
     });
   }
-  // --- ▲▲▲ "전체 선택" 버튼 클릭 이벤트 리스너 끝 ▲▲▲ ---
 
-
-  // --- 개별 체크박스 변경 감지 이벤트 리스너 ---
+  // 개별 체크박스 변경 감지 이벤트 리스너
   historyList.addEventListener('change', (event) => {
     if (event.target.matches('.history-item-checkbox')) {
       updateActionBarVisibility();
-      updateSelectAllButtonState(); // 개별 변경 시 "전체 선택" 버튼 상태 업데이트
+      updateSelectAllButtonState();
     }
   });
-  // --- 개별 체크박스 이벤트 리스너 끝 ---
+
+  // 북마크 버튼 클릭 이벤트 핸들러 (새로 추가)
+  if (bookmarkSelectedButton) {
+      bookmarkSelectedButton.addEventListener('click', () => {
+          const checkedBoxes = historyList.querySelectorAll('.history-item-checkbox:checked');
+          if (checkedBoxes.length === 0) {
+              bookmarkStatus.textContent = '북마크할 항목을 선택하세요.';
+              setTimeout(() => bookmarkStatus.textContent = '', 3000);
+              return;
+          }
+
+          const itemsToToggle = Array.from(checkedBoxes).map(box => {
+              const li = box.closest('li');
+              return {
+                  url: li.querySelector('a').href,
+                  title: li.querySelector('.entry-title').textContent,
+                  timestamp: box.getAttribute('data-timestamp')
+              };
+          });
+
+          chrome.runtime.sendMessage({
+              action: 'toggleBookmarks', // 복수형으로 변경
+              data: itemsToToggle
+          }, (response) => {
+              if (response && response.success) {
+                  const addedCount = response.addedCount || 0;
+                  const removedCount = response.removedCount || 0;
+                  let message = '';
+                  if (addedCount > 0) message += `${addedCount}개 북마크 추가됨. `;
+                  if (removedCount > 0) message += `${removedCount}개 북마크 제거됨.`;
+                  if (message === '') message = '선택된 항목의 북마크 상태가 변경되었습니다.';
+                  bookmarkStatus.textContent = message;
+                  setTimeout(() => bookmarkStatus.textContent = '', 3000);
+                  loadAndRenderHistory(); // 북마크 상태 변경 후 UI 업데이트
+              } else {
+                  bookmarkStatus.textContent = '북마크 처리 실패 ❌';
+                  setTimeout(() => bookmarkStatus.textContent = '', 3000);
+              }
+          });
+      });
+  }
 
 
-  // 방문 기록 목록을 렌더링하는 함수
-  function renderHistory(visited) {
+  // 방문 기록 목록을 렌더링하는 함수 (기존 개별 북마크 아이콘 로직 제거)
+  async function renderHistory(visited, bookmarked) {
     historyList.innerHTML = '';
+    const dataToRender = currentFilter === 'bookmarks' ? bookmarked : visited; // 필터에 따라 렌더링할 데이터 선택
 
-    if (!visited || visited.length === 0) {
-      historyList.innerHTML = '<p>저장된 방문 기록이 없습니다.</p>';
+    // dataToRender가 배열인지 한 번 더 확인 (reduce 오류 방지)
+    if (!Array.isArray(dataToRender) || dataToRender.length === 0) {
+      historyList.innerHTML = `<p>${currentFilter === 'bookmarks' ? '저장된 북마크가 없습니다.' : '저장된 방문 기록이 없습니다.'}</p>`;
     } else {
-      const groupedByDate = visited.reduce((groups, entry) => {
+      const groupedByDate = dataToRender.reduce((groups, entry) => {
         if (!entry || !entry.timestamp) return groups;
         const dateKey = new Date(entry.timestamp).toISOString().split('T')[0];
         if (!groups[dateKey]) {
@@ -134,6 +179,7 @@ document.addEventListener('DOMContentLoaded', () => {
             contentDiv.appendChild(link);
             li.appendChild(contentDiv);
 
+            // 타임스탬프는 그대로 유지
             const timeSpan = document.createElement('span');
             timeSpan.className = 'timestamp';
             const timeString = new Date(entry.timestamp).toLocaleTimeString('ko-KR', { hour: 'numeric', minute: '2-digit', hour12: true });
@@ -146,7 +192,10 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
     updateActionBarVisibility();
-    updateSelectAllButtonState(); // 목록 렌더링 후 "전체 선택" 버튼 상태 업데이트
+    updateSelectAllButtonState();
+    // 검색창 초기화
+    document.getElementById('search-input').value = '';
+    resultCount.textContent = '';
   }
 
   // 삭제 버튼 클릭 이벤트 리스너
@@ -159,25 +208,56 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
       const timestampsToDelete = Array.from(checkedBoxes).map(box => box.getAttribute('data-timestamp'));
-      chrome.storage.local.get('visitedUrls', (data) => {
+
+      // 현재 필터에 따라 삭제 대상 변경 (북마크에서도 삭제되도록)
+      chrome.storage.local.get(['visitedUrls', 'bookmarkedUrls'], (data) => {
         let visited = data.visitedUrls || [];
-        const updatedVisited = visited.filter(entry => !timestampsToDelete.includes(entry.timestamp));
-        chrome.storage.local.set({ visitedUrls: updatedVisited }, () => {
-          const deletedCount = visited.length - updatedVisited.length;
+        let bookmarked = data.bookmarkedUrls || [];
+
+        let updatedVisited = visited.filter(entry => !timestampsToDelete.includes(entry.timestamp));
+        let updatedBookmarked = bookmarked.filter(entry => !timestampsToDelete.includes(entry.timestamp));
+
+        chrome.storage.local.set({ visitedUrls: updatedVisited, bookmarkedUrls: updatedBookmarked }, () => {
+          const deletedCount = (currentFilter === 'bookmarks' ?
+                               bookmarked.length - updatedBookmarked.length :
+                               visited.length - updatedVisited.length); // 삭제된 개수 계산
           deleteStatus.textContent = `${deletedCount}개의 항목이 삭제되었습니다.`;
           setTimeout(() => deleteStatus.textContent = '', 3000);
-          renderHistory(updatedVisited);
+          loadAndRenderHistory(); // 삭제 후 다시 로드
         });
       });
     });
   }
 
+  // 방문 기록 로드 및 렌더링 함수 (수정됨: visited와 bookmarked를 모두 가져와 renderHistory에 전달)
+  function loadAndRenderHistory() {
+    chrome.storage.local.get(['visitedUrls', 'bookmarkedUrls'], (data) => {
+        // 가져온 데이터가 배열이 아니면 빈 배열로 초기화
+        const visited = Array.isArray(data.visitedUrls) ? data.visitedUrls : [];
+        const bookmarked = Array.isArray(data.bookmarkedUrls) ? data.bookmarkedUrls : [];
+        renderHistory(visited, bookmarked); // visited와 bookmarked 모두 전달
+    });
+  }
+
   // 페이지 로드 시 초기 방문 기록 로드
-  chrome.storage.local.get('visitedUrls', (data) => {
-    renderHistory(data.visitedUrls);
+  loadAndRenderHistory();
+
+  // 필터 탭 클릭 이벤트 리스너
+  filterAllButton.addEventListener('click', () => {
+    currentFilter = 'all';
+    filterAllButton.classList.add('active');
+    filterBookmarksButton.classList.remove('active');
+    loadAndRenderHistory(); // 모든 기록 다시 로드
   });
 
-// 초성 추출 함수
+  filterBookmarksButton.addEventListener('click', () => {
+    currentFilter = 'bookmarks';
+    filterBookmarksButton.classList.add('active');
+    filterAllButton.classList.remove('active');
+    loadAndRenderHistory(); // 북마크 기록 다시 로드
+  });
+
+  // 초성 추출 함수
   function getChosung(text) {
     const CHOSUNG_LIST = [
       'ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ',
@@ -200,8 +280,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('search-input').addEventListener('input', function(event) {
     const query = event.target.value.trim().toLowerCase();
-    let matchedCount = 0; // 결과 개수 카운트
+    let matchedCount = 0;
 
+    // 검색은 현재 활성화된 필터의 데이터에 대해서만 수행
     document.querySelectorAll('.date-group').forEach(group => {
       let groupHasMatch = false;
 
@@ -217,16 +298,16 @@ document.addEventListener('DOMContentLoaded', () => {
                       titleChosung.includes(queryChosung);
 
         item.style.display = match ? '' : 'none';
-        
+
         if (match) {
           groupHasMatch = true;
-          matchedCount++; // 검색 결과 개수 증가
+          matchedCount++;
         }
       });
 
       group.style.display = groupHasMatch ? '' : 'none';
     });
 
-    resultCount.textContent = query ? `검색 결과: ${matchedCount}개` : ''; // 입력 시만 표시
+    resultCount.textContent = query ? `검색 결과: ${matchedCount}개` : '';
   });
 });

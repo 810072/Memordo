@@ -49,7 +49,7 @@ dependencies:
   flutter_markdown: 0.7.7+1
   graphview: ^1.0.4
   flutter_highlighter: ^0.1.1
-
+  window_manager: ^0.3.0 # ✅ 새로 추가
 
 
 dev_dependencies:

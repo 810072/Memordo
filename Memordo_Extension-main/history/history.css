@@ -64,7 +64,8 @@ h2 {
 }
 
 /* 삭제 상태 메시지 스타일 (#delete-status) */
-#delete-status {
+#delete-status,
+.status-message { /* 상태 메시지 공통 스타일 */
   font-size: 13px;                 /* 메시지 글자 크기 */
   color: #555;                     /* 메시지 글자 색상 */
   opacity: 1;                      /* 기본 상태: 불투명 */
@@ -75,33 +76,32 @@ h2 {
 }
 
 /* 액션 바가 숨겨질 때(.visible 클래스가 없을 때) 상태 메시지 스타일 */
-.action-bar:not(.visible) #delete-status {
+.action-bar:not(.visible) #delete-status,
+.action-bar:not(.visible) .status-message {
   opacity: 0;                      /* 숨김 상태: 투명 */
   transition-delay: 0s;            /* 사라질 때는 지연 시간 없음 */
   transition-duration: 0.1s;       /* 빠르게 사라지도록 */
 }
 
 /* ==========================================================================
-  액션 바 내부 버튼 스타일 (전체 선택, 삭제)
+  액션 바 내부 버튼 스타일 (전체 선택, 삭제, 북마크)
   ========================================================================== */
 
 /* 버튼 스타일링에 사용될 공통 CSS 변수 (커스텀 속성) */
-/* :root 또는 상위 요소(.action-bar)에 선언하여 사용 가능 */
-.action-bar { /* .action-bar 내의 버튼들에 적용되도록 여기서 선언 */
+.action-bar {
   --button-bg: #275efe;             /* 버튼 배경색 */
-  --button-text: #fff;                       /* 버튼 글자색 */
-  --button-font-size: 14px;                 /* 버튼 글자 크기 */
-  --button-duration: .44s;                 /* 버튼 내부 글자 애니메이션 시간 */
-  --button-move-hover: -4px;                /* 마우스 올렸을 때 버튼 Y축 이동 거리 */
+  --button-text: #fff;              /* 버튼 글자색 */
+  --button-font-size: 14px;         /* 버튼 글자 크기 */
+  --button-duration: .44s;          /* 버튼 내부 글자 애니메이션 시간 */
+  --button-move-hover: -4px;        /* 마우스 올렸을 때 버튼 Y축 이동 거리 */
   --button-shadow: 0 2px 8px -1px rgba(39, 94, 254, 0.32);  /* 기본 그림자 */
   --button-shadow-hover: 0 4px 20px -2px rgba(39, 94, 254, 0.5); /* 호버 시 그림자 */
   --button-font-shadow: var(--button-font-size);   /* 글자 아래 그림자 Y 오프셋 (입체 효과용) */
 }
 
-/* "전체 선택" 버튼(#select-all-button)과 "삭제" 버튼(#delete-selected-button) 공통 기본 스타일 */
 #select-all-button,
-#delete-selected-button {
-  /* CSS 변수 참조하여 스타일 적용 */
+#delete-selected-button,
+#bookmark-selected-button { /* 북마크 버튼 추가 */
   --background: var(--button-bg);
   --text: var(--button-text);
   --font-size: var(--button-font-size);
@@ -110,90 +110,94 @@ h2 {
   --shadow: var(--button-shadow);
   --shadow-hover: var(--button-shadow-hover);
   --font-shadow: var(--button-font-shadow);
-  --m: 0;                             /* 글자 초기 Y 위치 (애니메이션용) */
+  --m: 0;
 
-  /* 버튼 모양 및 배치 */
-  padding: 10px 20px;                /* 내부 여백 (상하 10px, 좌우 20px) */
-  font-family: 'Roboto', 'Noto Sans KR', sans-serif; /* 버튼 폰트 */
-  font-weight: 500;                  /* 폰트 굵기 */
-  line-height: var(--font-size);     /* 줄 높이 */
-  border-radius: 24px;               /* 버튼 모서리 둥글게 */
-  outline: none;                     /* 포커스 시 외곽선 제거 */
-  appearance: none;                  /* 브라우저 기본 버튼 스타일 제거 */
-  border: none;                      /* 테두리 제거 */
-  text-decoration: none;             /* 텍스트 밑줄 제거 */
-  font-size: var(--font-size);       /* 글자 크기 적용 */
-  letter-spacing: .5px;              /* 글자 간격 */
-  background: var(--background);     /* 배경색 적용 */
-  color: var(--text);                /* 글자색 적용 */
-  box-shadow: var(--shadow);         /* 그림자 적용 */
-  cursor: pointer;                   /* 마우스 커서를 손가락 모양으로 */
-  display: block;                    /* 블록 요소로 표시 */
-  flex-shrink: 0;                    /* 액션 바 크기 변경 시 버튼 크기 줄어들지 않도록 */
+  padding: 10px 20px;
+  font-family: 'Roboto', 'Noto Sans KR', sans-serif;
+  font-weight: 500;
+  line-height: var(--font-size);
+  border-radius: 24px;
+  outline: none;
+  appearance: none;
+  border: none;
+  text-decoration: none;
+  font-size: var(--font-size);
+  letter-spacing: .5px;
+  background: var(--background);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  display: block;
+  flex-shrink: 0;
 
-  /* 버튼 자체의 호버 애니메이션 설정 (위치 이동, 그림자 변경) */
   transition:
-    transform var(--duration) ease,    /* transform(위치) 변경 시 애니메이션 */
-    box-shadow var(--duration) ease;   /* box-shadow(그림자) 변경 시 애니메이션 */
-  transform: translateY(0);            /* 초기 Y 위치 (호버 애니메이션 기준점) */
+    transform var(--duration) ease,
+    box-shadow var(--duration) ease;
+  transform: translateY(0);
 }
 
-/* "전체 선택" 버튼 특정 마진 */
+/* 버튼 마진 */
 #select-all-button {
-  margin-right: 10px; /* 오른쪽 '삭제' 버튼과의 간격 */
+  margin-right: 10px;
 }
-
-/* "삭제" 버튼 특정 마진 */
 #delete-selected-button {
-  margin-right: 10px; /* 오른쪽 상태 메시지와의 간격 (필요 시 조정) */
+  margin-right: 10px;
+}
+#bookmark-selected-button { /* 북마크 버튼 마진 */
+    margin-right: 10px;
 }
 
-/* 버튼 내부의 div 요소 (글자 span들을 감싸는 역할) */
+/* 버튼 내부의 div 요소 */
 #select-all-button div,
-#delete-selected-button div {
-  display: flex;                     /* 내부 span들을 가로로 배치 */
-  overflow: hidden;                  /* 내부 span 애니메이션 시 영역 벗어나면 숨김 */
-  /* 글자 아래에 같은 색의 그림자를 주어 입체 효과 */
-  text-shadow: 0 var(--button-font-shadow) 0 var(--button-text); /* CSS 변수 사용 */
+#delete-selected-button div,
+#bookmark-selected-button div { /* 북마크 버튼 div 추가 */
+  display: flex;
+  overflow: hidden;
+  text-shadow: 0 var(--button-font-shadow) 0 var(--button-text);
 }
 
-/* 버튼 내부의 span 요소 (JavaScript에 의해 각 글자가 span으로 감싸짐) */
+/* 버튼 내부의 span 요소 */
 #select-all-button div span,
-#delete-selected-button div span {
-  display: block;                    /* span을 블록 요소로 처리 */
-  backface-visibility: hidden;       /* 애니메이션 중 뒷면 숨김 (성능 개선) */
-  font-style: normal;                /* 기본 폰트 스타일 */
-  /* 글자 위치(transform) 변경 시 애니메이션 효과 */
-  transition: transform var(--button-duration) ease; /* CSS 변수 사용 */
-  transform: translateY(var(--m)) translateZ(0); /* 초기 Y 위치 및 3D 가속 활성화 */
+#delete-selected-button div span,
+#bookmark-selected-button div span { /* 북마크 버튼 span 추가 */
+  display: block;
+  backface-visibility: hidden;
+  font-style: normal;
+  transition: transform var(--button-duration) ease;
+  transform: translateY(var(--m)) translateZ(0);
 }
 
-/* "전체 선택" 버튼 글자(span)별 애니메이션 시작 지연 시간 설정 */
-/* "전체 선택" (4글자) 또는 "전체 해제" (5글자)에 맞춰 조정 */
+/* "전체 선택" 버튼 글자별 애니메이션 시작 지연 시간 설정 */
 #select-all-button div span:nth-child(1) { transition-delay: 0.05s; }
 #select-all-button div span:nth-child(2) { transition-delay: 0.1s; }
 #select-all-button div span:nth-child(3) { transition-delay: 0.15s; }
 #select-all-button div span:nth-child(4) { transition-delay: 0.2s; }
-#select-all-button div span:nth-child(5) { transition-delay: 0.25s; } /* "전체 해제" 용 */
+#select-all-button div span:nth-child(5) { transition-delay: 0.25s; }
 
-/* "삭제" 버튼 글자(span)별 애니메이션 시작 지연 시간 설정 ('삭제'는 2글자) */
+/* "삭제" 버튼 글자별 애니메이션 시작 지연 시간 설정 */
 #delete-selected-button div span:nth-child(1) { transition-delay: 0.05s; }
 #delete-selected-button div span:nth-child(2) { transition-delay: 0.1s; }
 
+/* "북마크" 버튼 글자별 애니메이션 시작 지연 시간 설정 */
+#bookmark-selected-button div span:nth-child(1) { transition-delay: 0.05s; }
+#bookmark-selected-button div span:nth-child(2) { transition-delay: 0.1s; }
+#bookmark-selected-button div span:nth-child(3) { transition-delay: 0.15s; }
+#bookmark-selected-button div span:nth-child(4) { transition-delay: 0.2s; }
+
+
 /* 버튼에 마우스를 올렸을 때(:hover) 스타일 */
 #select-all-button:hover,
-#delete-selected-button:hover {
-  /* 버튼을 위로 약간 이동 */
-  transform: translateY(var(--button-move-hover)); /* CSS 변수 사용 */
-  /* 그림자 효과 변경 */
-  box-shadow: var(--button-shadow-hover); /* CSS 변수 사용 */
+#delete-selected-button:hover,
+#bookmark-selected-button:hover { /* 북마크 버튼 호버 추가 */
+  transform: translateY(var(--button-move-hover));
+  box-shadow: var(--button-shadow-hover);
 }
 
 /* 버튼에 마우스를 올렸을 때(:hover) 내부 글자(span) 스타일 */
 #select-all-button:hover span,
-#delete-selected-button:hover span {
-  /* 글자 Y 위치를 위로 이동시켜 아래 그림자가 보이게 함 */
-  --m: calc(var(--button-font-size) * -1); /* CSS 변수 사용 */
+#delete-selected-button:hover span,
+#bookmark-selected-button:hover span { /* 북마크 버튼 호버 span 추가 */
+  --m: calc(var(--button-font-size) * -1);
 }
 
 /* ==========================================================================
@@ -201,84 +205,85 @@ h2 {
   ========================================================================== */
 /* 날짜 그룹 스타일 */
 .date-group {
-  margin-bottom: 25px;             /* 날짜 그룹 사이의 아래쪽 여백 */
-  border-bottom: 1px solid #eee;   /* 그룹 아래 구분선 */
-  padding-bottom: 15px;            /* 구분선과 내용 사이 여백 */
+  margin-bottom: 25px;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 15px;
 }
 
-/* 날짜 그룹 제목 (예: '2025-05-06 (화)') 스타일 */
+/* 날짜 그룹 제목 */
 .date-group h3 {
-  font-size: 16px;                 /* 날짜 제목 글자 크기 */
-  font-weight: 500;                /* 날짜 제목 굵기 */
-  margin-bottom: 15px;             /* 날짜 제목 아래 여백 */
-  color: #555;                     /* 날짜 제목 글자 색상 */
+  font-size: 16px;
+  font-weight: 500;
+  margin-bottom: 15px;
+  color: #555;
 }
 
 /* 방문 기록 목록 전체 (ul) 스타일 */
 ul {
-  list-style: none;                /* 기본 목록 마커(점) 제거 */
-  padding: 0;                      /* 내부 여백 제거 */
-  margin: 0;                       /* 외부 여백 제거 */
+  list-style: none;
+  padding: 0;
+  margin: 0;
 }
 
 /* 각 방문 기록 항목 (li) 스타일 */
 li {
-  padding: 10px 8px;               /* 항목 내부 여백 */
-  border-radius: 4px;              /* 모서리 둥글게 */
-  transition: background-color 0.2s ease; /* 배경색 변경 시 부드러운 효과 */
-  display: flex;                   /* 자식 요소(체크박스, 내용, 시간) 가로 배치 */
-  align-items: center;             /* 자식 요소 수직 가운데 정렬 */
-  margin-bottom: 8px;              /* 항목 사이 아래쪽 여백 */
-  position: relative;              /* 타임스탬프 절대 위치의 기준점 */
-  min-height: 3.5em;               /* 항목의 최소 높이 확보 */
+  padding: 10px 8px;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+  position: relative;
+  min-height: 3.5em;
 }
 
 /* 리스트 항목에 마우스를 올렸을 때(:hover) 배경색 변경 */
 li:hover {
-  background-color: #e8f0fe;       /* 연한 파란색 배경 */
+  background-color: #e8f0fe;
 }
 
 /* 리스트 항목 내부의 체크박스 스타일 */
 li input[type="checkbox"] {
-  margin-right: 12px;              /* 체크박스와 오른쪽 내용 사이 여백 */
-  flex-shrink: 0;                  /* 공간 부족 시 크기 줄어들지 않도록 */
-  cursor: pointer;                 /* 마우스 커서 손가락 모양으로 */
-  vertical-align: middle;          /* 다른 인라인 요소와 수직 정렬 */
+  margin-right: 12px;
+  flex-shrink: 0;
+  cursor: pointer;
+  vertical-align: middle;
 }
 
 /* 리스트 항목 내부의 제목과 URL을 감싸는 컨테이너 스타일 */
 .entry-content {
-  flex-grow: 1;                    /* 남는 가로 공간 모두 차지 */
-  margin-right: 75px;              /* 오른쪽 여백 (타임스탬프 공간 확보) */
-  overflow: hidden;                /* 내부 내용 넘치면 숨김 */
-  display: flex;                   /* 내부 요소(제목, URL) 배치 위해 Flexbox 사용 */
-  flex-direction: column;          /* 내부 요소를 세로로 쌓음 */
-  justify-content: center;         /* 내부 요소 수직 가운데 정렬 (선택 사항) */
+  flex-grow: 1;
+  /* 타임스탬프와 북마크 아이콘이 오른쪽 끝에 붙도록 margin-right 조정 */
+  margin-right: 8px; /* 기존 75px에서 변경 */
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 /* 리스트 항목의 제목 스타일 */
 .entry-title {
-  font-weight: 500;                /* 글자 약간 굵게 */
-  color: #333;                    /* 글자 색상 */
-  margin-bottom: 2px;              /* 제목과 URL 사이 여백 */
-  display: block;                  /* 블록 요소로 처리 (줄바꿈 등) */
-  white-space: nowrap;             /* 제목 길어도 줄바꿈 안 함 */
-  overflow: hidden;                /* 영역 벗어나는 텍스트 숨김 */
-  text-overflow: ellipsis;         /* 넘치는 텍스트는 ...으로 표시 */
-  font-size: 0.9em;                /* 기본 글자보다 약간 작게 */
-  line-height: 1.4;                /* 줄 높이 */
+  font-weight: 500;
+  color: #333;
+  margin-bottom: 2px;
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.9em;
+  line-height: 1.4;
 }
 
 /* 리스트 항목의 URL 링크(a) 스타일 */
 a {
-  color: #0c64e8;                  /* 링크 색상 */
-  text-decoration: none;           /* 밑줄 제거 */
-  display: block;                  /* 블록 요소로 처리 */
-  white-space: nowrap;             /* URL 길어도 줄바꿈 안 함 */
-  overflow: hidden;                /* 영역 벗어나는 텍스트 숨김 */
-  text-overflow: ellipsis;         /* 넘치는 텍스트는 ...으로 표시 */
-  font-size: 0.9em;                /* 기본 글자보다 약간 작게 */
-  line-height: 1.4;                /* 줄 높이 */
+  color: #0c64e8;
+  text-decoration: none;
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.9em;
+  line-height: 1.4;
 }
 
 /* URL 링크에 마우스를 올렸을 때(:hover) 밑줄 표시 */
@@ -288,20 +293,19 @@ a:hover {
 
 /* 리스트 항목의 타임스탬프(방문 시간) 스타일 */
 .timestamp {
-  color: #777;                     /* 글자 색상 */
-  font-size: 0.85em;               /* 기본 글자보다 더 작게 */
-  white-space: nowrap;             /* 시간은 줄바꿈되지 않도록 */
-  position: absolute;              /* 부모(li) 기준 절대 위치 */
-  right: 8px;                      /* 오른쪽 끝에서 8px */
-  top: 50%;                        /* 위에서 50% 위치 */
-  transform: translateY(-50%);     /* Y축으로 -50% 이동하여 수직 중앙 정렬 */
+  color: #777;
+  font-size: 0.85em;
+  white-space: nowrap;
+  /* position: absolute; 제거, flexbox로 배치 */
+  /* right, top, transform 제거, flexbox로 배치 */
+  margin-left: auto; /* 타임스탬프를 오른쪽으로 밀기 */
 }
 
 /* 방문 기록이 없을 때 표시되는 메시지(#history-list 내부의 p 태그) 스타일 */
 #history-list p {
-  text-align: center;              /* 텍스트 가운데 정렬 */
-  color: #888;                     /* 글자 색상 */
-  margin-top: 30px;                /* 위쪽 여백 */
+  text-align: center;
+  color: #888;
+  margin-top: 30px;
 }
 
 .search-container {
@@ -325,9 +329,45 @@ a:hover {
 }
 
 #result-count {
-  margin-top: 8px; /* 검색창과 약간의 간격 */
+  margin-top: 8px;
   font-size: 13px;
   color: #555;
   text-align: center;
   opacity: 0.9;
+}
+
+/* 기존 북마크 아이콘 스타일 제거 또는 주석 처리 */
+/* .bookmark-icon { ... } */
+/* .bookmark-icon.bookmarked { ... } */
+
+/* 필터 탭 스타일 */
+.filter-tabs {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 10px;
+}
+
+.filter-tabs button {
+  background-color: #f0f0f0;
+  border: 1px solid #ddd;
+  padding: 8px 15px;
+  margin: 0 5px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #555;
+  transition: background-color 0.2s, border-color 0.2s, color 0.2s;
+  outline: none;
+}
+
+.filter-tabs button:hover {
+  background-color: #e0e0e0;
+}
+
+.filter-tabs button.active {
+  background-color: #275efe;
+  border-color: #275efe;
+  color: #fff;
 }

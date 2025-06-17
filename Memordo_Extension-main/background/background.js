@@ -6,6 +6,15 @@ chrome.runtime.onInstalled.addListener(() => {
       });
     }
   });
+
+  // 북마크된 URL 초기화 (새로운 설치 시)
+  chrome.storage.local.get(['bookmarkedUrls'], (result) => {
+    if (!result.bookmarkedUrls) {
+      chrome.storage.local.set({ bookmarkedUrls: [] }, () => {
+        console.log('[memordo] bookmarkedUrls 초기값 설정됨: []');
+      });
+    }
+  });
 });
 
 // 탭 변경 시 실행
@@ -159,7 +168,7 @@ async function uploadToDrive(jsonData) {
 }
 
 
-//메세지 리스너
+//메세지 리스너 (toggleBookmark -> toggleBookmarks로 변경, 여러 항목 처리)
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'uploadToDrive') {
     uploadToDrive(message.data)
@@ -169,7 +178,46 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse({ success: false });
       });
     return true; // 비동기 응답 시 반드시 필요
+  } else if (message.action === 'toggleBookmarks') { // 변경된 액션명
+    chrome.storage.local.get(['bookmarkedUrls', 'visitedUrls'], (data) => {
+      // bookmarkedUrls가 배열이 아닐 경우 []로 초기화 (방어적 코드)
+      let bookmarked = Array.isArray(data.bookmarkedUrls) ? data.bookmarkedUrls : [];
+      const visited = Array.isArray(data.visitedUrls) ? data.visitedUrls : []; // visitedUrls도 방어적으로 초기화
+
+      const itemsToToggle = message.data; // 이제 배열을 받음
+      let addedCount = 0;
+      let removedCount = 0;
+
+      itemsToToggle.forEach(item => {
+        const { url, title, timestamp } = item;
+        // 기존 북마크에 해당 항목이 있는지 정확히 확인
+        const existingBookmarkIndex = bookmarked.findIndex(b => b.url === url && b.timestamp === timestamp);
+
+        if (existingBookmarkIndex > -1) {
+          // 이미 북마크되어 있으면 제거
+          bookmarked.splice(existingBookmarkIndex, 1);
+          removedCount++;
+          console.log('[memordo] 북마크 제거됨:', title || url);
+        } else {
+          // 북마크되지 않았으면 추가
+          // 방문 기록에서 해당 항목을 정확히 찾아와서 북마크에 추가 (title이 없을 수도 있으므로)
+          const itemToBookmark = visited.find(v => v.url === url && v.timestamp === timestamp);
+          if (itemToBookmark) {
+              bookmarked.push(itemToBookmark);
+          } else {
+              // visitedUrls에 없는 경우 (예: 검색 후 북마크) - 이 시나리오에선 발생 가능성이 낮음
+              // 하지만 안전을 위해, 받은 정보 그대로 추가
+              bookmarked.push({ url, title, timestamp });
+          }
+          addedCount++;
+          console.log('[memordo] 북마크 추가됨:', title || url);
+        }
+      });
+
+      chrome.storage.local.set({ bookmarkedUrls: bookmarked }, () => {
+        sendResponse({ success: true, addedCount, removedCount });
+      });
+    });
+    return true; // 비동기 응답 시 반드시 필요
   }
 });
-
-
