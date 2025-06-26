@@ -1,0 +1,5 @@
+flask
+flask-cors
+google-generativeai
+google-ai-generativelanguage
+googletrans==4.0.0-rc1pip install -r requirements.txt

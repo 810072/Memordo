@@ -24,7 +24,8 @@ class BackendService {
     }
 
     // 운영체제별 python 명령어 결정
-    String pythonCmd = Platform.isWindows ? 'python' : 'python3';
+    String pythonCmd =
+        (Platform.isWindows || Platform.isMacOS) ? 'python' : 'python3';
 
     // Python 서버(app.py) 상대 경로 (Flutter 실행 위치 기준, 상황에 따라 경로 조정 필요)
     String scriptPath = '../py/app.py';

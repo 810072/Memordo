@@ -43,10 +43,9 @@
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
-
 	<key>com.apple.security.application-groups</key>
 	<array>
-    <string>com.example.firstApp2</string>
-</array>
+		<string>com.example.firstApp2</string>
+	</array>
 </dict>
 </plist>
