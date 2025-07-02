@@ -6,7 +6,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
-import 'package:provider/provider.dart';
+import 'package:provider/provider.dart'; // ✅ provider 임포트 확인
 import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -17,6 +17,7 @@ import '../widgets/ai_summary_widget.dart';
 import '../utils/ai_service.dart';
 import '../utils/web_helper.dart' as web_helper;
 import 'page_type.dart';
+import '../model/file_system_entry.dart'; // ✅ 단계 1: 이 줄을 추가합니다.
 
 // 옵시디언 스타일 마크다운 에디터 컨트롤러 (커서 위치 수정 버전)
 class ObsidianMarkdownController extends TextEditingController {
@@ -104,6 +105,7 @@ class ObsidianMarkdownController extends TextEditingController {
       inlineMatches.add(_InlineMatch(match, 'link'));
     }
 
+    // `allMatches` 및 `filteredMatches` 리스트의 타입을 명시적으로 지정하여 `Object?` 오류 방지
     final List<_StyleMatch> allMatches = [
       ...lineMatches.map((m) => _StyleMatch(m.match, m.type, true)),
       ...inlineMatches.map((m) => _StyleMatch(m.match, m.type, false)),
@@ -112,7 +114,8 @@ class ObsidianMarkdownController extends TextEditingController {
     allMatches.sort((a, b) => a.start.compareTo(b.start));
 
     final List<_StyleMatch> filteredMatches = [];
-    for (final current in allMatches) {
+    for (final _StyleMatch current in allMatches) {
+      // ✅ _StyleMatch 타입 명시
       bool hasOverlap = filteredMatches.any(
         (existing) =>
             _overlaps(current.start, current.end, existing.start, existing.end),
@@ -122,7 +125,8 @@ class ObsidianMarkdownController extends TextEditingController {
       }
     }
 
-    for (final match in filteredMatches) {
+    for (final _StyleMatch match in filteredMatches) {
+      // ✅ _StyleMatch 타입 명시
       if (match.start > currentIndex) {
         spans.add(
           TextSpan(
@@ -335,42 +339,16 @@ class ObsidianMarkdownController extends TextEditingController {
   }
 }
 
-class _LineMatch {
-  final RegExpMatch match;
-  final String type;
+// ✅ 중복 선언 제거: _LineMatch, _InlineMatch, _StyleMatch 클래스 정의는 파일 하단에 한 번만 존재해야 합니다.
+// 만약 이 파일의 상단이나 중간에 이미 이 클래스들이 정의되어 있었다면, 해당 중복 정의를 삭제하고
+// 아래 정의만 남겨두세요.
 
-  _LineMatch(this.match, this.type);
-
-  int get start => match.start;
-  int get end => match.end;
-}
-
-class _InlineMatch {
-  final RegExpMatch match;
-  final String type;
-
-  _InlineMatch(this.match, this.type);
-
-  int get start => match.start;
-  int get end => match.end;
-}
-
-class _StyleMatch {
-  final RegExpMatch match;
-  final String type;
-  final bool isLineStyle;
-
-  _StyleMatch(this.match, this.type, this.isLineStyle);
-
-  int get start => match.start;
-  int get end => match.end;
-}
-
-class LocalMemo {
-  final String fileName;
-  final String filePath;
-  LocalMemo({required this.fileName, required this.filePath});
-}
+// LocalMemo 클래스는 FileSystemEntry로 대체되므로, 여기서는 삭제하거나 사용하지 않습니다.
+// class LocalMemo {
+//   final String fileName;
+//   final String filePath;
+//   LocalMemo({required this.fileName, required this.filePath});
+// }
 
 class MeetingScreen extends StatefulWidget {
   final String? initialText; // Add this parameter
@@ -387,8 +365,10 @@ class _MeetingScreenState extends State<MeetingScreen> {
 
   String _saveStatus = '';
   String? _lastSavedDirectoryPath;
-  List<LocalMemo> _savedMemosList = [];
-  bool _isLoadingMemos = false;
+  // List<LocalMemo> _savedMemosList = []; // ✅ 단계 2: 이 줄을 삭제하거나 주석 처리합니다.
+  // bool _isLoadingMemos = false; // ✅ 단계 2: 이 줄을 삭제하거나 주석 처리합니다.
+  List<FileSystemEntry> _fileSystemEntries = []; // ✅ 단계 2: 이 줄을 추가합니다.
+  bool _isLoadingFileSystem = false; // ✅ 단계 2: 이 줄을 추가합니다.
 
   // 힌트 텍스트를 보여줄지 여부
   bool _showHintText = true;
@@ -471,9 +451,11 @@ class _MeetingScreenState extends State<MeetingScreen> {
       }
     });
 
-    _scanForMemos();
+    _scanForFileSystem(); // ✅ 단계 2: 새로운 파일 시스템 스캔 함수를 호출합니다.
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final bottomController = Provider.of<BottomSectionController>(
+        // ✅ Provider.of 사용 확인
         context,
         listen: false,
       );
@@ -529,7 +511,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
         setState(() {
           _saveStatus = "저장 완료: ${_currentEditingFileName}.md ✅";
         });
-        _scanForMemos(); // 저장 후 목록 새로고침
+        _scanForFileSystem(); // ✅ 단계 2: 새로운 파일 시스템 스캔 함수를 호출합니다.
         return; // 현재 파일에 저장했으므로 함수 종료
       } catch (e) {
         if (!mounted) return;
@@ -573,7 +555,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
             _currentEditingFileName = p.basenameWithoutExtension(filePath);
             _saveStatus = "새 파일 저장 완료: $filePath ✅";
           });
-          _scanForMemos();
+          _scanForFileSystem(); // ✅ 단계 2: 새로운 파일 시스템 스캔 함수를 호출합니다.
         } else {
           if (!mounted) return;
           setState(() {
@@ -664,73 +646,119 @@ class _MeetingScreenState extends State<MeetingScreen> {
     }
   }
 
-  // 로컬 메모 스캔 (웹 환경에서는 동작하지 않음)
-  Future<void> _scanForMemos() async {
+  // ✅ 단계 2: 새로운 파일 시스템 스캔 함수를 추가합니다.
+  Future<void> _scanForFileSystem() async {
     if (kIsWeb) {
       if (!mounted) return;
       setState(() {
-        _isLoadingMemos = false;
-        _savedMemosList = [];
+        _isLoadingFileSystem = false;
+        _fileSystemEntries = []; // 웹 환경에서는 로컬 파일 시스템에 접근할 수 없습니다.
       });
       return;
     }
     if (!mounted) return;
     setState(() {
-      _isLoadingMemos = true;
-      _savedMemosList = [];
+      _isLoadingFileSystem = true; // 스캔 시작 시 로딩 상태 true
+      _fileSystemEntries = []; // 기존 목록 초기화
     });
+
     try {
-      final notesDir = await getOrCreateNoteFolderPath();
-      final directory = Directory(notesDir);
-      if (await directory.exists()) {
-        final List<LocalMemo> memos = [];
-        await for (var entity in directory.list()) {
-          if (entity is File &&
-              p.extension(entity.path).toLowerCase() == '.md') {
-            memos.add(
-              LocalMemo(
-                fileName: p.basenameWithoutExtension(entity.path),
-                filePath: entity.path,
-              ),
-            );
-          }
-        }
+      final notesDirPath =
+          await getOrCreateNoteFolderPath(); // 'Memordo_Notes' 폴더 경로 가져오기
+      final rootDirectory = Directory(notesDirPath);
+      if (await rootDirectory.exists()) {
+        final List<FileSystemEntry> entries = [];
+        // 재귀 함수를 호출하여 파일 시스템 구조를 빌드합니다.
+        await _buildDirectoryTree(rootDirectory, entries);
+
+        // 항목들을 정렬합니다 (폴더 먼저, 그 다음 파일, 알파벳 순).
+        _sortEntries(entries);
+
         if (mounted) {
-          memos.sort((a, b) => a.fileName.compareTo(b.fileName));
           setState(() {
-            _savedMemosList = memos;
+            _fileSystemEntries = entries; // 스캔 완료 후 목록 업데이트
           });
         }
       }
     } catch (e) {
-      debugPrint('메모 스캔 오류: $e');
+      debugPrint('파일 시스템 스캔 오류: $e');
       if (!mounted) return;
       setState(() {
-        _saveStatus = "메모 스캔 중 오류 발생: $e ❌";
+        _saveStatus = "파일 시스템 스캔 중 오류 발생: $e ❌";
       });
     } finally {
       if (mounted) {
         setState(() {
-          _isLoadingMemos = false;
+          _isLoadingFileSystem = false; // 스캔 완료(성공/실패 무관) 시 로딩 상태 false
         });
       }
     }
   }
 
-  // 선택된 메모 로드
-  Future<void> _loadSelectedMemo(LocalMemo memo) async {
+  // ✅ 단계 2: 재귀적으로 디렉토리를 탐색하고 FileSystemEntry를 빌드하는 헬퍼 함수를 추가합니다.
+  Future<void> _buildDirectoryTree(
+    Directory directory,
+    List<FileSystemEntry> parentChildren,
+  ) async {
+    // 디렉토리 내의 모든 항목(파일 및 하위 디렉토리)을 가져옵니다.
+    final List<FileSystemEntity> entities = directory.listSync();
+    List<FileSystemEntry> currentDirChildren = [];
+
+    for (var entity in entities) {
+      final name = p.basename(entity.path); // 파일/폴더의 이름
+      if (entity is Directory) {
+        final List<FileSystemEntry> dirChildren = [];
+        await _buildDirectoryTree(entity, dirChildren); // 폴더인 경우 재귀적으로 탐색
+        currentDirChildren.add(
+          FileSystemEntry(
+            name: name,
+            path: entity.path,
+            isDirectory: true,
+            children: dirChildren,
+          ),
+        );
+      } else if (entity is File &&
+          p.extension(entity.path).toLowerCase() == '.md') {
+        // .md 파일인 경우에만 추가합니다. (다른 파일 형식은 무시)
+        currentDirChildren.add(
+          FileSystemEntry(name: name, path: entity.path, isDirectory: false),
+        );
+      }
+    }
+    _sortEntries(currentDirChildren); // 현재 레벨의 항목들 정렬
+    parentChildren.addAll(currentDirChildren); // 부모의 자식 목록에 추가
+  }
+
+  // ✅ 단계 2: 파일 시스템 항목 정렬 헬퍼 함수를 추가합니다.
+  void _sortEntries(List<FileSystemEntry> entries) {
+    entries.sort((a, b) {
+      if (a.isDirectory && !b.isDirectory) return -1; // 폴더가 파일보다 먼저 오도록 정렬
+      if (!a.isDirectory && b.isDirectory) return 1; // 파일이 폴더보다 나중에 오도록 정렬
+      return a.name.toLowerCase().compareTo(
+        b.name.toLowerCase(),
+      ); // 같은 타입이면 이름순(알파벳) 정렬
+    });
+  }
+
+  // ✅ 단계 2: FileSystemEntry 객체를 인자로 받도록 _loadSelectedMemo 함수를 변경합니다.
+  Future<void> _loadSelectedMemo(FileSystemEntry entry) async {
+    if (entry.isDirectory) {
+      // 폴더는 로드하지 않고, 클릭 시 확장/축소 로직을 UI에서 처리하도록 둡니다.
+      debugPrint('폴더는 로드할 수 없습니다: ${entry.name}');
+      return;
+    }
     try {
-      final file = File(memo.filePath);
+      final file = File(entry.path);
       if (await file.exists()) {
         final content = await file.readAsString();
         if (mounted) {
           setState(() {
             _controller.text = content;
-            _saveStatus = "파일 불러오기 완료: ${memo.fileName}.md ✅";
+            _saveStatus =
+                "파일 불러오기 완료: ${p.basenameWithoutExtension(entry.name)} ✅";
             _showHintText = content.isEmpty;
-            // ✅ 불러온 파일 정보 저장
-            _currentEditingFilePath = memo.filePath;
-            _currentEditingFileName = memo.fileName;
+            _currentEditingFilePath = entry.path;
+            _currentEditingFileName = p.basenameWithoutExtension(entry.name);
           });
         }
       } else {
@@ -763,6 +791,166 @@ class _MeetingScreenState extends State<MeetingScreen> {
       ).clearSummary(); // AI 요약 지우기
     });
     _focusNode.requestFocus(); // 텍스트 필드에 포커스 주기
+  }
+
+  // ✅ 단계 4: 새 폴더 생성 함수를 추가합니다.
+  Future<void> _createNewFolder() async {
+    if (kIsWeb) {
+      _showSnackBar('웹 환경에서는 폴더를 생성할 수 없습니다.', isError: true);
+      return;
+    }
+    // 사용자에게 새 폴더 이름 입력받기
+    String? folderName = await _showTextInputDialog(
+      context,
+      '새 폴더 생성',
+      '폴더 이름을 입력하세요.',
+    );
+    if (folderName == null || folderName.trim().isEmpty) return;
+
+    try {
+      // 현재 편집 중인 파일의 폴더 또는 기본 노트 폴더를 부모 경로로 사용
+      String parentPath =
+          _currentEditingFilePath != null
+              ? p.dirname(_currentEditingFilePath!)
+              : await getOrCreateNoteFolderPath();
+
+      final newFolderPath = p.join(parentPath, folderName);
+      final newDirectory = Directory(newFolderPath);
+
+      if (await newDirectory.exists()) {
+        _showSnackBar('이미 같은 이름의 폴더가 존재합니다. ❌', isError: true);
+        return;
+      }
+
+      await newDirectory.create(
+        recursive: false,
+      ); // 하위 폴더까지 재귀적으로 생성할 필요가 없다면 false
+      _showSnackBar('폴더 생성 완료: $folderName ✅');
+      _scanForFileSystem(); // 파일 시스템 다시 스캔하여 UI 업데이트
+    } catch (e) {
+      _showSnackBar('폴더 생성 중 오류 발생: $e ❌', isError: true);
+    }
+  }
+
+  // ✅ 단계 4: 파일/폴더 이름 변경 함수를 추가합니다.
+  Future<void> _renameEntry(FileSystemEntry entry) async {
+    if (kIsWeb) {
+      _showSnackBar('웹 환경에서는 파일/폴더 이름을 변경할 수 없습니다.', isError: true);
+      return;
+    }
+    String? newName = await _showTextInputDialog(
+      context,
+      '이름 변경',
+      '새 이름을 입력하세요.',
+      initialValue: entry.name,
+    );
+    if (newName == null || newName.trim().isEmpty || newName == entry.name) {
+      return;
+    }
+
+    try {
+      String newPath = p.join(p.dirname(entry.path), newName);
+      // 새 이름으로 이미 항목이 존재하는지 확인
+      if (await FileSystemEntity.type(newPath) !=
+          FileSystemEntityType.notFound) {
+        _showSnackBar('이미 같은 이름의 파일/폴더가 존재합니다. ❌', isError: true);
+        return;
+      }
+
+      if (entry.isDirectory) {
+        await Directory(entry.path).rename(newPath);
+      } else {
+        await File(entry.path).rename(newPath);
+        // 현재 편집 중인 파일이면 경로 및 이름 업데이트
+        if (_currentEditingFilePath == entry.path) {
+          setState(() {
+            _currentEditingFilePath = newPath;
+            _currentEditingFileName = p.basenameWithoutExtension(newPath);
+          });
+        }
+      }
+      _showSnackBar('이름 변경 완료: ${entry.name} -> $newName ✅');
+      _scanForFileSystem(); // 파일 시스템 다시 스캔하여 UI 업데이트
+    } catch (e) {
+      _showSnackBar('이름 변경 중 오류 발생: $e ❌', isError: true);
+    }
+  }
+
+  // ✅ 단계 4: 파일/폴더 삭제 함수를 추가합니다.
+  Future<void> _deleteEntry(FileSystemEntry entry) async {
+    if (kIsWeb) {
+      _showSnackBar('웹 환경에서는 파일/폴더를 삭제할 수 없습니다.', isError: true);
+      return;
+    }
+    // 사용자에게 삭제 확인 다이얼로그 표시
+    bool? confirm = await showDialog<bool>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('삭제 확인'),
+            content: Text('${entry.name}을(를) 정말 삭제하시겠습니까?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('취소'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('삭제', style: TextStyle(color: Colors.red)),
+              ),
+            ],
+          ),
+    );
+    if (confirm != true) return; // 사용자가 취소했으면 중단
+
+    try {
+      if (entry.isDirectory) {
+        await Directory(entry.path).delete(recursive: true); // 폴더와 그 내용까지 모두 삭제
+      } else {
+        await File(entry.path).delete();
+        // 현재 편집 중인 파일이면 에디터 초기화
+        if (_currentEditingFilePath == entry.path) {
+          _startNewMemo(); // 새 메모 시작 (현재 편집 중이던 파일 삭제 시)
+        }
+      }
+      _showSnackBar('삭제 완료: ${entry.name} ✅');
+      _scanForFileSystem(); // 파일 시스템 다시 스캔하여 UI 업데이트
+    } catch (e) {
+      _showSnackBar('삭제 중 오류 발생: $e ❌', isError: true);
+    }
+  }
+
+  // ✅ 단계 4: 사용자 입력 다이얼로그 헬퍼 함수를 추가합니다.
+  Future<String?> _showTextInputDialog(
+    BuildContext context,
+    String title,
+    String hintText, {
+    String? initialValue,
+  }) async {
+    TextEditingController controller = TextEditingController(
+      text: initialValue,
+    );
+    return showDialog<String>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: Text(title),
+            content: TextField(
+              controller: controller,
+              decoration: InputDecoration(hintText: hintText),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('취소'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, controller.text),
+                child: const Text('확인'),
+              ),
+            ],
+          ),
+    );
   }
 
   // AI 요약 기능 (기존 AI Summarize 버튼 onPressed 수정)
@@ -830,6 +1018,20 @@ class _MeetingScreenState extends State<MeetingScreen> {
     }
   }
 
+  // ✅ 단계 4: SnackBar 헬퍼 함수에 isError 인자 추가
+  void _showSnackBar(String message, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.redAccent : Colors.green,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.0)),
+        margin: const EdgeInsets.all(16.0),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final bottomController = Provider.of<BottomSectionController>(context);
@@ -840,10 +1042,14 @@ class _MeetingScreenState extends State<MeetingScreen> {
           kIsWeb
               ? null
               : RightSidebarContent(
-                isLoading: _isLoadingMemos,
-                memos: _savedMemosList,
-                onMemoTap: (memo) => _loadSelectedMemo(memo),
-                onRefresh: _scanForMemos,
+                isLoading: _isLoadingFileSystem,
+                fileSystemEntries: _fileSystemEntries,
+                onEntryTap: (entry) => _loadSelectedMemo(entry),
+                onRefresh: _scanForFileSystem,
+                // ✅ 단계 4: 파일 조작 함수들을 RightSidebarContent에 전달합니다.
+                // RightSidebarContent에서 이 함수들을 ContextMenu 등으로 호출할 수 있습니다.
+                onRenameEntry: _renameEntry, // 추가
+                onDeleteEntry: _deleteEntry, // 추가
               ),
       child: Padding(
         padding: const EdgeInsets.all(24.0),
@@ -863,13 +1069,25 @@ class _MeetingScreenState extends State<MeetingScreen> {
                       color: Color(0xFF2c3e50),
                     ),
                   ),
-                  // ✅ 새 메모 버튼 추가
-                  _buildButton(
-                    Icons.add_box_outlined,
-                    '새 메모',
-                    _startNewMemo,
-                    const Color(0xFF3498db),
-                    fgColor: Colors.white,
+                  Row(
+                    // ✅ 단계 4: 버튼들을 그룹화합니다.
+                    children: [
+                      _buildButton(
+                        Icons.create_new_folder_outlined, // 새 폴더 아이콘
+                        '새 폴더',
+                        _createNewFolder, // ✅ 단계 4: 새 폴더 생성 함수
+                        const Color(0xFF2ecc71), // 새 폴더 버튼 색상 (예: 녹색)
+                        fgColor: Colors.white,
+                      ),
+                      const SizedBox(width: 12),
+                      _buildButton(
+                        Icons.add_box_outlined,
+                        '새 메모',
+                        _startNewMemo,
+                        const Color(0xFF3498db),
+                        fgColor: Colors.white,
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -1014,4 +1232,37 @@ class _MeetingScreenState extends State<MeetingScreen> {
       ),
     );
   }
+}
+
+// ✅ 중복 선언 제거: _LineMatch, _InlineMatch, _StyleMatch 클래스 정의는 파일 하단에 한 번만 존재해야 합니다.
+// 이 정의만 남기고, 만약 파일의 다른 위치에 이 클래스들의 중복 정의가 있다면 모두 삭제해주세요.
+class _LineMatch {
+  final RegExpMatch match;
+  final String type;
+
+  _LineMatch(this.match, this.type);
+
+  int get start => match.start;
+  int get end => match.end;
+}
+
+class _InlineMatch {
+  final RegExpMatch match;
+  final String type;
+
+  _InlineMatch(this.match, this.type);
+
+  int get start => match.start;
+  int get end => match.end;
+}
+
+class _StyleMatch {
+  final RegExpMatch match;
+  final String type;
+  final bool isLineStyle;
+
+  _StyleMatch(this.match, this.type, this.isLineStyle);
+
+  int get start => match.start;
+  int get end => match.end;
 }
