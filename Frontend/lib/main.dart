@@ -25,7 +25,7 @@ Future<void> main() async {
   await dotenv.load(fileName: 'assets/.env');
 
   // ====== 앱 시작 시 Python 서버 자동 실행 ======
-  await BackendService.startPythonBackend();
+  // await BackendService.startPythonBackend();
 
   runApp(
     MultiProvider(

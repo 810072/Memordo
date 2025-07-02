@@ -36,6 +36,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   # flutter_graph_view: ^1.1.4+1
   path_provider: ^2.0.11
+  path: ^1.8.3
   http: ^1.4.0
   html: ^0.15.4
   flutter_dotenv: ^5.0.2
@@ -50,6 +51,7 @@ dependencies:
   graphview: ^1.0.4
   flutter_highlighter: ^0.1.1
   window_manager: ^0.3.0 # ✅ 새로 추가
+
 
 
 dev_dependencies:
