@@ -234,3 +234,43 @@ Future<String?> crawlAndSummarizeUrl(String urlString) async {
     return "웹 페이지 요약 중 오류가 발생했습니다: $e";
   }
 }
+
+// [새로 추가된 함수]
+/// 노트 목록을 서버로 보내 그래프 데이터를 받아오는 함수
+///
+/// @param notes: 파일 이름('fileName')과 내용('content')을 담은 Map의 리스트
+/// @return: 서버로부터 받은 노드와 엣지 데이터가 담긴 Map
+Future<Map<String, dynamic>?> generateGraphData(
+  List<Map<String, String>> notes,
+) async {
+  final Uri url = Uri.parse('$_pythonBackendBaseUrl/api/generate-graph-data');
+  final Map<String, String> headers = {
+    'Content-Type': 'application/json; charset=UTF-8',
+  };
+
+  print('[AI_SERVICE] Graph Data Request: ${url.toString()}');
+  print('[AI_SERVICE] Sending ${notes.length} notes for embedding...');
+
+  try {
+    final response = await http
+        .post(url, headers: headers, body: jsonEncode(notes))
+        .timeout(const Duration(minutes: 5)); // 임베딩은 오래 걸릴 수 있으므로 타임아웃 넉넉하게 설정
+
+    if (response.statusCode == 200) {
+      print('[AI_SERVICE] ✅ Graph Data Success.');
+      // UTF-8로 디코딩하여 한글 깨짐 방지
+      return jsonDecode(utf8.decode(response.bodyBytes));
+    } else {
+      print('[AI_SERVICE] ❌ Graph Data Failed (${response.statusCode})');
+      final errorData = jsonDecode(utf8.decode(response.bodyBytes));
+      print('[AI_SERVICE] Error Body: $errorData');
+      return {
+        'error':
+            "백엔드 오류 (${response.statusCode}): ${errorData['error'] ?? '알 수 없는 오류'}",
+      };
+    }
+  } catch (e) {
+    print('[AI_SERVICE] ❌ Exception during Graph Data Call: $e');
+    return {'error': "통신 중 예외 발생: $e"};
+  }
+}

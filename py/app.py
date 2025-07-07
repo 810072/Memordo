@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS # CORS 추가
+import numpy as np
 import traceback
 import datetime
 import os
@@ -22,20 +23,11 @@ else:
 # gemini_ai.py가 app.py와 같은 디렉토리에 있다고 가정합니다.
 try:
     from gemini_ai import (
-        get_sbert_model,
-        initialize_chromadb,
+        get_embedding_for_text,
         query_gemini, # 직접 Gemini 호출이 필요한 경우
-        execute_gemini_task, # 단순 작업 실행
-        execute_adaptive_gemini_task, # 적응형 작업 실행
-        find_related_documents_by_vector_similarity, # RAG 문서 검색
-        index_documents, # 문서 인덱싱 (백그라운드 실행 고려 필요)
-        perform_comparison_task, # 키워드 비교 (API 설계 재고 필요)
         task_prompts, # 키워드 추출 등 프롬프트 사용 시
         DEFAULT_GEMINI_MODEL,
-        SBERT_MODEL_NAME,
-        DOC_DIR, # index_documents에서 사용
         # gemini_ai.py 내의 로깅 함수를 사용하거나 여기서 새로 정의
-        LOG_DIR, LOG_FILENAME # 로깅 경로
     )
     # Gemini API 초기화는 gemini_ai.py 내부에서 처리됨 (genai.configure)
     # 또는 여기서 명시적으로 os.getenv("GEMINI_API_KEY") 확인 후 configure
@@ -49,21 +41,6 @@ except ImportError as e:
 
 app = Flask(__name__)
 CORS(app) # 모든 라우트에 대해 CORS를 허용 (개발 중에는 편리, 프로덕션에서는 특정 도메인만 허용하도록 설정 권장)
-
-# --- 애플리케이션 시작 시 모델 및 DB 초기화 (한 번만 실행) ---
-try:
-    print("Flask App: SBERT 모델 초기화 중...")
-    sbert_model = get_sbert_model() # 전역 변수 SBERT_MODEL에 할당됨
-    print("Flask App: ChromaDB 초기화 중...")
-    chroma_collection = initialize_chromadb() # 전역 변수 CHROMA_COLLECTION에 할당됨
-    print("Flask App: 모델 및 DB 성공적으로 초기화 완료.")
-except SystemExit as e: # gemini_ai.py 내부의 SystemExit 처리
-    print(f"Flask App: CRITICAL - 초기화 중 시스템 종료 요청: {e}")
-    exit(1)
-except Exception as e:
-    print(f"Flask App: CRITICAL - 모델 또는 DB 초기화 중 예외 발생: {e}")
-    traceback.print_exc()
-    exit(1) # 초기화 실패 시 앱 실행 중지
 
 # --- 로깅 함수 (gemini_ai.py의 로깅을 재사용하거나 여기서 간단히 구현) ---
 def log_api_interaction(log_data):
@@ -321,6 +298,81 @@ def api_compare_keywords_direct():
         traceback.print_exc()
         # ... 로깅 ...
         return jsonify({"error": "서버 내부 오류 발생"}), 500
+    
+@app.route('/api/generate-graph-data', methods=['POST'])
+def generate_graph_data():
+    """
+    플러터로부터 노트 파일들의 내용을 리스트로 받아,
+    Gemini AI를 이용해 임베딩을 수행하고 노드와 엣지 정보를 계산하여 반환합니다.
+    (상세 로깅 기능 추가됨)
+    """
+    try:
+        # 1. 플러터에서 보낸 JSON 데이터(노트 목록)를 수신합니다.
+        notes_data = request.get_json()
+        if not notes_data or not isinstance(notes_data, list):
+            return jsonify({"error": "잘못되거나 없는 데이터입니다."}), 400
+
+        print(f"[그래프 생성] {len(notes_data)}개의 노트에 대한 임베딩을 시작합니다.")
+
+        # 2. 모든 노트를 임베딩하고, 결과를 딕셔너리에 저장합니다.
+        embeddings = {}
+        for note in notes_data:
+            file_name = note.get('fileName')
+            content = note.get('content')
+            if file_name and content:
+                # gemini_ai.py의 함수를 사용하여 텍스트를 임베딩합니다.
+                vector = get_embedding_for_text(content)
+                if vector:
+                    embeddings[file_name] = vector
+        
+        print(f"[그래프 생성] {len(embeddings.keys())}개 노트 임베딩 완료.")
+
+        if not embeddings:
+            return jsonify({"nodes": [], "edges": []})
+
+        # 3. 모든 임베딩 벡터 쌍에 대해 코사인 유사도를 계산하여 엣지를 생성합니다.
+        print("\n--- [그래프 생성] 엣지(연결선) 생성 시작 ---")
+        nodes = [{"id": file_name} for file_name in embeddings.keys()]
+        edges = []
+        file_names = list(embeddings.keys())
+        similarity_threshold = 0.75 
+        print(f"유사도 임계값(Threshold): {similarity_threshold}")
+        
+        # 모든 파일 쌍에 대해 반복
+        for i in range(len(file_names)):
+            for j in range(i + 1, len(file_names)):
+                file_a = file_names[i]
+                file_b = file_names[j]
+
+                vector_a = np.array(embeddings[file_a])
+                vector_b = np.array(embeddings[file_b])
+
+                # 코사인 유사도 계산
+                cos_sim = np.dot(vector_a, vector_b) / (np.linalg.norm(vector_a) * np.linalg.norm(vector_b))
+
+                # [로그 추가] 모든 비교 쌍의 유사도 점수를 로그로 출력합니다.
+                print(f"  - 비교: '{os.path.basename(file_a)}' <-> '{os.path.basename(file_b)}' | 유사도: {cos_sim:.4f}")
+
+                # 유사도가 설정한 임계값 이상일 때만 '연결된 관계'로 판단합니다.
+                if cos_sim > similarity_threshold:
+                    # [로그 추가] 임계값을 넘는 경우, 엣지를 추가하고 로그를 남깁니다.
+                    print(f"    ✅ 엣지 생성! ({cos_sim:.4f} > {similarity_threshold})")
+                    edges.append({
+                        "from": file_a,
+                        "to": file_b,
+                        "similarity": cos_sim
+                    })
+        
+        print(f"\n[그래프 생성] 총 {len(edges)}개의 연결 관계(엣지)를 찾았습니다.")
+        
+        # 4. 최종 그래프 데이터를 JSON 형태로 플러터에 반환합니다.
+        return jsonify({"nodes": nodes, "edges": edges})
+
+    except Exception as e:
+        print(f"Error in /api/generate-graph-data: {e}")
+        traceback.print_exc() # 상세한 에러 로그를 보기 위해 추가
+        return jsonify({"error": str(e)}), 500
+
 
 
 # --- Flask 앱 실행 ---
