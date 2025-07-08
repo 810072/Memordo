@@ -30,9 +30,20 @@ class BackendService {
     // Python 서버(app.py) 상대 경로 (Flutter 실행 위치 기준, 상황에 따라 경로 조정 필요)
     String scriptPath = '../py/app.py';
 
+    String scriptPath_mac =
+        'python3 -m venv venv \n source venv/bin/activate \n ../py/app.py';
+
     print('Attempting to start Python backend: $pythonCmd $scriptPath');
 
     try {
+      if (Platform.isMacOS) {
+        // 파이썬 서버(app.py) 실행
+        _pythonBackendProcess = await Process.start(
+          pythonCmd,
+          [scriptPath_mac],
+          runInShell: true, // Windows, Mac, Linux 모두 안전하게 실행
+        );
+      }
       // 파이썬 서버(app.py) 실행
       _pythonBackendProcess = await Process.start(
         pythonCmd,
