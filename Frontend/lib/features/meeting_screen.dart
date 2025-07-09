@@ -352,8 +352,12 @@ class ObsidianMarkdownController extends TextEditingController {
 
 class MeetingScreen extends StatefulWidget {
   final String? initialText; // Add this parameter
-
-  const MeetingScreen({super.key, this.initialText}); // Modify constructor
+  final String? filePath; // ✅ 파일 경로를 저장할 필드 추가
+  const MeetingScreen({
+    super.key,
+    this.initialText,
+    this.filePath,
+  }); // ✅ 생성자에 포함 // Modify constructor
 
   @override
   State<MeetingScreen> createState() => _MeetingScreenState();
@@ -466,6 +470,12 @@ class _MeetingScreenState extends State<MeetingScreen> {
         bottomController.toggleVisibility(); // Hide if it was visible
       }
     });
+
+    _currentEditingFilePath = widget.filePath; // ✅ 전달된 경로를 내부 상태로 저장
+    _currentEditingFileName =
+        widget.filePath != null
+            ? p.basenameWithoutExtension(widget.filePath!)
+            : '새 메모';
   }
 
   @override
