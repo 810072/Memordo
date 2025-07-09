@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 import '../model/file_system_entry.dart';
-import '../widgets/expandable_folder_tile.dart'; // ExpandableFolderTile 위젯 임포트
+import '../widgets/expandable_folder_tile.dart';
 
 class RightSidebarContent extends StatelessWidget {
   final bool isLoading;
@@ -11,6 +11,7 @@ class RightSidebarContent extends StatelessWidget {
   final VoidCallback onRefresh;
   final Function(FileSystemEntry) onRenameEntry;
   final Function(FileSystemEntry) onDeleteEntry;
+  final bool sidebarIsExpanded;
 
   const RightSidebarContent({
     Key? key,
@@ -20,6 +21,7 @@ class RightSidebarContent extends StatelessWidget {
     required this.onRefresh,
     required this.onRenameEntry,
     required this.onDeleteEntry,
+    required this.sidebarIsExpanded,
   }) : super(key: key);
 
   @override
@@ -35,13 +37,16 @@ class RightSidebarContent extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  "저장된 메모",
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.grey.shade700,
-                    fontFamily: 'Work Sans',
+                Expanded(
+                  child: Text(
+                    "저장된 메모",
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.grey.shade700,
+                      fontFamily: 'Work Sans',
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 IconButton(
@@ -91,6 +96,7 @@ class RightSidebarContent extends StatelessWidget {
                     onRenameEntry,
                     onDeleteEntry,
                     0,
+                    sidebarIsExpanded,
                   );
                 },
               ),
@@ -107,55 +113,41 @@ class RightSidebarContent extends StatelessWidget {
     Function(FileSystemEntry) onRenameEntry,
     Function(FileSystemEntry) onDeleteEntry,
     int indentLevel,
+    bool sidebarIsExpanded,
   ) {
-    final double itemHeight = 24.0; // 항목 높이 통일
-    final double arrowSpace = 20.0; // ExpandableFolderTile에서 화살표에 할당한 공간
-    final double indentPerLevel = 15.0; // 각 레벨당 추가 들여쓰기
+    final double itemHeight = 24.0;
+    // sidebarIsExpanded 상태에 따라 들여쓰기 레벨당 간격만 조절합니다.
+    // 화살표 공간은 ExpandableFolderTile에서 직접 처리하므로 여기서는 제거합니다.
+    final double indentPerLevel = sidebarIsExpanded ? 15.0 : 0.0;
     final double effectivePaddingLeft = (indentLevel * indentPerLevel);
 
     final Color defaultTextColor = Colors.grey.shade800;
     final Color fileIconColor = Colors.grey.shade500;
     final Color folderIconColor = Colors.blueGrey.shade600;
-    final Color arrowColor = Colors.grey;
+    // final Color arrowColor = Colors.grey; // arrowColor는 이제 ExpandableFolderTile 내부에서 사용됩니다.
 
     if (entry.isDirectory) {
       return ExpandableFolderTile(
         key: PageStorageKey(entry.path),
         itemHeight: itemHeight,
-        arrowColor: arrowColor,
+        arrowColor: Colors.grey, // ExpandableFolderTile로 arrowColor 전달
         folderIcon: Padding(
-          padding: EdgeInsets.only(left: effectivePaddingLeft),
+          // 폴더 아이콘 앞에 들여쓰기 패딩만 적용합니다.
+          // ExpandableFolderTile이 화살표 공간을 자체적으로 제공하므로 여기서는 0.0을 사용
+          padding: EdgeInsets.only(
+            left: effectivePaddingLeft + (sidebarIsExpanded ? 0.0 : 0.0),
+          ),
           child: Icon(Icons.folder, size: 16, color: folderIconColor),
         ),
-        // ✅ 폴더 이름과 더보기 아이콘을 포함하는 Row의 높이와 정렬을 맞춥니다.
-        title: SizedBox(
-          // Row의 높이를 itemHeight에 맞춤
-          height: itemHeight,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center, // 세로 중앙 정렬
-            children: [
-              Expanded(
-                child: Text(
-                  entry.name,
-                  style: TextStyle(
-                    color: defaultTextColor,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    fontFamily: 'Work Sans',
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              // ✅ 폴더에 대한 액션 버튼 추가
-              _buildEntryActions(
-                context,
-                entry,
-                onRenameEntry,
-                onDeleteEntry,
-                itemHeight, // ✅ itemHeight 전달
-              ),
-            ],
+        title: Text(
+          entry.name,
+          style: TextStyle(
+            color: defaultTextColor,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            fontFamily: 'Work Sans',
           ),
+          overflow: TextOverflow.ellipsis,
         ),
         children:
             entry.children!.map((child) {
@@ -166,10 +158,18 @@ class RightSidebarContent extends StatelessWidget {
                 onRenameEntry,
                 onDeleteEntry,
                 indentLevel + 1,
+                sidebarIsExpanded,
               );
             }).toList(),
       );
     } else {
+      // 파일 항목은 ExpandableFolderTile을 사용하지 않으므로, 직접 패딩과 Row를 구성합니다.
+      // 화살표 아이콘 공간(20px) + 아이콘과 텍스트 사이의 간격(4px)만큼을 패딩으로 더합니다.
+      final double totalLeftFixedSpaceForFile =
+          (sidebarIsExpanded
+              ? 20.0 + 4.0
+              : 0.0 +
+                  4.0); // 20px (arrow) + 4px (icon-text separation) when expanded
       return Material(
         color: Colors.transparent,
         child: InkWell(
@@ -180,18 +180,19 @@ class RightSidebarContent extends StatelessWidget {
             height: itemHeight,
             child: Padding(
               padding: EdgeInsets.only(
-                left: effectivePaddingLeft + arrowSpace,
+                // 들여쓰기 + 화살표 공간 + 폴더/파일 아이콘까지의 공간
+                left: effectivePaddingLeft + totalLeftFixedSpaceForFile,
                 right: 8.0,
               ),
               child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center, // 세로 중앙 정렬
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Icon(
                     Icons.description_outlined,
                     size: 16,
                     color: fileIconColor,
                   ),
-                  const SizedBox(width: 5),
+                  const SizedBox(width: 4), // 파일 아이콘과 이름 사이의 간격
                   Expanded(
                     child: Text(
                       p.basenameWithoutExtension(entry.name),
@@ -209,7 +210,7 @@ class RightSidebarContent extends StatelessWidget {
                     entry,
                     onRenameEntry,
                     onDeleteEntry,
-                    itemHeight, // ✅ itemHeight 전달
+                    itemHeight,
                   ),
                 ],
               ),
@@ -225,16 +226,13 @@ class RightSidebarContent extends StatelessWidget {
     FileSystemEntry entry,
     Function(FileSystemEntry) onRenameEntry,
     Function(FileSystemEntry) onDeleteEntry,
-    double parentItemHeight, // ✅ 부모 항목의 높이를 인자로 받습니다.
+    double parentItemHeight,
   ) {
-    // 버튼 아이콘의 적절한 크기를 itemHeight에 맞춰 조정합니다.
-    final double iconSize =
-        parentItemHeight * 0.7; // 예: 24 * 0.7 = 16.8 (24px 높이 기준)
+    final double iconSize = parentItemHeight * 0.7;
 
     return SizedBox(
-      // ✅ PopupMenuButton을 SizedBox로 감싸서 높이를 제한
-      height: parentItemHeight, // 부모 항목 높이와 동일하게 설정
-      width: parentItemHeight, // 버튼의 터치 영역을 정사각형으로 맞춤
+      height: parentItemHeight,
+      width: parentItemHeight,
       child: PopupMenuButton<String>(
         onSelected: (value) {
           if (value == 'rename') {
@@ -260,10 +258,10 @@ class RightSidebarContent extends StatelessWidget {
           Icons.more_vert,
           size: iconSize,
           color: Colors.grey.shade500,
-        ), // ✅ 아이콘 크기 조정
+        ),
         tooltip: '더보기',
-        padding: EdgeInsets.zero, // ✅ 버튼 내부 패딩 제거
-        splashRadius: 16, // ✅ 물결 효과 반경 줄임 (아이콘 크기에 맞춰)
+        padding: EdgeInsets.zero,
+        splashRadius: 16,
       ),
     );
   }

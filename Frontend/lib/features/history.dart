@@ -1,4 +1,6 @@
-// lib/features/history.dart
+// Frontend/lib/features/history.dart
+// 기존 코드에서 MainLayout 부분 제거 및 Scaffold 제거 후 콘텐츠만 반환하도록 수정
+
 import 'dart:convert';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -7,16 +9,15 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:provider/provider.dart';
 import 'dart:io';
 
-import '../layout/main_layout.dart'; // ✅ MainLayout 임포트
-import '../widgets/ai_summary_widget.dart'; // ✅ AiSummaryWidget 임포트
+// import '../layout/main_layout.dart'; // MainLayout 임포트 제거
+import '../widgets/ai_summary_widget.dart';
 import '../utils/ai_service.dart';
-import '../layout/ai_summary_controller.dart'; // AiSummaryController는 이제 BottomSectionController로 대체될 예정이므로 굳이 여기서 사용하지 않습니다.
 import '../services/auth_token.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../auth/login_page.dart';
 import 'page_type.dart';
-import '../layout/bottom_section_controller.dart'; // BottomSectionController 사용
-import '../features/meeting_screen.dart'; // MeetingScreen 위젯을 사용하기 위해 필요
+import '../layout/bottom_section_controller.dart';
+import '../features/meeting_screen.dart';
 
 class HistoryPage extends StatefulWidget {
   const HistoryPage({super.key});
@@ -30,7 +31,7 @@ class _HistoryPageState extends State<HistoryPage> {
   List<Map<String, dynamic>> _visitHistory = [];
   final Set<String> _selectedTimestamps = {};
   String _status = '불러오는 중...';
-  bool _showSummary = false; // Initially false
+  bool _showSummary = false;
 
   @override
   void initState() {
@@ -70,26 +71,24 @@ class _HistoryPageState extends State<HistoryPage> {
       print('❗ Google accessToken 없음');
       if (googleRefreshToken == null || googleRefreshToken.isEmpty) {
         print('❌ Google refreshToken 없음 → 로그인 필요');
-        await _signInWithGoogle(); // This will handle navigation or further checks
-        return; // Return as _signInWithGoogle might navigate
+        await _signInWithGoogle();
+        return;
       }
 
       try {
         await refreshGoogleAccessTokenIfNeeded();
         final refreshed = await getStoredGoogleAccessToken();
-        if (!mounted) return; // Check mounted after await
+        if (!mounted) return;
         if (refreshed == null || refreshed.isEmpty) {
           throw Exception('Google accessToken 재발급 실패');
         }
         print('✅ Google accessToken 재발급 성공');
       } catch (e) {
         print('❌ Google accessToken 갱신 실패: $e');
-        await _signInWithGoogle(); // This will handle navigation or further checks
-        return; // Return as _signInWithGoogle might navigate
+        await _signInWithGoogle();
+        return;
       }
     }
-    // If execution reaches here, all tokens should be fine or refreshed.
-    // Check mounted again before loading history if there were awaits without immediate returns.
     if (!mounted) return;
     print('✅ 모든 토큰 정상 → 방문 기록 로드 시도');
     _loadVisitHistory();
@@ -98,7 +97,6 @@ class _HistoryPageState extends State<HistoryPage> {
   Future<String?> getValidGoogleAccessToken() async {
     var googleAccessToken = await getStoredGoogleAccessToken();
 
-    // 만료되었을 가능성 항상 체크
     if (googleAccessToken == null || googleAccessToken.isEmpty) {
       await refreshGoogleAccessTokenIfNeeded();
       googleAccessToken = await getStoredGoogleAccessToken();
@@ -110,7 +108,7 @@ class _HistoryPageState extends State<HistoryPage> {
   Future<void> _loadVisitHistory() async {
     if (!mounted) return;
     setState(() => _status = '방문 기록 불러오는 중...');
-    print("_loadVisitHistory !!!!!!");
+    print("_loadVisitHistory !!!!!!!");
     final googleAccessToken = await getValidGoogleAccessToken();
 
     if (!mounted) return;
@@ -292,9 +290,7 @@ class _HistoryPageState extends State<HistoryPage> {
           await setStoredGoogleRefreshToken(googleRefreshToken);
 
         print('✅ 모든 토큰 저장 완료, 메인 화면으로 이동 또는 방문 기록 다시 로드');
-        // Navigate to main or reload current page data
-        // Navigator.pushReplacementNamed(context, '/main');
-        _checkTokensThenLoad(); // Re-check tokens and load history
+        _checkTokensThenLoad();
       } else {
         print('❌ 서버 인증 실패: ${response.statusCode}, ${response.body}');
         _showSnackBar('Google 로그인 실패: ${response.statusCode}');
@@ -317,14 +313,13 @@ class _HistoryPageState extends State<HistoryPage> {
   Future<String?> _waitForCode(String redirectUriString) async {
     final Uri redirectUri = Uri.parse(redirectUriString);
     final int port = redirectUri.port;
-    // Ensure host is loopback for security if it's a localhost redirect
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, port);
     print('✅ 서버가 인증 코드를 기다리는 중입니다. (http://${server.address.host}:$port)');
 
     try {
       final HttpRequest request = await server.first.timeout(
         const Duration(minutes: 2),
-      ); // Add timeout
+      );
       final Uri uri = request.uri;
       final String? code = uri.queryParameters['code'];
       final String? error = uri.queryParameters['error'];
@@ -353,7 +348,7 @@ class _HistoryPageState extends State<HistoryPage> {
             ''');
       }
       await request.response.close();
-      return code; // Return null if error or no code
+      return code;
     } catch (e) {
       print('❌ _waitForCode 오류 또는 타임아웃: $e');
       return null;
@@ -384,18 +379,16 @@ class _HistoryPageState extends State<HistoryPage> {
 
       if (selectedUrl != null && selectedUrl.isNotEmpty) {
         setState(() {
-          _showSummary = true; // ✅ Show the summary widget area
+          _showSummary = true;
         });
 
         bottomController.setIsLoading(true);
-        bottomController.updateSummary(
-          '', // Clear previous summary
-        );
+        bottomController.updateSummary('');
         bottomController.updateSummary('URL 요약 중...\n$selectedUrl');
 
         final String? summary = await crawlAndSummarizeUrl(selectedUrl);
 
-        if (!mounted) return; // Crucial check after await
+        if (!mounted) return;
 
         bottomController.updateSummary(summary ?? '요약에 실패했거나 내용이 없습니다.');
         bottomController.setIsLoading(false);
@@ -435,7 +428,6 @@ class _HistoryPageState extends State<HistoryPage> {
     }
   }
 
-  // New function to navigate to MeetingScreen with summary
   void _createNewMemoWithSummary() {
     final bottomController = Provider.of<BottomSectionController>(
       context,
@@ -476,347 +468,323 @@ class _HistoryPageState extends State<HistoryPage> {
     final sortedDates =
         groupedByDate.keys.toList()..sort((a, b) => b.compareTo(a));
 
-    final bottomController = Provider.of<BottomSectionController>(
-      context,
-    ); // Listen to changes
+    final bottomController = Provider.of<BottomSectionController>(context);
 
-    return MainLayout(
-      activePage: PageType.history,
-      child: Column(
-        children: [
-          Container(
-            height: 50,
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  '방문 기록',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                ),
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.summarize_outlined, size: 18),
-                  label: const Text("선택 항목 요약"),
-                  onPressed: _handleSummarizeAction,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF3d98f4),
-                    foregroundColor: Colors.white,
-                  ),
-                ),
-              ],
-            ),
+    return Column(
+      // Scaffold 대신 Column 반환
+      children: [
+        Container(
+          // HistoryPage 전용 AppBar
+          height: 50,
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
           ),
-          Expanded(
-            child: Row(
-              children: [
-                Expanded(
-                  flex: _showSummary ? 2 : 3,
-                  child: Container(
-                    margin: const EdgeInsets.all(16.0),
-                    padding: const EdgeInsets.all(16.0),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12.0),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.grey.withOpacity(0.1),
-                          spreadRadius: 1,
-                          blurRadius: 3,
-                          offset: const Offset(0, 1),
-                        ),
-                      ],
-                    ),
-                    child:
-                        _visitHistory.isEmpty
-                            ? Center(
-                              child: Text(_status),
-                            ) // Shows "불러오는 중..." or error/empty messages
-                            : ListView.builder(
-                              itemCount: sortedDates.length,
-                              itemBuilder: (context, index) {
-                                final date = sortedDates[index];
-                                final itemsOnDate =
-                                    groupedByDate[date]!..sort((a, b) {
-                                      final at =
-                                          a['timestamp'] ??
-                                          a['visitTime']?.toString();
-                                      final bt =
-                                          b['timestamp'] ??
-                                          b['visitTime']?.toString();
-                                      if (at == null && bt == null) return 0;
-                                      if (at == null) return 1;
-                                      if (bt == null) return -1;
-                                      return bt.compareTo(at);
-                                    });
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                '방문 기록',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+              ),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.summarize_outlined, size: 18),
+                label: const Text("선택 항목 요약"),
+                onPressed: _handleSummarizeAction,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF3d98f4),
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: Row(
+            children: [
+              Expanded(
+                flex: _showSummary ? 2 : 3,
+                child: Container(
+                  margin: const EdgeInsets.all(16.0),
+                  padding: const EdgeInsets.all(16.0),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12.0),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.grey.withOpacity(0.1),
+                        spreadRadius: 1,
+                        blurRadius: 3,
+                        offset: const Offset(0, 1),
+                      ),
+                    ],
+                  ),
+                  child:
+                      _visitHistory.isEmpty
+                          ? Center(child: Text(_status))
+                          : ListView.builder(
+                            itemCount: sortedDates.length,
+                            itemBuilder: (context, index) {
+                              final date = sortedDates[index];
+                              final itemsOnDate =
+                                  groupedByDate[date]!..sort((a, b) {
+                                    final at =
+                                        a['timestamp'] ??
+                                        a['visitTime']?.toString();
+                                    final bt =
+                                        b['timestamp'] ??
+                                        b['visitTime']?.toString();
+                                    if (at == null && bt == null) return 0;
+                                    if (at == null) return 1;
+                                    if (bt == null) return -1;
+                                    return bt.compareTo(at);
+                                  });
 
-                                return Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    // Corrected padding here from original code
-                                    vertical:
-                                        0.0, // Reduced vertical padding for group
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Padding(
-                                        // Added padding for date header
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 8.0,
-                                          vertical: 0.0,
-                                        ),
-                                        child: Text(
-                                          _formatDateKorean(date),
-                                          style: const TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.blueGrey,
-                                          ),
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 0.0,
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8.0,
+                                        vertical: 0.0,
+                                      ),
+                                      child: Text(
+                                        _formatDateKorean(date),
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.blueGrey,
                                         ),
                                       ),
-                                      // const SizedBox(height: 8), // Original SizedBox
-                                      ...itemsOnDate.map((item) {
-                                        final title =
-                                            item['title']?.toString() ??
-                                            item['url']?.toString() ??
-                                            '제목 없음';
-                                        final url =
-                                            item['url']?.toString() ?? '';
-                                        final timestamp =
-                                            item['timestamp'] ??
-                                            item['visitTime']?.toString();
-                                        final time = _formatTime(timestamp);
-                                        final bool isChecked =
-                                            _selectedTimestamps.contains(
-                                              timestamp,
-                                            );
+                                    ),
+                                    ...itemsOnDate.map((item) {
+                                      final title =
+                                          item['title']?.toString() ??
+                                          item['url']?.toString() ??
+                                          '제목 없음';
+                                      final url = item['url']?.toString() ?? '';
+                                      final timestamp =
+                                          item['timestamp'] ??
+                                          item['visitTime']?.toString();
+                                      final time = _formatTime(timestamp);
+                                      final bool isChecked = _selectedTimestamps
+                                          .contains(timestamp);
 
-                                        return Card(
-                                          elevation: 1.0,
-                                          margin: const EdgeInsets.symmetric(
-                                            vertical: 0.0,
-                                            horizontal: 8.0,
-                                          ), // Added horizontal margin to card
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              8.0,
-                                            ),
-                                          ),
-                                          color:
-                                              isChecked
-                                                  ? Colors.deepPurple.shade50
-                                                  : Colors.white,
-                                          child: ListTile(
-                                            leading: Transform.scale(
-                                              scale:
-                                                  0.8, // ← 여기서 크기 조절 (0.8은 80% 크기)
-                                              child: Checkbox(
-                                                value: isChecked,
-                                                activeColor: Colors.deepPurple,
-                                                visualDensity:
-                                                    VisualDensity.compact,
-                                                onChanged: (bool? checked) {
-                                                  if (timestamp == null) return;
-                                                  setState(() {
-                                                    if (checked == true) {
-                                                      _selectedTimestamps.add(
-                                                        timestamp,
-                                                      );
-                                                    } else {
-                                                      _selectedTimestamps
-                                                          .remove(timestamp);
-                                                    }
-                                                  });
-                                                },
-                                              ),
-                                            ),
-                                            title: Text(
-                                              title,
-                                              style: const TextStyle(
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.bold,
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            ),
-                                            subtitle:
-                                                url.isNotEmpty
-                                                    ? RichText(
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                      maxLines: 1,
-                                                      text: TextSpan(
-                                                        text: url,
-                                                        style: TextStyle(
-                                                          fontSize: 12,
-                                                          color:
-                                                              Colors
-                                                                  .blue
-                                                                  .shade700,
-                                                          decoration:
-                                                              TextDecoration
-                                                                  .underline,
-                                                          decorationColor:
-                                                              Colors
-                                                                  .blue
-                                                                  .shade700,
-                                                        ),
-                                                        recognizer:
-                                                            TapGestureRecognizer()
-                                                              ..onTap = () async {
-                                                                if (url
-                                                                    .isNotEmpty) {
-                                                                  final uri =
-                                                                      Uri.tryParse(
-                                                                        url,
-                                                                      );
-                                                                  if (uri !=
-                                                                          null &&
-                                                                      await canLaunchUrl(
-                                                                        uri,
-                                                                      )) {
-                                                                    await launchUrl(
-                                                                      uri,
-                                                                      mode:
-                                                                          LaunchMode
-                                                                              .externalApplication,
-                                                                    );
-                                                                  } else {
-                                                                    if (!mounted)
-                                                                      return;
-                                                                    ScaffoldMessenger.of(
-                                                                      context,
-                                                                    ).showSnackBar(
-                                                                      SnackBar(
-                                                                        content:
-                                                                            Text(
-                                                                              'URL을 열 수 없습니다: $url',
-                                                                            ),
-                                                                      ),
-                                                                    );
-                                                                  }
-                                                                }
-                                                              },
-                                                      ),
-                                                    )
-                                                    : null,
-                                            trailing: Text(
-                                              time,
-                                              style: const TextStyle(
-                                                fontSize: 12,
-                                                color: Colors.grey,
-                                              ),
-                                            ),
-                                            contentPadding:
-                                                const EdgeInsets.symmetric(
-                                                  horizontal:
-                                                      8.0, // ListTile padding
-                                                  vertical:
-                                                      0.0, // Reduced vertical padding for denser list
-                                                ),
-                                            dense: true,
-                                            minVerticalPadding: 0.0,
-                                            onTap: () {
-                                              if (timestamp == null) return;
-                                              setState(() {
-                                                if (isChecked) {
-                                                  _selectedTimestamps.remove(
-                                                    timestamp,
-                                                  );
-                                                } else {
-                                                  _selectedTimestamps.add(
-                                                    timestamp,
-                                                  );
-                                                }
-                                              });
-                                            },
-                                          ),
-                                        );
-                                      }).toList(),
-                                      if (index < sortedDates.length - 1)
-                                        const Divider(
-                                          height:
-                                              30, // Increased height for visual separation
-                                          thickness: 0.5,
-                                          indent: 16,
-                                          endIndent: 16,
+                                      return Card(
+                                        elevation: 1.0,
+                                        margin: const EdgeInsets.symmetric(
+                                          vertical: 0.0,
+                                          horizontal: 8.0,
                                         ),
-                                    ],
-                                  ),
-                                );
-                              },
-                            ),
-                  ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            8.0,
+                                          ),
+                                        ),
+                                        color:
+                                            isChecked
+                                                ? Colors.deepPurple.shade50
+                                                : Colors.white,
+                                        child: ListTile(
+                                          leading: Transform.scale(
+                                            scale: 0.8,
+                                            child: Checkbox(
+                                              value: isChecked,
+                                              activeColor: Colors.deepPurple,
+                                              visualDensity:
+                                                  VisualDensity.compact,
+                                              onChanged: (bool? checked) {
+                                                if (timestamp == null) return;
+                                                setState(() {
+                                                  if (checked == true) {
+                                                    _selectedTimestamps.add(
+                                                      timestamp,
+                                                    );
+                                                  } else {
+                                                    _selectedTimestamps.remove(
+                                                      timestamp,
+                                                    );
+                                                  }
+                                                });
+                                              },
+                                            ),
+                                          ),
+                                          title: Text(
+                                            title,
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.bold,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                          subtitle:
+                                              url.isNotEmpty
+                                                  ? RichText(
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                    maxLines: 1,
+                                                    text: TextSpan(
+                                                      text: url,
+                                                      style: TextStyle(
+                                                        fontSize: 12,
+                                                        color:
+                                                            Colors
+                                                                .blue
+                                                                .shade700,
+                                                        decoration:
+                                                            TextDecoration
+                                                                .underline,
+                                                        decorationColor:
+                                                            Colors
+                                                                .blue
+                                                                .shade700,
+                                                      ),
+                                                      recognizer:
+                                                          TapGestureRecognizer()
+                                                            ..onTap = () async {
+                                                              if (url
+                                                                  .isNotEmpty) {
+                                                                final uri =
+                                                                    Uri.tryParse(
+                                                                      url,
+                                                                    );
+                                                                if (uri !=
+                                                                        null &&
+                                                                    await canLaunchUrl(
+                                                                      uri,
+                                                                    )) {
+                                                                  await launchUrl(
+                                                                    uri,
+                                                                    mode:
+                                                                        LaunchMode
+                                                                            .externalApplication,
+                                                                  );
+                                                                } else {
+                                                                  if (!mounted)
+                                                                    return;
+                                                                  ScaffoldMessenger.of(
+                                                                    context,
+                                                                  ).showSnackBar(
+                                                                    SnackBar(
+                                                                      content: Text(
+                                                                        'URL을 열 수 없습니다: $url',
+                                                                      ),
+                                                                    ),
+                                                                  );
+                                                                }
+                                                              }
+                                                            },
+                                                    ),
+                                                  )
+                                                  : null,
+                                          trailing: Text(
+                                            time,
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.grey,
+                                            ),
+                                          ),
+                                          contentPadding:
+                                              const EdgeInsets.symmetric(
+                                                horizontal: 8.0,
+                                                vertical: 0.0,
+                                              ),
+                                          dense: true,
+                                          minVerticalPadding: 0.0,
+                                          onTap: () {
+                                            if (timestamp == null) return;
+                                            setState(() {
+                                              if (isChecked) {
+                                                _selectedTimestamps.remove(
+                                                  timestamp,
+                                                );
+                                              } else {
+                                                _selectedTimestamps.add(
+                                                  timestamp,
+                                                );
+                                              }
+                                            });
+                                          },
+                                        ),
+                                      );
+                                    }).toList(),
+                                    if (index < sortedDates.length - 1)
+                                      const Divider(
+                                        height: 30,
+                                        thickness: 0.5,
+                                        indent: 16,
+                                        endIndent: 16,
+                                      ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
                 ),
-                if (_showSummary) // ✅ Conditionally display AiSummaryWidget
-                  Expanded(
-                    flex: 1,
-                    child: Column(
-                      // Use a Column to stack the summary and the new button
-                      children: [
+              ),
+              if (_showSummary)
+                Expanded(
+                  flex: 1,
+                  child: Column(
+                    children: [
+                      Container(
+                        margin: const EdgeInsets.only(
+                          top: 16.0,
+                          right: 16.0,
+                          bottom: 8.0,
+                        ),
+                        padding: const EdgeInsets.all(16.0),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12.0),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.grey.withOpacity(0.1),
+                              spreadRadius: 1,
+                              blurRadius: 3,
+                              offset: const Offset(0, 1),
+                            ),
+                          ],
+                        ),
+                        child: AiSummaryWidget(),
+                      ),
+                      if (!bottomController.isLoading &&
+                          bottomController.summaryText.isNotEmpty)
                         Container(
                           margin: const EdgeInsets.only(
-                            top: 16.0,
                             right: 16.0,
-                            bottom: 8.0, // Reduced bottom margin
+                            bottom: 16.0,
                           ),
-                          padding: const EdgeInsets.all(16.0),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12.0),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.grey.withOpacity(0.1),
-                                spreadRadius: 1,
-                                blurRadius: 3,
-                                offset: const Offset(0, 1),
+                          alignment: Alignment.centerRight,
+                          child: ElevatedButton.icon(
+                            icon: const Icon(Icons.note_add_outlined, size: 18),
+                            label: const Text("새 메모 작성"),
+                            onPressed: _createNewMemoWithSummary,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF27ae60),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 10,
                               ),
-                            ],
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8.0),
+                              ),
+                            ),
                           ),
-                          child: AiSummaryWidget(),
                         ),
-                        // Add the "Create New Memo" button here
-                        if (!bottomController.isLoading &&
-                            bottomController.summaryText.isNotEmpty)
-                          Container(
-                            margin: const EdgeInsets.only(
-                              right: 16.0,
-                              bottom: 16.0,
-                            ),
-                            alignment: Alignment.centerRight,
-                            child: ElevatedButton.icon(
-                              icon: const Icon(
-                                Icons.note_add_outlined,
-                                size: 18,
-                              ),
-                              label: const Text("새 메모 작성"),
-                              onPressed: _createNewMemoWithSummary,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(
-                                  0xFF27ae60,
-                                ), // Green color
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 10,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8.0),
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
+                    ],
                   ),
-              ],
-            ),
+                ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -826,38 +794,29 @@ class _HistoryPageState extends State<HistoryPage> {
       const weekdays = ['월', '화', '수', '목', '금', '토', '일'];
       return '${date.year}년 ${date.month}월 ${date.day}일 (${weekdays[date.weekday - 1]})';
     } catch (_) {
-      return yyyyMMdd; // Fallback
+      return yyyyMMdd;
     }
   }
 
   String _formatTime(String? isoString) {
     if (isoString == null) return '';
     try {
-      // Ensure it's parsed as UTC if no timezone info, then convert to local.
-      // If isoString already has Z or offset, parse will handle it.
       DateTime dateTime = DateTime.parse(isoString);
-      if (!dateTime.isUtc) {
-        // If parsed as local directly (e.g. no Z), ensure correct interpretation
-        // This might not be needed if isoString is always proper ISO 8601 with TZ
-      }
-      dateTime = dateTime.toLocal(); // Convert to local time for display
+      if (!dateTime.isUtc) {}
+      dateTime = dateTime.toLocal();
 
       final hour12 = dateTime.hour % 12 == 0 ? 12 : dateTime.hour % 12;
-      final ampm =
-          dateTime.hour < 12 ? '오전' : '오후'; // Simpler AM/PM for 0-23 hours
+      final ampm = dateTime.hour < 12 ? '오전' : '오후';
       final minute = dateTime.minute.toString().padLeft(2, '0');
       return '$ampm $hour12:$minute';
     } catch (_) {
-      // Fallback for non-standard or partially valid time strings
       if (isoString.contains("T")) {
         final parts = isoString.split("T");
         if (parts.length > 1 && parts[1].length >= 5) {
-          return parts[1].substring(0, 5); // HH:mm
+          return parts[1].substring(0, 5);
         }
       }
-      return isoString.length > 15
-          ? isoString.substring(11, 16)
-          : isoString; // Basic fallback
+      return isoString.length > 15 ? isoString.substring(11, 16) : isoString;
     }
   }
 }

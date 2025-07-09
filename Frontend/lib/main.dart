@@ -1,22 +1,21 @@
-// lib/main.dart
+// Frontend/lib/main.dart
 import 'package:flutter/material.dart';
 import 'auth/login_page.dart';
 import 'auth/signup_page.dart';
 import 'auth/email_check_page.dart';
-import 'auth/password_reset_page.dart'; // ✅ 임포트 추가
+import 'auth/password_reset_page.dart';
 import 'auth/find_id_page.dart';
-import 'features/meeting_screen.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
-import 'layout/ai_summary_controller.dart'; // ✅ 이름 변경된 컨트롤러 임포트
-import 'features/calendar_page.dart';
-import 'features/graph_page.dart';
-import 'features/history.dart';
+import 'layout/ai_summary_controller.dart';
 import 'layout/bottom_section_controller.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-// ====== 아래 1줄 추가 (AI 백엔드 프로세스 실행/종료 연동) ======
-import 'services/AI_run.dart';
+import 'services/AI_run.dart'; // AI 백엔드 프로세스 실행/종료 연동
+import 'layout/main_layout.dart'; // MainLayout 임포트
+import 'features/page_type.dart'; // PageType 임포트
+import 'providers/file_system_provider.dart'; // FileSystemProvider 임포트
+import 'providers/theme_provider.dart'; // ThemeProvider 추가
 
 final _storage = FlutterSecureStorage();
 
@@ -24,23 +23,25 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: 'assets/.env');
 
-  // ====== 앱 시작 시 Python 서버 자동 실행 ======
+  // 백엔드 서비스를 자동으로 시작하려면 주석 해제
   // await BackendService.startPythonBackend();
 
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (context) => AiSummaryController()),
+        ChangeNotifierProvider(create: (context) => BottomSectionController()),
+        // 여기에 FileSystemProvider를 추가합니다.
+        ChangeNotifierProvider(create: (context) => FileSystemProvider()),
         ChangeNotifierProvider(
-          create: (context) => BottomSectionController(),
-        ), // 👉 추가!
+          create: (context) => ThemeProvider(),
+        ), // ThemeProvider 추가
       ],
       child: const MyApp(),
     ),
   );
 }
 
-// ====== MyApp에 WidgetsBindingObserver로 앱 종료 감지 ======
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
@@ -57,7 +58,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   void dispose() {
-    // ====== 앱 종료 시 Python 서버 자동 종료 ======
+    // 앱 종료 시 Python 서버 자동 종료
     BackendService.stopPythonBackend();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
@@ -75,39 +76,68 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        // ✅ 기본 테마 설정 (선택 사항)
-        primaryColor: const Color(0xFF3d98f4),
-        scaffoldBackgroundColor: const Color(0xFFF1F5F9),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.white,
-          foregroundColor: Color(0xFF1E293B),
-          elevation: 1.0,
-        ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8.0),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          ),
-        ),
-      ),
-      initialRoute: '/login',
-      routes: {
-        '/login': (context) => LoginPage(),
-        '/signup': (context) => SignUpPage(),
-        '/main': (context) => const MeetingScreen(), // ✅ MeetingScreen 사용
-        '/calendar': (context) => const CalendarPage(), // ✅ CalendarPage 사용
-        '/graph': (context) => const GraphPage(), // ✅ GraphPage 사용
-        '/history': (context) => const HistoryPage(), // ✅ HistoryPage 사용
-        '/emailCheck': (context) => EmailCheckPage(),
-        '/findId': (context) => const FindIdPage(),
-        // PasswordResetPage는 email을 받아야 하므로 routes보다는 MaterialPageRoute로 직접 호출하는 것이 일반적입니다.
-        // '/passwordReset': (context) => PasswordResetPage(email: 'test@test.com'), // 예시
+    // Consumer를 사용하여 ThemeProvider의 변화를 구독하고 MaterialApp을 다시 빌드합니다.
+    return Consumer<ThemeProvider>(
+      builder: (context, themeProvider, child) {
+        return MaterialApp(
+          debugShowCheckedModeBanner: false,
+          title: 'Memordo', // 앱 제목 추가
+          theme: themeProvider.currentThemeData, // Light 테마 설정
+          darkTheme:
+              themeProvider.currentThemeData, // Dark 테마 설정 (동일한 ThemeData 사용)
+          themeMode:
+              themeProvider.themeMode == AppThemeMode.dark
+                  ? ThemeMode.dark
+                  : ThemeMode.light, // 테마 모드 설정
+
+          initialRoute: '/login', // 앱 시작 시 로그인 페이지로 이동
+          routes: {
+            '/login': (context) => LoginPage(),
+            '/signup': (context) => SignUpPage(),
+            '/emailCheck': (context) => EmailCheckPage(),
+            '/findId': (context) => const FindIdPage(),
+            '/main':
+                (context) =>
+                    const MainLayoutWrapper(), // MainLayout을 래핑하여 초기 페이지 설정
+          },
+          onGenerateRoute: (settings) {
+            // PasswordResetPage와 같이 인자가 필요한 라우트는 onGenerateRoute를 사용
+            if (settings.name == '/passwordReset') {
+              final args = settings.arguments as String; // 이메일 인자를 받음
+              return MaterialPageRoute(
+                builder: (context) => PasswordResetPage(email: args),
+              );
+            }
+            return null;
+          },
+        );
       },
+    );
+  }
+}
+
+// MainLayout을 래핑하여 초기 PageType을 설정하는 위젯
+class MainLayoutWrapper extends StatefulWidget {
+  const MainLayoutWrapper({super.key});
+
+  @override
+  State<MainLayoutWrapper> createState() => _MainLayoutWrapperState();
+}
+
+class _MainLayoutWrapperState extends State<MainLayoutWrapper> {
+  PageType _currentPage = PageType.home; // 초기 페이지를 'home'(MeetingScreen)으로 설정
+
+  void _onPageSelected(PageType pageType) {
+    setState(() {
+      _currentPage = pageType;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MainLayout(
+      activePage: _currentPage,
+      onPageSelected: _onPageSelected, // MainLayout에 콜백 전달
     );
   }
 }

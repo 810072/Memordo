@@ -7,7 +7,7 @@ class ExpandableFolderTile extends StatefulWidget {
   final List<Widget> children;
   final bool isInitiallyExpanded;
   final Color arrowColor;
-  final double itemHeight; // ✅ 이 부분이 있어야 합니다!
+  final double itemHeight;
 
   const ExpandableFolderTile({
     Key? key,
@@ -16,7 +16,7 @@ class ExpandableFolderTile extends StatefulWidget {
     required this.children,
     this.isInitiallyExpanded = false,
     this.arrowColor = Colors.grey,
-    this.itemHeight = 24.0, // ✅ 이 부분이 있어야 합니다!
+    this.itemHeight = 24.0,
   }) : super(key: key);
 
   @override
@@ -80,11 +80,12 @@ class _ExpandableFolderTileState extends State<ExpandableFolderTile>
             hoverColor: Colors.grey[200],
             splashFactory: NoSplash.splashFactory,
             child: SizedBox(
-              height: widget.itemHeight, // ✅ 여기서 사용됩니다.
+              height: widget.itemHeight,
               child: Row(
                 children: [
+                  // 화살표 아이콘을 가장 왼쪽으로 배치하고, 필요에 따라 여백을 조절합니다.
                   SizedBox(
-                    width: 20,
+                    width: 20, // 화살표 아이콘이 차지할 고정 너비
                     child: Center(
                       child: Icon(
                         _isExpanded
@@ -95,8 +96,12 @@ class _ExpandableFolderTileState extends State<ExpandableFolderTile>
                       ),
                     ),
                   ),
+                  // widget.folderIcon은 이제 왼쪽 들여쓰기만 담당하게 됩니다.
                   widget.folderIcon,
-                  const SizedBox(width: 2),
+                  // 폴더 아이콘과 제목 사이의 새로운 간격 (기존 2px 제거 후 추가)
+                  const SizedBox(
+                    width: 4,
+                  ), // 폴더 아이콘과 이름 사이의 간격 추가 (기존 2px보다 좀 더 여유있게)
                   Expanded(child: widget.title),
                 ],
               ),

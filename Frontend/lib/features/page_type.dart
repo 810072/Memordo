@@ -1,2 +1,2 @@
-// lib/features/page_type.dart
+// Frontend/lib/features/page_type.dart
 enum PageType { home, calendar, graph, history, settings }

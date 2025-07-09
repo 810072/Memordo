@@ -1,9 +1,10 @@
+// Frontend/lib/features/calendar_page.dart
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // 추가
-import 'dart:convert'; // JSON 변환을 위한 import
-import '../layout/main_layout.dart';
-import 'page_type.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
+// import '../layout/main_layout.dart'; // MainLayout 임포트 제거
+import 'page_type.dart'; // PageType 임포트는 유지
 
 class CalendarPage extends StatefulWidget {
   const CalendarPage({super.key});
@@ -23,7 +24,7 @@ class _CalendarPageState extends State<CalendarPage> {
   @override
   void initState() {
     super.initState();
-    _loadFromPrefs(); // 앱 시작 시 메모 데이터 불러오기
+    _loadFromPrefs();
   }
 
   @override
@@ -39,10 +40,9 @@ class _CalendarPageState extends State<CalendarPage> {
     setState(() {
       _memoData[date] = text.trim();
     });
-    _saveToPrefs(); // 메모 저장할 때 영구 저장도
+    _saveToPrefs();
   }
 
-  // 📦 메모를 SharedPreferences에 저장
   Future<void> _saveToPrefs() async {
     final prefs = await SharedPreferences.getInstance();
     final stringMap = _memoData.map(
@@ -51,7 +51,6 @@ class _CalendarPageState extends State<CalendarPage> {
     await prefs.setString('memoData', jsonEncode(stringMap));
   }
 
-  // 📦 메모를 SharedPreferences에서 불러오기
   Future<void> _loadFromPrefs() async {
     final prefs = await SharedPreferences.getInstance();
     final jsonString = prefs.getString('memoData');
@@ -68,9 +67,9 @@ class _CalendarPageState extends State<CalendarPage> {
 
   @override
   Widget build(BuildContext context) {
-    return MainLayout(
-      activePage: PageType.calendar,
-      child: Column(children: [_buildTopBar(), _buildCalendarWithMemo()]),
+    return Column(
+      // Scaffold 대신 Column 반환
+      children: [_buildTopBar(), _buildCalendarWithMemo()],
     );
   }
 
@@ -194,8 +193,8 @@ class _CalendarPageState extends State<CalendarPage> {
       ),
       child: TextField(
         controller: _memoController,
-        maxLines: 10, // ← 더 시원하게 확장
-        style: const TextStyle(fontSize: 14), // ← 글씨도 살짝 키움
+        maxLines: 10,
+        style: const TextStyle(fontSize: 14),
         decoration: const InputDecoration(
           hintText: "메모를 작성하세요.",
           hintStyle: TextStyle(fontSize: 14, color: Colors.grey),

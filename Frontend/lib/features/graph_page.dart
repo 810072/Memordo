@@ -1,13 +1,13 @@
+// Frontend/lib/features/graph_page.dart
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:graphview/GraphView.dart';
 import 'package:path/path.dart' as p;
-import './meeting_screen.dart'; // 실제 위치에 맞게 수정
+import './meeting_screen.dart';
 
-// 정확한 경로의 AI 서비스 파일을 가져옵니다.
 import '../utils/ai_service.dart' as ai_service;
-import '../layout/main_layout.dart';
+// import '../layout/main_layout.dart'; // MainLayout 임포트 제거
 import 'page_type.dart';
 
 // 서버로부터 받은 노드와 엣지 데이터를 담을 데이터 모델 클래스
@@ -51,13 +51,10 @@ class _GraphPageState extends State<GraphPage> {
   @override
   void initState() {
     super.initState();
-    // 그래프 노드들의 레이아웃을 계산하는 알고리즘 설정
     builder = FruchtermanReingoldAlgorithm(iterations: 1000);
-    // 페이지가 열리면 저장된 임베딩 파일이 있는지 확인하여 자동으로 그래프를 로드합니다.
     _loadGraphFromEmbeddingsFile();
   }
 
-  // 노트가 저장된 로컬 디렉토리 경로를 가져오는 함수
   Future<String> _getNotesDirectory() async {
     final home =
         Platform.environment['USERPROFILE'] ?? Platform.environment['HOME'];
@@ -87,7 +84,6 @@ class _GraphPageState extends State<GraphPage> {
         return;
       }
 
-      // ✅ 하위 디렉토리까지 .md 파일 수집
       final files = await _getAllMarkdownFiles(directory);
 
       if (files.isEmpty) {
@@ -101,7 +97,7 @@ class _GraphPageState extends State<GraphPage> {
 
       List<Map<String, String>> notesData = [];
       for (var file in files) {
-        final fileName = p.relative(file.path, from: notesDir); // 하위 디렉토리 경로 유지
+        final fileName = p.relative(file.path, from: notesDir);
         final content = await file.readAsString();
         notesData.add({'fileName': fileName, 'content': content});
       }
@@ -115,7 +111,6 @@ class _GraphPageState extends State<GraphPage> {
             'AI 서버에 임베딩 요청 중... (${notesData.length}개 파일)\n이 작업은 몇 분 정도 소요될 수 있습니다.';
       });
 
-      // ✅ AI 임베딩 요청
       final graphData = await ai_service.generateGraphData(notesData);
 
       if (graphData != null && graphData['error'] == null) {
@@ -130,7 +125,7 @@ class _GraphPageState extends State<GraphPage> {
                 )
                 .toList();
 
-        graphData['userTopics'] = topicNodes.toList(); // ✅ [추가]
+        graphData['userTopics'] = topicNodes.toList();
 
         final jsonString = jsonEncode(graphData);
         final embeddingsFile = File(p.join(notesDir, 'embeddings.json'));
@@ -179,11 +174,7 @@ class _GraphPageState extends State<GraphPage> {
         final target = match.group(1);
         if (target != null && target != fileName) {
           userEdges.add(
-            GraphEdgeData(
-              from: fileName,
-              to: target,
-              similarity: 1.0, // 고정값 (의미: 사용자 지정)
-            ),
+            GraphEdgeData(from: fileName, to: target, similarity: 1.0),
           );
         }
       }
@@ -193,8 +184,8 @@ class _GraphPageState extends State<GraphPage> {
   }
 
   Future<void> _openNoteEditor(BuildContext context, String filePath) async {
-    final notesDir = await _getNotesDirectory(); // 경로 보정 함수
-    final fullPath = p.join(notesDir, filePath); // ✅ 상대경로 -> 절대경로
+    final notesDir = await _getNotesDirectory();
+    final fullPath = p.join(notesDir, filePath);
 
     final file = File(fullPath);
     if (await file.exists()) {
@@ -215,7 +206,6 @@ class _GraphPageState extends State<GraphPage> {
     }
   }
 
-  // [핵심 기능 2] 저장된 임베딩 파일로 그래프를 그리는 로직
   Future<void> _loadGraphFromEmbeddingsFile() async {
     setState(() {
       _isLoading = true;
@@ -247,7 +237,6 @@ class _GraphPageState extends State<GraphPage> {
     graph.nodes.clear();
     graph.edges.clear();
 
-    // ✅ [수정] topic 노드들도 노드 맵에 포함
     final List<String> topicIds =
         (data['userTopics'] as List? ?? []).whereType<String>().toList();
 
@@ -347,10 +336,11 @@ class _GraphPageState extends State<GraphPage> {
 
   @override
   Widget build(BuildContext context) {
-    return MainLayout(
-      activePage: PageType.graph,
-      child: Scaffold(
-        appBar: AppBar(
+    return Column(
+      // Scaffold 대신 Column 반환
+      children: [
+        AppBar(
+          // GraphPage 전용 AppBar
           title: const Text('AI 노트 관계도'),
           actions: [
             IconButton(
@@ -360,52 +350,53 @@ class _GraphPageState extends State<GraphPage> {
             ),
           ],
         ),
-        body: Center(
-          child:
-              _isLoading
-                  ? Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const CircularProgressIndicator(),
-                      const SizedBox(height: 20),
-                      Text(
-                        _statusMessage,
-                        style: Theme.of(context).textTheme.titleMedium,
-                        textAlign: TextAlign.center,
+        Expanded(
+          child: Center(
+            child:
+                _isLoading
+                    ? Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const CircularProgressIndicator(),
+                        const SizedBox(height: 20),
+                        Text(
+                          _statusMessage,
+                          style: Theme.of(context).textTheme.titleMedium,
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    )
+                    : graph.nodeCount() == 0
+                    ? Text(
+                      _statusMessage,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    )
+                    : InteractiveViewer(
+                      constrained: false,
+                      boundaryMargin: const EdgeInsets.all(100),
+                      minScale: 0.01,
+                      maxScale: 5.0,
+                      child: GraphView(
+                        graph: graph,
+                        algorithm: builder,
+                        paint:
+                            Paint()
+                              ..color = Colors.grey
+                              ..strokeWidth = 1
+                              ..style = PaintingStyle.stroke,
+                        builder: (Node node) {
+                          final label = node.key!.value as String;
+                          return _buildNodeWidget(label);
+                        },
                       ),
-                    ],
-                  )
-                  : graph.nodeCount() == 0
-                  ? Text(
-                    _statusMessage,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  )
-                  : InteractiveViewer(
-                    constrained: false,
-                    boundaryMargin: const EdgeInsets.all(100),
-                    minScale: 0.01,
-                    maxScale: 5.0,
-                    child: GraphView(
-                      graph: graph,
-                      algorithm: builder,
-                      paint:
-                          Paint()
-                            ..color = Colors.grey
-                            ..strokeWidth = 1
-                            ..style = PaintingStyle.stroke,
-                      builder: (Node node) {
-                        final label = node.key!.value as String;
-                        return _buildNodeWidget(label);
-                      },
                     ),
-                  ),
+          ),
         ),
-      ),
+      ],
     );
   }
 }
 
-// ✅ [추가] 사용자 엣지 + 주제 노드 추출 함수
 Future<({List<GraphEdgeData> userEdges, Set<String> topicNodes})>
 _extractUserDefinedEdgesAndTopics(List<Map<String, String>> notesData) async {
   final userEdges = <GraphEdgeData>[];
