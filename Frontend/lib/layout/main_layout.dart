@@ -79,21 +79,6 @@ class _MainLayoutState extends State<MainLayout> {
   @override
   Widget build(BuildContext context) {
     final bool showRightPanelButton = _showRightSidebar;
-    final tokenStatusProvider = Provider.of<TokenStatusProvider>(
-      context,
-    ); // Provider 접근
-
-    String userNameDisplay = tokenStatusProvider.userName ?? '사용자'; // 사용자 이름
-    String loginTypeDisplay =
-        tokenStatusProvider.isGoogleLinked ? 'Google 로그인' : '일반 로그인'; // 로그인 유형
-    ImageProvider? profileImageProvider; // 프로필 이미지 Provider
-
-    if (tokenStatusProvider.profileImageUrl != null &&
-        tokenStatusProvider.profileImageUrl!.isNotEmpty) {
-      profileImageProvider = NetworkImage(
-        tokenStatusProvider.profileImageUrl!,
-      ); // NetworkImage 사용
-    }
 
     return Scaffold(
       backgroundColor: const Color(0xFFF1F5F9),
@@ -107,11 +92,11 @@ class _MainLayoutState extends State<MainLayout> {
           onPressed: _toggleLeftPanel,
           tooltip: 'Toggle Sidebar',
         ),
-        title: Row(
+        title: const Row(
           children: [
-            const Icon(Icons.note_alt_rounded, color: Color(0xFF3d98f4)),
-            const SizedBox(width: 8),
-            const Text(
+            Icon(Icons.note_alt_rounded, color: Color(0xFF3d98f4)),
+            SizedBox(width: 8),
+            Text(
               'Memordo',
               style: TextStyle(
                 color: Color(0xFF1E293B),
@@ -119,11 +104,6 @@ class _MainLayoutState extends State<MainLayout> {
                 fontSize: 20,
                 fontFamily: 'Work Sans',
               ),
-            ),
-            const SizedBox(width: 10), // 로고와 로그인 유형 텍스트 사이 간격
-            Text(
-              '($loginTypeDisplay)', // 로그인 유형 텍스트
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
             ),
           ],
         ),
@@ -137,23 +117,12 @@ class _MainLayoutState extends State<MainLayout> {
               onPressed: _toggleRightPanel,
               tooltip: 'Toggle Memos',
             ),
+          // 사용자 프로필 관련 UI 제거하고 간단한 아이콘으로 대체
           Padding(
             padding: const EdgeInsets.all(8.0),
-            child: Tooltip(
-              // 사용자 이름 툴팁
-              message: userNameDisplay,
-              child: CircleAvatar(
-                backgroundColor: Colors.grey.shade300,
-                backgroundImage: profileImageProvider, // 프로필 이미지 Provider 사용
-                child:
-                    profileImageProvider ==
-                            null // 이미지가 없을 경우 기본 아이콘
-                        ? Icon(
-                          Icons.person_outline,
-                          color: Colors.grey.shade700,
-                        )
-                        : null,
-              ),
+            child: CircleAvatar(
+              backgroundColor: Colors.grey.shade300,
+              child: Icon(Icons.person_outline, color: Colors.grey.shade700),
             ),
           ),
           const SizedBox(width: 10),

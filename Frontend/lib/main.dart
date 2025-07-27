@@ -9,22 +9,20 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
 import 'layout/ai_summary_controller.dart';
 import 'layout/bottom_section_controller.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+// import 'package:flutter_secure_storage/flutter_secure_storage.dart'; // 이 파일에서 직접 사용되지 않음
 
-import 'services/AI_run.dart'; // AI 백엔드 프로세스 실행/종료 연동
-import 'layout/main_layout.dart'; // MainLayout 임포트
-import 'features/page_type.dart'; // PageType 임포트
-import 'providers/file_system_provider.dart'; // FileSystemProvider 임포트
-import 'providers/theme_provider.dart'; // ThemeProvider 추가
-import 'providers/token_status_provider.dart'; // ✨ 추가: TokenStatusProvider 임포트
-
-final _storage = FlutterSecureStorage();
+// import 'services/AI_run.dart'; // AI 백엔드 자동 실행/종료 로직 제거
+import 'layout/main_layout.dart';
+import 'features/page_type.dart';
+import 'providers/file_system_provider.dart';
+import 'providers/theme_provider.dart';
+import 'providers/token_status_provider.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: 'assets/.env');
 
-  // 백엔드 서비스를 자동으로 시작하려면 주석 해제
+  // Python 백엔드 자동 실행 로직이 제거되었습니다.
   // await BackendService.startPythonBackend();
 
   runApp(
@@ -32,51 +30,18 @@ Future<void> main() async {
       providers: [
         ChangeNotifierProvider(create: (context) => AiSummaryController()),
         ChangeNotifierProvider(create: (context) => BottomSectionController()),
-        // 여기에 FileSystemProvider를 추가합니다.
         ChangeNotifierProvider(create: (context) => FileSystemProvider()),
-        ChangeNotifierProvider(
-          create: (context) => ThemeProvider(),
-        ), // ThemeProvider 추가
-        ChangeNotifierProvider(
-          create: (context) => TokenStatusProvider(),
-        ), // ✨ 추가: TokenStatusProvider 등록
+        ChangeNotifierProvider(create: (context) => ThemeProvider()),
+        ChangeNotifierProvider(create: (context) => TokenStatusProvider()),
       ],
       child: const MyApp(),
     ),
   );
 }
 
-class MyApp extends StatefulWidget {
+// MyApp을 StatelessWidget으로 변경하여 백엔드 프로세스 관리 로직을 완전히 제거했습니다.
+class MyApp extends StatelessWidget {
   const MyApp({super.key});
-
-  @override
-  State<MyApp> createState() => _MyAppState();
-}
-
-class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-  }
-
-  @override
-  void dispose() {
-    // 앱 종료 시 Python 서버 자동 종료
-    BackendService.stopPythonBackend();
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    // 앱이 완전히 종료될 때 확실히 백엔드도 종료
-    if (state == AppLifecycleState.detached ||
-        state == AppLifecycleState.inactive) {
-      BackendService.stopPythonBackend();
-    }
-    super.didChangeAppLifecycleState(state);
-  }
 
   @override
   Widget build(BuildContext context) {

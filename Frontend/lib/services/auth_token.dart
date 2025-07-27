@@ -42,34 +42,12 @@ Future<String?> getStoredGoogleTokenExpiry() async {
   return await _storage.read(key: 'google_token_expiry');
 }
 
-// ✨ 추가: 사용자 이름 저장
-Future<void> setStoredUserName(String name) async {
-  await _storage.write(key: 'user_name', value: name);
-}
-
-// ✨ 추가: 사용자 이름 불러오기
-Future<String?> getStoredUserName() async {
-  return await _storage.read(key: 'user_name');
-}
-
-// ✨ 추가: 프로필 이미지 URL 저장
-Future<void> setStoredProfileImageUrl(String url) async {
-  await _storage.write(key: 'profile_image_url', value: url);
-}
-
-// ✨ 추가: 프로필 이미지 URL 불러오기
-Future<String?> getStoredProfileImageUrl() async {
-  return await _storage.read(key: 'profile_image_url');
-}
-
 Future<void> clearAllTokens() async {
   await _storage.delete(key: 'access_token');
   await _storage.delete(key: 'refresh_token');
   await _storage.delete(key: 'google_access_token');
   await _storage.delete(key: 'google_refresh_token');
-  await _storage.delete(key: 'user_name'); // ✨ 추가
-  await _storage.delete(key: 'profile_image_url'); // ✨ 추가
-  await _storage.delete(key: 'google_token_expiry'); // ✨ 추가: 구글 토큰 만료 시간도 삭제
+  await _storage.delete(key: 'google_token_expiry');
 
   print('🧹 모든 토큰 삭제 완료');
 }
@@ -90,22 +68,12 @@ Future<void> refreshAccessTokenIfNeeded() async {
     final data = jsonDecode(response.body);
     final newAccessToken = data['accessToken'];
     final newRefreshToken = data['refreshToken'];
-    final newUserName = data['userName']; // ✨ 추가
-    final newProfileImageUrl = data['profileImageUrl']; // ✨ 추가
 
     if (newAccessToken != null) {
       await setStoredAccessToken(newAccessToken);
     }
     if (newRefreshToken != null) {
       await setStoredRefreshToken(newRefreshToken);
-    }
-    if (newUserName != null) {
-      // ✨ 추가
-      await setStoredUserName(newUserName);
-    }
-    if (newProfileImageUrl != null) {
-      // ✨ 추가
-      await setStoredProfileImageUrl(newProfileImageUrl);
     }
 
     print('✅ accessToken 갱신 성공');
@@ -212,7 +180,6 @@ Future<bool> tryAutoLogin() async {
   }
 }
 
-// ✨ 추가: Google Access Token 유효성 로컬 확인 함수
 Future<bool> hasValidGoogleAccessTokenLocally() async {
   final accessToken = await getStoredGoogleAccessToken();
   final expiryRaw = await _storage.read(key: 'google_token_expiry');
@@ -237,15 +204,10 @@ Future<Map<String, dynamic>?> fetchTokenStatus(BuildContext context) async {
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
 
-      // ✨ 중요 수정: 로컬에 저장된 Google 토큰의 유효성을 직접 확인하여 data에 반영
       data['googleAccessTokenValid'] = await hasValidGoogleAccessTokenLocally();
       final String? googleRefreshToken = await getStoredGoogleRefreshToken();
       data['googleRefreshTokenValid'] =
           googleRefreshToken != null && googleRefreshToken.isNotEmpty;
-
-      // ✨ 추가: 사용자 이름과 프로필 이미지 URL도 로컬에서 가져와 data에 추가
-      data['userName'] = await getStoredUserName();
-      data['profileImageUrl'] = await getStoredProfileImageUrl();
 
       return data;
     } else {

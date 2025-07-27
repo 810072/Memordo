@@ -160,29 +160,6 @@ class _GraphPageState extends State<GraphPage> {
     return mdFiles;
   }
 
-  Future<List<GraphEdgeData>> _extractUserDefinedEdges(
-    List<Map<String, String>> notesData,
-  ) async {
-    final userEdges = <GraphEdgeData>[];
-
-    for (final note in notesData) {
-      final fileName = note['fileName']!;
-      final content = note['content']!;
-      final matches = RegExp(r'<<([^<>]+\.md)>>').allMatches(content);
-
-      for (final match in matches) {
-        final target = match.group(1);
-        if (target != null && target != fileName) {
-          userEdges.add(
-            GraphEdgeData(from: fileName, to: target, similarity: 1.0),
-          );
-        }
-      }
-    }
-
-    return userEdges;
-  }
-
   Future<void> _openNoteEditor(BuildContext context, String filePath) async {
     final notesDir = await _getNotesDirectory();
     final fullPath = p.join(notesDir, filePath);
@@ -190,13 +167,26 @@ class _GraphPageState extends State<GraphPage> {
     final file = File(fullPath);
     if (await file.exists()) {
       final content = await file.readAsString();
+      if (!mounted) return;
+      // ✨ 수정: MeetingScreen을 Scaffold로 감싸서 Material 위젯 문제를 해결합니다.
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => MeetingScreen(initialText: content),
+          builder:
+              (context) => Scaffold(
+                appBar: AppBar(
+                  title: Text(p.basenameWithoutExtension(filePath)),
+                  leading: IconButton(
+                    icon: const Icon(Icons.arrow_back),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ),
+                body: MeetingScreen(initialText: content, filePath: fullPath),
+              ),
         ),
       );
     } else {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('파일을 찾을 수 없습니다: $fullPath'),
@@ -212,20 +202,24 @@ class _GraphPageState extends State<GraphPage> {
       _statusMessage = '저장된 임베딩 파일을 찾는 중...';
     });
 
-    final notesDir = await _getNotesDirectory();
-    final embeddingsFile = File(p.join(notesDir, 'embeddings.json'));
+    try {
+      final notesDir = await _getNotesDirectory();
+      final embeddingsFile = File(p.join(notesDir, 'embeddings.json'));
 
-    if (await embeddingsFile.exists()) {
-      try {
-        final jsonString = await embeddingsFile.readAsString();
-        final data = jsonDecode(jsonString);
-        _buildGraphFromData(data);
-        _statusMessage = '저장된 데이터로 그래프를 그렸습니다.';
-      } catch (e) {
-        _statusMessage = '임베딩 파일을 읽는 중 오류 발생: ${e.toString()}';
+      if (await embeddingsFile.exists()) {
+        try {
+          final jsonString = await embeddingsFile.readAsString();
+          final data = jsonDecode(jsonString);
+          _buildGraphFromData(data);
+          _statusMessage = '저장된 데이터로 그래프를 그렸습니다.';
+        } catch (e) {
+          _statusMessage = '임베딩 파일을 읽는 중 오류 발생: ${e.toString()}';
+        }
+      } else {
+        _statusMessage = '임베딩 파일이 없습니다. 우측 상단 버튼을 눌러 생성해주세요.';
       }
-    } else {
-      _statusMessage = '임베딩 파일이 없습니다. 우측 상단 버튼을 눌러 생성해주세요.';
+    } catch (e) {
+      _statusMessage = '노트 디렉토리 접근 중 오류 발생: $e';
     }
 
     setState(() {
@@ -265,8 +259,10 @@ class _GraphPageState extends State<GraphPage> {
       }
     }
 
-    if (nodes.isEmpty) {
-      _statusMessage = '표시할 노트가 없습니다.';
+    if (nodeMap.isEmpty) {
+      setState(() {
+        _statusMessage = '표시할 노트가 없습니다.';
+      });
       return;
     }
 
@@ -294,9 +290,11 @@ class _GraphPageState extends State<GraphPage> {
         graph.addEdge(fromNode, toNode, paint: paint);
       }
     }
+    setState(() {}); // 그래프 데이터 변경 후 UI 갱신
   }
 
   void _showSnackBar(String message) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), duration: const Duration(seconds: 3)),
     );

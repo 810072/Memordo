@@ -64,8 +64,6 @@ class _LoginPageState extends State<LoginPage> {
         final refreshToken = data['refreshToken'];
         final googleAccessToken = data['googleAccessToken'];
         final googleRefreshToken = data['googleRefreshToken'];
-        final userName = data['userName']; // ✨ 추가
-        final profileImageUrl = data['profileImageUrl']; // ✨ 추가
 
         await Future.wait([
           if (accessToken != null) setStoredAccessToken(accessToken),
@@ -74,9 +72,6 @@ class _LoginPageState extends State<LoginPage> {
             setStoredGoogleAccessToken(googleAccessToken),
           if (googleRefreshToken != null)
             setStoredGoogleRefreshToken(googleRefreshToken),
-          if (userName != null) setStoredUserName(userName), // ✨ 추가
-          if (profileImageUrl != null)
-            setStoredProfileImageUrl(profileImageUrl), // ✨ 추가
         ]);
 
         print('✅ 일반 로그인 성공 및 토큰 저장 완료');
@@ -164,8 +159,6 @@ class _LoginPageState extends State<LoginPage> {
         final refreshToken = data['refreshToken'];
         final googleAccessToken = data['googleAccessToken'];
         final googleRefreshToken = data['googleRefreshToken'];
-        final userName = data['userName']; // ✨ 추가
-        final profileImageUrl = data['profileImageUrl']; // ✨ 추가
 
         await Future.wait([
           if (accessToken != null) setStoredAccessToken(accessToken),
@@ -174,9 +167,6 @@ class _LoginPageState extends State<LoginPage> {
             setStoredGoogleAccessToken(googleAccessToken),
           if (googleRefreshToken != null)
             setStoredGoogleRefreshToken(googleRefreshToken),
-          if (userName != null) setStoredUserName(userName), // ✨ 추가
-          if (profileImageUrl != null)
-            setStoredProfileImageUrl(profileImageUrl), // ✨ 추가
         ]);
         print('✅ Google 로그인 성공 및 토큰 저장 완료');
         if (mounted) Navigator.pushReplacementNamed(context, '/main');
