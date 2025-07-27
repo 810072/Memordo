@@ -1,13 +1,13 @@
 // lib/auth/login_page.dart
 import 'dart:convert';
-import 'dart:io'; // HttpServer 사용을 위해 필요
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../services/auth_token.dart'; // 토큰 저장 함수들
+import '../services/auth_token.dart';
 
 import 'email_check_page.dart';
 import 'find_id_page.dart';
@@ -22,10 +22,10 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final FocusNode _focusNode = FocusNode();
-  bool _isLoading = false; // 일반 로그인 로딩 상태
-  bool _isGoogleLoading = false; // Google 로그인 로딩 상태
+  bool _isLoading = false;
+  bool _isGoogleLoading = false;
 
-  final String baseUrl = 'https://aidoctorgreen.com'; // 실제 서버 주소 확인
+  final String baseUrl = 'https://aidoctorgreen.com';
   final String apiPrefix = '/memo/api';
 
   @override
@@ -60,13 +60,12 @@ class _LoginPageState extends State<LoginPage> {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        // 서버 응답에서 토큰들을 추출하여 저장
         final accessToken = data['accessToken'];
         final refreshToken = data['refreshToken'];
-        final googleAccessToken =
-            data['googleAccessToken']; // 있을 수도 있고 없을 수도 있음
-        final googleRefreshToken =
-            data['googleRefreshToken']; // 있을 수도 있고 없을 수도 있음
+        final googleAccessToken = data['googleAccessToken'];
+        final googleRefreshToken = data['googleRefreshToken'];
+        final userName = data['userName']; // ✨ 추가
+        final profileImageUrl = data['profileImageUrl']; // ✨ 추가
 
         await Future.wait([
           if (accessToken != null) setStoredAccessToken(accessToken),
@@ -75,6 +74,9 @@ class _LoginPageState extends State<LoginPage> {
             setStoredGoogleAccessToken(googleAccessToken),
           if (googleRefreshToken != null)
             setStoredGoogleRefreshToken(googleRefreshToken),
+          if (userName != null) setStoredUserName(userName), // ✨ 추가
+          if (profileImageUrl != null)
+            setStoredProfileImageUrl(profileImageUrl), // ✨ 추가
         ]);
 
         print('✅ 일반 로그인 성공 및 토큰 저장 완료');
@@ -98,7 +100,7 @@ class _LoginPageState extends State<LoginPage> {
 
   // Google 로그인 함수
   Future<void> _signInWithGoogle() async {
-    if (_isGoogleLoading || _isLoading) return; // 이미 다른 작업 진행 중이면 중복 실행 방지
+    if (_isGoogleLoading || _isLoading) return;
     if (!mounted) return;
     setState(() => _isGoogleLoading = true);
 
@@ -140,9 +142,7 @@ class _LoginPageState extends State<LoginPage> {
       final code = await _waitForCode(redirectUri);
 
       if (code == null || code.isEmpty) {
-        // _waitForCode 내부에서 이미 SnackBar를 표시했을 수 있음
         print('❌ Google 인증 코드를 받지 못했습니다.');
-        // _showSnackBar('Google 로그인 실패: 인증 코드를 받지 못했습니다.', isError: true); // 중복 알림 방지
         if (mounted) setState(() => _isGoogleLoading = false);
         return;
       }
@@ -154,7 +154,7 @@ class _LoginPageState extends State<LoginPage> {
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode({'code': code}),
           )
-          .timeout(const Duration(seconds: 20)); // 네트워크 타임아웃 추가
+          .timeout(const Duration(seconds: 20));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -164,6 +164,8 @@ class _LoginPageState extends State<LoginPage> {
         final refreshToken = data['refreshToken'];
         final googleAccessToken = data['googleAccessToken'];
         final googleRefreshToken = data['googleRefreshToken'];
+        final userName = data['userName']; // ✨ 추가
+        final profileImageUrl = data['profileImageUrl']; // ✨ 추가
 
         await Future.wait([
           if (accessToken != null) setStoredAccessToken(accessToken),
@@ -172,6 +174,9 @@ class _LoginPageState extends State<LoginPage> {
             setStoredGoogleAccessToken(googleAccessToken),
           if (googleRefreshToken != null)
             setStoredGoogleRefreshToken(googleRefreshToken),
+          if (userName != null) setStoredUserName(userName), // ✨ 추가
+          if (profileImageUrl != null)
+            setStoredProfileImageUrl(profileImageUrl), // ✨ 추가
         ]);
         print('✅ Google 로그인 성공 및 토큰 저장 완료');
         if (mounted) Navigator.pushReplacementNamed(context, '/main');
@@ -200,16 +205,13 @@ class _LoginPageState extends State<LoginPage> {
     try {
       final redirectUri = Uri.parse(redirectUriString);
       final int port = redirectUri.port;
-      final expectedPath = redirectUri.path; // 리디렉션 URI의 경로 (예: /authcallback)
+      final expectedPath = redirectUri.path;
 
-      server = await HttpServer.bind(
-        InternetAddress.loopbackIPv4,
-        port,
-      ); // localhost에서만 리슨
+      server = await HttpServer.bind(InternetAddress.loopbackIPv4, port);
       print('✅ 인증 코드 대기 서버 시작 (http://${server.address.host}:$port)');
 
       final HttpRequest request = await server.first.timeout(
-        const Duration(minutes: 3), // 타임아웃 3분으로 조정
+        const Duration(minutes: 3),
         onTimeout: () {
           print('❌ 인증 코드 대기 시간 초과');
           _showSnackBar('로그인 인증 시간이 초과되었습니다. 다시 시도해주세요.', isError: true);
@@ -217,7 +219,6 @@ class _LoginPageState extends State<LoginPage> {
         },
       );
 
-      // 요청 경로 확인 (선택 사항이지만, 보안 강화)
       if (request.uri.path != expectedPath) {
         print('❌ 잘못된 리디렉션 경로: ${request.uri.path}, 예상 경로: $expectedPath');
         request.response
@@ -236,8 +237,7 @@ class _LoginPageState extends State<LoginPage> {
         print('❌ Google 인증 오류 콜백: $error');
         _showSnackBar('Google 인증 중 오류가 발생했습니다: $error', isError: true);
         request.response
-          ..statusCode =
-              400 // Bad Request
+          ..statusCode = 400
           ..headers.contentType = ContentType.html
           ..write(
             '<html><body><h2>Google 인증 오류: $error</h2><p>앱으로 돌아가 다시 시도해주세요.</p></body></html>',
@@ -266,7 +266,6 @@ class _LoginPageState extends State<LoginPage> {
       _showSnackBar('_waitForCode 오류: $e', isError: true);
       return null;
     } finally {
-      // 서버가 정상적으로 시작된 경우에만 close 호출
       if (server != null) {
         await server.close(force: true);
         print('✅ 인증 코드 대기 서버 종료');
@@ -283,7 +282,7 @@ class _LoginPageState extends State<LoginPage> {
             isError ? Colors.redAccent.shade700 : Colors.green.shade600,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.0)),
-        margin: const EdgeInsets.fromLTRB(16, 16, 16, 32), // 하단 여백 추가
+        margin: const EdgeInsets.fromLTRB(16, 16, 16, 32),
         elevation: 4.0,
       ),
     );
@@ -294,7 +293,6 @@ class _LoginPageState extends State<LoginPage> {
         event.logicalKey == LogicalKeyboardKey.enter &&
         !_isLoading &&
         !_isGoogleLoading) {
-      // 두 로딩 상태 모두 확인
       _login(context);
     }
   }
@@ -316,10 +314,8 @@ class _LoginPageState extends State<LoginPage> {
                 borderRadius: BorderRadius.circular(16.0),
               ),
               child: Container(
-                width: 400, // 반응형 웹에서는 더 클 수 있음
-                constraints: const BoxConstraints(
-                  maxWidth: 400,
-                ), // 데스크탑에서 최대 너비 고정
+                width: 400,
+                constraints: const BoxConstraints(maxWidth: 400),
                 padding: const EdgeInsets.symmetric(
                   horizontal: 32.0,
                   vertical: 48.0,
@@ -428,9 +424,7 @@ class _LoginPageState extends State<LoginPage> {
       decoration: InputDecoration(
         labelText: labelText,
         prefixIcon: Icon(icon, color: Colors.grey[600]),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12.0),
-        ), // 좀 더 둥글게
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12.0)),
         focusedBorder: OutlineInputBorder(
           borderSide: BorderSide(color: Colors.deepPurple.shade300, width: 2.0),
           borderRadius: BorderRadius.circular(12.0),
@@ -440,11 +434,11 @@ class _LoginPageState extends State<LoginPage> {
           borderRadius: BorderRadius.circular(12.0),
         ),
         filled: !enabled,
-        fillColor: Colors.grey.shade200, // 비활성화 시 배경색 약간 더 진하게
+        fillColor: Colors.grey.shade200,
         contentPadding: const EdgeInsets.symmetric(
           vertical: 16.0,
           horizontal: 12.0,
-        ), // 패딩 조정
+        ),
       ),
     );
   }
@@ -470,7 +464,7 @@ class _LoginPageState extends State<LoginPage> {
           disabledBackgroundColor: bgColor.withOpacity(0.4),
           disabledForegroundColor: Colors.white70,
         ),
-        onPressed: onPressed, // 로딩 상태는 버튼 내부에서 처리하므로 onPressed는 그대로 전달
+        onPressed: onPressed,
         child:
             isLoading
                 ? const SizedBox(
@@ -504,16 +498,15 @@ class _LoginPageState extends State<LoginPage> {
       child: OutlinedButton.icon(
         icon:
             isLoading
-                ? Container() // 로딩 중 아이콘 숨김
+                ? Container()
                 : Container(
-                  // 로고 크기 제어
-                  padding: const EdgeInsets.only(right: 0.0), // 로고와 텍스트 간격
-                  height: 30, // 로고 높이
-                  width: 30, // 로고 너비
+                  padding: const EdgeInsets.only(right: 0.0),
+                  height: 30,
+                  width: 30,
                   child: Image.asset(
                     'assets/google_logo.png',
                     fit: BoxFit.contain,
-                  ), // assets/google_logo.png 파일 필요
+                  ),
                 ),
         label:
             isLoading
@@ -538,7 +531,6 @@ class _LoginPageState extends State<LoginPage> {
         onPressed: onPressed,
         style: OutlinedButton.styleFrom(
           backgroundColor: Colors.white,
-          // foregroundColor: Colors.black87, // label의 TextStyle에서 직접 설정
           side: BorderSide(color: Colors.grey.shade400),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12.0),
@@ -566,6 +558,4 @@ class _LoginPageState extends State<LoginPage> {
       ),
     );
   }
-
-  // --- ---
 }

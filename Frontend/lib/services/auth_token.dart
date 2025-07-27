@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart'; // ✅ Navigator, BuildContext 사용 시 필수!
+import 'package:flutter/material.dart'; // BuildContext 사용 시 필수!
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -42,11 +42,34 @@ Future<String?> getStoredGoogleTokenExpiry() async {
   return await _storage.read(key: 'google_token_expiry');
 }
 
+// ✨ 추가: 사용자 이름 저장
+Future<void> setStoredUserName(String name) async {
+  await _storage.write(key: 'user_name', value: name);
+}
+
+// ✨ 추가: 사용자 이름 불러오기
+Future<String?> getStoredUserName() async {
+  return await _storage.read(key: 'user_name');
+}
+
+// ✨ 추가: 프로필 이미지 URL 저장
+Future<void> setStoredProfileImageUrl(String url) async {
+  await _storage.write(key: 'profile_image_url', value: url);
+}
+
+// ✨ 추가: 프로필 이미지 URL 불러오기
+Future<String?> getStoredProfileImageUrl() async {
+  return await _storage.read(key: 'profile_image_url');
+}
+
 Future<void> clearAllTokens() async {
   await _storage.delete(key: 'access_token');
   await _storage.delete(key: 'refresh_token');
   await _storage.delete(key: 'google_access_token');
   await _storage.delete(key: 'google_refresh_token');
+  await _storage.delete(key: 'user_name'); // ✨ 추가
+  await _storage.delete(key: 'profile_image_url'); // ✨ 추가
+  await _storage.delete(key: 'google_token_expiry'); // ✨ 추가: 구글 토큰 만료 시간도 삭제
 
   print('🧹 모든 토큰 삭제 완료');
 }
@@ -67,6 +90,8 @@ Future<void> refreshAccessTokenIfNeeded() async {
     final data = jsonDecode(response.body);
     final newAccessToken = data['accessToken'];
     final newRefreshToken = data['refreshToken'];
+    final newUserName = data['userName']; // ✨ 추가
+    final newProfileImageUrl = data['profileImageUrl']; // ✨ 추가
 
     if (newAccessToken != null) {
       await setStoredAccessToken(newAccessToken);
@@ -74,10 +99,17 @@ Future<void> refreshAccessTokenIfNeeded() async {
     if (newRefreshToken != null) {
       await setStoredRefreshToken(newRefreshToken);
     }
+    if (newUserName != null) {
+      // ✨ 추가
+      await setStoredUserName(newUserName);
+    }
+    if (newProfileImageUrl != null) {
+      // ✨ 추가
+      await setStoredProfileImageUrl(newProfileImageUrl);
+    }
 
     print('✅ accessToken 갱신 성공');
   } else if (response.statusCode == 403) {
-    // 🔴 리프레시 토큰 만료 또는 위조
     print('🔴 refreshToken 만료됨 → 로그아웃 필요');
     throw Exception('refreshToken 만료');
   } else {
@@ -88,7 +120,7 @@ Future<void> refreshAccessTokenIfNeeded() async {
 
 Future<http.Response> authorizedRequest(
   Uri url, {
-  required BuildContext context, // ✅ context 추가
+  required BuildContext context,
   String method = 'GET',
   Map<String, String>? headers,
   Object? body,
@@ -106,7 +138,6 @@ Future<http.Response> authorizedRequest(
   try {
     response = await _sendRequest(method, url, headers, body);
     if (response.statusCode == 401) {
-      // accessToken 만료 → refresh 시도
       try {
         await refreshAccessTokenIfNeeded();
         token = await getStoredAccessToken();
@@ -114,7 +145,7 @@ Future<http.Response> authorizedRequest(
         response = await _sendRequest(method, url, headers, body);
       } catch (e) {
         print('❌ refreshToken도 만료됨 → 로그아웃');
-        await logoutUser(context); // ✅ 자동 로그아웃
+        await logoutUser(context);
         rethrow;
       }
     }
@@ -163,7 +194,7 @@ Future<bool> tryAutoLogin() async {
   final accessToken = await getStoredAccessToken();
 
   if (accessToken != null && accessToken.isNotEmpty) {
-    return true; // accessToken 존재 시 바로 로그인 처리
+    return true;
   }
 
   final refreshToken = await getStoredRefreshToken();
@@ -171,9 +202,8 @@ Future<bool> tryAutoLogin() async {
     return false;
   }
 
-  // refreshToken으로 accessToken 갱신 시도
   try {
-    await refreshAccessTokenIfNeeded(); // 실패 시 예외 발생
+    await refreshAccessTokenIfNeeded();
     final newToken = await getStoredAccessToken();
     return newToken != null && newToken.isNotEmpty;
   } catch (e) {
@@ -182,15 +212,41 @@ Future<bool> tryAutoLogin() async {
   }
 }
 
+// ✨ 추가: Google Access Token 유효성 로컬 확인 함수
+Future<bool> hasValidGoogleAccessTokenLocally() async {
+  final accessToken = await getStoredGoogleAccessToken();
+  final expiryRaw = await _storage.read(key: 'google_token_expiry');
+
+  if (accessToken == null || accessToken.isEmpty || expiryRaw == null) {
+    return false;
+  }
+
+  final expiry = DateTime.tryParse(expiryRaw);
+  if (expiry == null) return false;
+
+  return DateTime.now().isBefore(expiry); // 유효 시간 이내
+}
+
 Future<Map<String, dynamic>?> fetchTokenStatus(BuildContext context) async {
   try {
     final response = await authorizedRequest(
       Uri.parse('https://aidoctorgreen.com/memo/api/token/status'),
-      context: context, // ✅ context 추가
+      context: context,
     );
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
+
+      // ✨ 중요 수정: 로컬에 저장된 Google 토큰의 유효성을 직접 확인하여 data에 반영
+      data['googleAccessTokenValid'] = await hasValidGoogleAccessTokenLocally();
+      final String? googleRefreshToken = await getStoredGoogleRefreshToken();
+      data['googleRefreshTokenValid'] =
+          googleRefreshToken != null && googleRefreshToken.isNotEmpty;
+
+      // ✨ 추가: 사용자 이름과 프로필 이미지 URL도 로컬에서 가져와 data에 추가
+      data['userName'] = await getStoredUserName();
+      data['profileImageUrl'] = await getStoredProfileImageUrl();
+
       return data;
     } else {
       print('❌ 토큰 상태 불러오기 실패: ${response.statusCode}');
@@ -203,24 +259,10 @@ Future<Map<String, dynamic>?> fetchTokenStatus(BuildContext context) async {
 }
 
 Future<void> logoutUser(BuildContext context) async {
-  await clearAllTokens(); // 모든 토큰 삭제
+  await clearAllTokens();
 
   if (context.mounted) {
     Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
-  }
-
-  Future<bool> hasValidGoogleAccessToken() async {
-    final accessToken = await getStoredGoogleAccessToken();
-    final expiryRaw = await _storage.read(key: 'google_token_expiry');
-
-    if (accessToken == null || accessToken.isEmpty || expiryRaw == null) {
-      return false;
-    }
-
-    final expiry = DateTime.tryParse(expiryRaw);
-    if (expiry == null) return false;
-
-    return DateTime.now().isBefore(expiry); // 유효 시간 이내
   }
 }
 
@@ -261,7 +303,6 @@ Future<void> refreshGoogleAccessTokenIfNeeded() async {
       key: 'google_token_expiry',
       value: expiryDate.toIso8601String(),
     );
-
     print('🔄 Google access token 자동 갱신 성공');
   } else {
     print('❌ Google 토큰 갱신 실패: ${response.statusCode}, ${response.body}');

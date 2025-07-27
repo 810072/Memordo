@@ -1,3 +1,4 @@
+// lib/providers/token_status_provider.dart
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
@@ -15,21 +16,25 @@ class TokenStatusProvider with ChangeNotifier {
   bool get isLoaded => _status != null;
   bool get isAuthenticated => _status?.accessTokenValid == true;
   bool get isGoogleLinked => _status?.isGoogleLinked == true;
+  String? get userName => _status?.userName; // ✨ 추가
+  String? get profileImageUrl => _status?.profileImageUrl; // ✨ 추가
 
   /// 서버 + 캐시 통합 상태 확인
   Future<void> loadStatus(BuildContext context) async {
     try {
-      final data = await fetchTokenStatus(context);
-      if (data != null && data['accessTokenValid'] == true) {
+      final data = await fetchTokenStatus(
+        context,
+      ); // fetchTokenStatus에서 userName과 profileImageUrl을 가져와 data에 포함
+      if (data != null) {
         _status = TokenStatus.fromJson(data);
         await _saveToCache(data);
         notifyListeners();
       } else {
-        await tryRefreshToken(context); // accessToken 만료 시 refresh 시도
+        await tryRefreshToken(context);
       }
     } catch (e) {
       debugPrint('❌ Token status check failed: $e');
-      await clear(); // 서버 오류 시 초기화 (로그아웃 취급)
+      await clear();
     }
   }
 
@@ -41,7 +46,7 @@ class TokenStatusProvider with ChangeNotifier {
       try {
         final jsonData = jsonDecode(jsonStr);
         final cached = TokenStatus.fromJson(jsonData);
-        if (cached.accessTokenValid) {
+        if (cached.accessTokenValid || cached.googleAccessTokenValid) {
           _status = cached;
           notifyListeners();
         }
@@ -55,7 +60,7 @@ class TokenStatusProvider with ChangeNotifier {
   Future<void> tryRefreshToken(BuildContext context) async {
     try {
       debugPrint('🔄 accessToken 만료 → refreshToken으로 갱신 시도');
-      await refreshAccessTokenIfNeeded(); // 서버 요청 포함
+      await refreshAccessTokenIfNeeded();
       final newData = await fetchTokenStatus(context);
       if (newData != null && newData['accessTokenValid'] == true) {
         _status = TokenStatus.fromJson(newData);
@@ -77,7 +82,7 @@ class TokenStatusProvider with ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_cacheKey);
-    await clearAllTokens(); // secure_storage 토큰들도 함께 삭제
+    await clearAllTokens();
   }
 
   /// 강제 로그아웃 처리
@@ -90,6 +95,8 @@ class TokenStatusProvider with ChangeNotifier {
 
   Future<void> _saveToCache(Map<String, dynamic> jsonData) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_cacheKey, jsonEncode(jsonData));
+    // TokenStatus 객체를 Map으로 변환하여 저장 (userName, profileImageUrl 포함)
+    final tokenStatus = TokenStatus.fromJson(jsonData);
+    await prefs.setString(_cacheKey, jsonEncode(tokenStatus.toJson()));
   }
 }

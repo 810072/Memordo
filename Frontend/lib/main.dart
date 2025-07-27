@@ -16,6 +16,7 @@ import 'layout/main_layout.dart'; // MainLayout 임포트
 import 'features/page_type.dart'; // PageType 임포트
 import 'providers/file_system_provider.dart'; // FileSystemProvider 임포트
 import 'providers/theme_provider.dart'; // ThemeProvider 추가
+import 'providers/token_status_provider.dart'; // ✨ 추가: TokenStatusProvider 임포트
 
 final _storage = FlutterSecureStorage();
 
@@ -36,6 +37,9 @@ Future<void> main() async {
         ChangeNotifierProvider(
           create: (context) => ThemeProvider(),
         ), // ThemeProvider 추가
+        ChangeNotifierProvider(
+          create: (context) => TokenStatusProvider(),
+        ), // ✨ 추가: TokenStatusProvider 등록
       ],
       child: const MyApp(),
     ),

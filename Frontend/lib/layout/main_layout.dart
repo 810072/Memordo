@@ -1,25 +1,27 @@
 // Frontend/lib/layout/main_layout.dart
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart'; // Provider 사용을 위해 추가
+import 'package:provider/provider.dart';
 
 import 'left_sidebar_content.dart';
-import 'right_sidebar_content.dart'; // RightSidebarContent 임포트 유지
+import 'right_sidebar_content.dart';
 import '../features/page_type.dart';
-import '../features/meeting_screen.dart'; // 모든 페이지 위젯 임포트
+import '../features/meeting_screen.dart';
 import '../features/calendar_page.dart';
 import '../features/graph_page.dart';
 import '../features/history.dart';
 import '../features/settings_page.dart';
-import '../providers/file_system_provider.dart'; // FileSystemProvider 임포트
+import '../features/search_page.dart'; // search_page 임포트
+import '../providers/file_system_provider.dart';
+import '../providers/token_status_provider.dart'; // TokenStatusProvider 임포트
 
 class MainLayout extends StatefulWidget {
   final PageType activePage;
-  final ValueChanged<PageType> onPageSelected; // 페이지 선택 콜백 추가
+  final ValueChanged<PageType> onPageSelected;
 
   const MainLayout({
     Key? key,
     required this.activePage,
-    required this.onPageSelected, // 콜백을 생성자로 받음
+    required this.onPageSelected,
   }) : super(key: key);
 
   @override
@@ -30,7 +32,17 @@ class _MainLayoutState extends State<MainLayout> {
   bool _isLeftExpanded = true;
   bool _isRightExpanded = true;
 
-  // 각 PageType에 해당하는 위젯을 반환하는 함수
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<TokenStatusProvider>(
+        context,
+        listen: false,
+      ).loadStatus(context);
+    });
+  }
+
   Widget _getPageWidget(PageType pageType) {
     switch (pageType) {
       case PageType.home:
@@ -43,12 +55,13 @@ class _MainLayoutState extends State<MainLayout> {
         return const GraphPage();
       case PageType.settings:
         return const SettingsPage();
+      case PageType.search: // SearchPage 추가
+        return const SearchPage();
       default:
         return const Center(child: Text('알 수 없는 페이지'));
     }
   }
 
-  // RightSidebarContent를 표시할지 여부를 결정하는 플래그
   bool get _showRightSidebar => widget.activePage == PageType.home;
 
   void _toggleLeftPanel() {
@@ -66,9 +79,24 @@ class _MainLayoutState extends State<MainLayout> {
   @override
   Widget build(BuildContext context) {
     final bool showRightPanelButton = _showRightSidebar;
+    final tokenStatusProvider = Provider.of<TokenStatusProvider>(
+      context,
+    ); // Provider 접근
+
+    String userNameDisplay = tokenStatusProvider.userName ?? '사용자'; // 사용자 이름
+    String loginTypeDisplay =
+        tokenStatusProvider.isGoogleLinked ? 'Google 로그인' : '일반 로그인'; // 로그인 유형
+    ImageProvider? profileImageProvider; // 프로필 이미지 Provider
+
+    if (tokenStatusProvider.profileImageUrl != null &&
+        tokenStatusProvider.profileImageUrl!.isNotEmpty) {
+      profileImageProvider = NetworkImage(
+        tokenStatusProvider.profileImageUrl!,
+      ); // NetworkImage 사용
+    }
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF1F5F9), // bg-slate-100
+      backgroundColor: const Color(0xFFF1F5F9),
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 1.0,
@@ -80,10 +108,10 @@ class _MainLayoutState extends State<MainLayout> {
           tooltip: 'Toggle Sidebar',
         ),
         title: Row(
-          children: const [
-            Icon(Icons.note_alt_rounded, color: Color(0xFF3d98f4)),
-            SizedBox(width: 8),
-            Text(
+          children: [
+            const Icon(Icons.note_alt_rounded, color: Color(0xFF3d98f4)),
+            const SizedBox(width: 8),
+            const Text(
               'Memordo',
               style: TextStyle(
                 color: Color(0xFF1E293B),
@@ -91,6 +119,11 @@ class _MainLayoutState extends State<MainLayout> {
                 fontSize: 20,
                 fontFamily: 'Work Sans',
               ),
+            ),
+            const SizedBox(width: 10), // 로고와 로그인 유형 텍스트 사이 간격
+            Text(
+              '($loginTypeDisplay)', // 로그인 유형 텍스트
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
             ),
           ],
         ),
@@ -106,9 +139,21 @@ class _MainLayoutState extends State<MainLayout> {
             ),
           Padding(
             padding: const EdgeInsets.all(8.0),
-            child: CircleAvatar(
-              backgroundColor: Colors.grey.shade300,
-              child: Icon(Icons.person_outline, color: Colors.grey.shade700),
+            child: Tooltip(
+              // 사용자 이름 툴팁
+              message: userNameDisplay,
+              child: CircleAvatar(
+                backgroundColor: Colors.grey.shade300,
+                backgroundImage: profileImageProvider, // 프로필 이미지 Provider 사용
+                child:
+                    profileImageProvider ==
+                            null // 이미지가 없을 경우 기본 아이콘
+                        ? Icon(
+                          Icons.person_outline,
+                          color: Colors.grey.shade700,
+                        )
+                        : null,
+              ),
             ),
           ),
           const SizedBox(width: 10),
@@ -116,7 +161,6 @@ class _MainLayoutState extends State<MainLayout> {
       ),
       body: Row(
         children: [
-          // Left Sidebar
           AnimatedContainer(
             duration: const Duration(milliseconds: 250),
             curve: Curves.easeInOut,
@@ -131,7 +175,6 @@ class _MainLayoutState extends State<MainLayout> {
               border: Border(right: BorderSide(color: Colors.grey.shade200)),
             ),
           ),
-          // Main Content Area (IndexedStack 사용)
           Expanded(
             child: IndexedStack(
               index: widget.activePage.index,
@@ -141,14 +184,13 @@ class _MainLayoutState extends State<MainLayout> {
                   }).toList(),
             ),
           ),
-          // Right Sidebar (MeetingScreen일 때만 렌더링)
           if (_showRightSidebar)
             Consumer<FileSystemProvider>(
               builder: (context, fileSystemProvider, child) {
                 return AnimatedContainer(
                   duration: const Duration(milliseconds: 250),
                   curve: Curves.easeInOut,
-                  width: _isRightExpanded ? 250 : 0, // 0으로 하면 완전히 사라집니다.
+                  width: _isRightExpanded ? 250 : 0,
                   decoration: BoxDecoration(
                     color: Colors.white,
                     border: Border(
@@ -159,13 +201,11 @@ class _MainLayoutState extends State<MainLayout> {
                         color: Colors.black.withOpacity(0.05),
                         spreadRadius: 1,
                         blurRadius: 5,
-                        offset: const Offset(-1, 0),
+                        offset: const Offset(0, 1),
                       ),
                     ],
                   ),
                   child: ClipRect(
-                    // ClipRect를 사용하여 오버플로우된 콘텐츠를 잘라냅니다.
-                    // 또한, _isRightExpanded가 false일 때 RightSidebarContent를 렌더링하지 않도록 하여 불필요한 레이아웃 계산을 방지합니다.
                     child:
                         _isRightExpanded
                             ? RightSidebarContent(
@@ -204,10 +244,9 @@ class _MainLayoutState extends State<MainLayout> {
                                     context,
                                     entry,
                                   ),
-                              sidebarIsExpanded:
-                                  _isRightExpanded, // RightSidebarContent로 현재 확장 상태 전달
+                              sidebarIsExpanded: _isRightExpanded,
                             )
-                            : const SizedBox.shrink(), // 사이드바가 닫혔을 때는 아무것도 렌더링하지 않습니다.
+                            : const SizedBox.shrink(),
                   ),
                 );
               },
