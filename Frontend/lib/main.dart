@@ -1,78 +1,90 @@
 // Frontend/lib/main.dart
+
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:provider/provider.dart';
+import 'dart:convert'; // jsonDecode를 위해 추가
+import 'package:desktop_multi_window/desktop_multi_window.dart'; // 패키지 임포트
+
+// 기존 임포트
 import 'auth/login_page.dart';
 import 'auth/signup_page.dart';
 import 'auth/email_check_page.dart';
 import 'auth/password_reset_page.dart';
 import 'auth/find_id_page.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:provider/provider.dart';
 import 'layout/ai_summary_controller.dart';
 import 'layout/bottom_section_controller.dart';
-// import 'package:flutter_secure_storage/flutter_secure_storage.dart'; // 이 파일에서 직접 사용되지 않음
-
-// import 'services/AI_run.dart'; // AI 백엔드 자동 실행/종료 로직 제거
 import 'layout/main_layout.dart';
 import 'features/page_type.dart';
 import 'providers/file_system_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/token_status_provider.dart';
+import 'features/chatbot_page.dart'; // 챗봇 페이지 임포트
 
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await dotenv.load(fileName: 'assets/.env');
+Future<void> main(List<String> args) async {
+  // 새 창(챗봇)으로 실행될 경우의 로직
+  if (args.firstOrNull == 'multi_window') {
+    final windowId = int.parse(args[1]);
+    final arguments =
+        args[2].isEmpty
+            ? const <String, dynamic>{}
+            : jsonDecode(args[2]) as Map<String, dynamic>;
 
-  // Python 백엔드 자동 실행 로직이 제거되었습니다.
-  // await BackendService.startPythonBackend();
+    await dotenv.load(fileName: 'assets/.env');
+    // 챗봇 창을 위한 앱 실행
+    runApp(ChatbotPage(key: Key('chatbot_window_$windowId')));
+  }
+  // 기존 메인 앱 실행 로직
+  else {
+    WidgetsFlutterBinding.ensureInitialized();
+    await dotenv.load(fileName: 'assets/.env');
 
-  runApp(
-    MultiProvider(
-      providers: [
-        ChangeNotifierProvider(create: (context) => AiSummaryController()),
-        ChangeNotifierProvider(create: (context) => BottomSectionController()),
-        ChangeNotifierProvider(create: (context) => FileSystemProvider()),
-        ChangeNotifierProvider(create: (context) => ThemeProvider()),
-        ChangeNotifierProvider(create: (context) => TokenStatusProvider()),
-      ],
-      child: const MyApp(),
-    ),
-  );
+    runApp(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider(create: (context) => AiSummaryController()),
+          ChangeNotifierProvider(
+            create: (context) => BottomSectionController(),
+          ),
+          ChangeNotifierProvider(create: (context) => FileSystemProvider()),
+          ChangeNotifierProvider(create: (context) => ThemeProvider()),
+          ChangeNotifierProvider(create: (context) => TokenStatusProvider()),
+        ],
+        child: const MyApp(),
+      ),
+    );
+  }
 }
 
-// MyApp을 StatelessWidget으로 변경하여 백엔드 프로세스 관리 로직을 완전히 제거했습니다.
+// ============== 여기부터 아래 코드는 기존과 동일합니다 ==============
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // Consumer를 사용하여 ThemeProvider의 변화를 구독하고 MaterialApp을 다시 빌드합니다.
     return Consumer<ThemeProvider>(
       builder: (context, themeProvider, child) {
         return MaterialApp(
           debugShowCheckedModeBanner: false,
-          title: 'Memordo', // 앱 제목 추가
-          theme: themeProvider.currentThemeData, // Light 테마 설정
-          darkTheme:
-              themeProvider.currentThemeData, // Dark 테마 설정 (동일한 ThemeData 사용)
+          title: 'Memordo',
+          theme: themeProvider.currentThemeData,
+          darkTheme: themeProvider.currentThemeData,
           themeMode:
               themeProvider.themeMode == AppThemeMode.dark
                   ? ThemeMode.dark
-                  : ThemeMode.light, // 테마 모드 설정
-
-          initialRoute: '/login', // 앱 시작 시 로그인 페이지로 이동
+                  : ThemeMode.light,
+          initialRoute: '/login',
           routes: {
             '/login': (context) => LoginPage(),
             '/signup': (context) => SignUpPage(),
             '/emailCheck': (context) => EmailCheckPage(),
             '/findId': (context) => const FindIdPage(),
-            '/main':
-                (context) =>
-                    const MainLayoutWrapper(), // MainLayout을 래핑하여 초기 페이지 설정
+            '/main': (context) => const MainLayoutWrapper(),
           },
           onGenerateRoute: (settings) {
-            // PasswordResetPage와 같이 인자가 필요한 라우트는 onGenerateRoute를 사용
             if (settings.name == '/passwordReset') {
-              final args = settings.arguments as String; // 이메일 인자를 받음
+              final args = settings.arguments as String;
               return MaterialPageRoute(
                 builder: (context) => PasswordResetPage(email: args),
               );
@@ -85,7 +97,6 @@ class MyApp extends StatelessWidget {
   }
 }
 
-// MainLayout을 래핑하여 초기 PageType을 설정하는 위젯
 class MainLayoutWrapper extends StatefulWidget {
   const MainLayoutWrapper({super.key});
 
@@ -94,7 +105,7 @@ class MainLayoutWrapper extends StatefulWidget {
 }
 
 class _MainLayoutWrapperState extends State<MainLayoutWrapper> {
-  PageType _currentPage = PageType.home; // 초기 페이지를 'home'(MeetingScreen)으로 설정
+  PageType _currentPage = PageType.home;
 
   void _onPageSelected(PageType pageType) {
     setState(() {
@@ -106,7 +117,7 @@ class _MainLayoutWrapperState extends State<MainLayoutWrapper> {
   Widget build(BuildContext context) {
     return MainLayout(
       activePage: _currentPage,
-      onPageSelected: _onPageSelected, // MainLayout에 콜백 전달
+      onPageSelected: _onPageSelected,
     );
   }
 }

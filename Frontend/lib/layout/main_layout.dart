@@ -1,7 +1,11 @@
 // Frontend/lib/layout/main_layout.dart
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'dart:convert'; // jsonEncode를 위해 추가
+import 'package:desktop_multi_window/desktop_multi_window.dart'; // 패키지 임포트
 
+// 기존 임포트
 import 'left_sidebar_content.dart';
 import 'right_sidebar_content.dart';
 import '../features/page_type.dart';
@@ -10,9 +14,9 @@ import '../features/calendar_page.dart';
 import '../features/graph_page.dart';
 import '../features/history.dart';
 import '../features/settings_page.dart';
-import '../features/search_page.dart'; // search_page 임포트
+import '../features/search_page.dart';
 import '../providers/file_system_provider.dart';
-import '../providers/token_status_provider.dart'; // TokenStatusProvider 임포트
+import '../providers/token_status_provider.dart';
 
 class MainLayout extends StatefulWidget {
   final PageType activePage;
@@ -43,6 +47,19 @@ class _MainLayoutState extends State<MainLayout> {
     });
   }
 
+  // ============== 챗봇 창을 여는 함수 추가 ==============
+  void _openChatbotWindow() async {
+    final window = await DesktopMultiWindow.createWindow(
+      jsonEncode({'arg1': 'value1', 'arg2': 'value2'}),
+    );
+    window
+      ..setFrame(const Offset(100, 100) & const Size(400, 600)) // 창 크기 및 위치 설정
+      ..center()
+      ..setTitle('Memordo 챗봇') // 창 제목 설정
+      ..show();
+  }
+  // =======================================================
+
   Widget _getPageWidget(PageType pageType) {
     switch (pageType) {
       case PageType.home:
@@ -55,7 +72,7 @@ class _MainLayoutState extends State<MainLayout> {
         return const GraphPage();
       case PageType.settings:
         return const SettingsPage();
-      case PageType.search: // SearchPage 추가
+      case PageType.search:
         return const SearchPage();
       default:
         return const Center(child: Text('알 수 없는 페이지'));
@@ -108,6 +125,18 @@ class _MainLayoutState extends State<MainLayout> {
           ],
         ),
         actions: [
+          // ============== 챗봇 아이콘 버튼 추가 ==============
+          IconButton(
+            icon: const Icon(
+              Icons.smart_toy_outlined,
+              color: Color(0xFF475569),
+            ),
+            onPressed: _openChatbotWindow,
+            tooltip: '챗봇 열기',
+          ),
+          const SizedBox(width: 4), // 버튼 사이 간격 추가
+
+          // =================================================
           if (showRightPanelButton)
             IconButton(
               icon: const Icon(
@@ -117,7 +146,6 @@ class _MainLayoutState extends State<MainLayout> {
               onPressed: _toggleRightPanel,
               tooltip: 'Toggle Memos',
             ),
-          // 사용자 프로필 관련 UI 제거하고 간단한 아이콘으로 대체
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: CircleAvatar(
@@ -128,20 +156,21 @@ class _MainLayoutState extends State<MainLayout> {
           const SizedBox(width: 10),
         ],
       ),
+      // body 부분은 기존과 동일
       body: Row(
         children: [
           AnimatedContainer(
             duration: const Duration(milliseconds: 250),
             curve: Curves.easeInOut,
             width: _isLeftExpanded ? 240 : 65,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border(right: BorderSide(color: Colors.grey.shade200)),
+            ),
             child: LeftSidebarContent(
               isExpanded: _isLeftExpanded,
               activePage: widget.activePage,
               onPageSelected: widget.onPageSelected,
-            ),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border(right: BorderSide(color: Colors.grey.shade200)),
             ),
           ),
           Expanded(

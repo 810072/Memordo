@@ -1,0 +1,3877 @@
+폴더 PATH의 목록입니다.
+볼륨 일련 번호는 E889-FC24입니다.
+C:.
+│  .DS_Store
+│  prj_tree.txt
+│  
+├─.vscode
+│      settings.json
+│      
+├─Frontend
+│  │  .flutter-plugins
+│  │  .flutter-plugins-dependencies
+│  │  .gitignore
+│  │  .metadata
+│  │  analysis_options.yaml
+│  │  devtools_options.yaml
+│  │  flutter_01.png
+│  │  lib - 바로 가기.lnk
+│  │  pubspec.lock
+│  │  pubspec.yaml
+│  │  README.md
+│  │  
+│  ├─.dart_tool
+│  │  │  package_config.json
+│  │  │  package_config_subset
+│  │  │  version
+│  │  │  
+│  │  ├─dartpad
+│  │  │      web_plugin_registrant.dart
+│  │  │      
+│  │  ├─extension_discovery
+│  │  │      vs_code.json
+│  │  │      
+│  │  └─flutter_build
+│  │      │  dart_plugin_registrant.dart
+│  │      │  
+│  │      └─09e2251a11246febf0169c07f0102c78
+│  │              .filecache
+│  │              app.dill
+│  │              dart_build.d
+│  │              dart_build.stamp
+│  │              dart_build_result.json
+│  │              debug_bundle_windows-x64_assets.stamp
+│  │              flutter_assets.d
+│  │              gen_dart_plugin_registrant.stamp
+│  │              gen_localizations.stamp
+│  │              install_code_assets.d
+│  │              install_code_assets.stamp
+│  │              kernel_snapshot_program.d
+│  │              kernel_snapshot_program.stamp
+│  │              native_assets.json
+│  │              outputs.json
+│  │              unpack_windows.stamp
+│  │              windows_engine_sources.d
+│  │              
+│  ├─android
+│  │  │  .gitignore
+│  │  │  build.gradle.kts
+│  │  │  gradle.properties
+│  │  │  local.properties
+│  │  │  settings.gradle.kts
+│  │  │  
+│  │  ├─app
+│  │  │  │  build.gradle.kts
+│  │  │  │  
+│  │  │  └─src
+│  │  │      ├─debug
+│  │  │      │      AndroidManifest.xml
+│  │  │      │      
+│  │  │      ├─main
+│  │  │      │  │  AndroidManifest.xml
+│  │  │      │  │  
+│  │  │      │  ├─java
+│  │  │      │  │  └─io
+│  │  │      │  │      └─flutter
+│  │  │      │  │          └─plugins
+│  │  │      │  │                  GeneratedPluginRegistrant.java
+│  │  │      │  │                  
+│  │  │      │  ├─kotlin
+│  │  │      │  │  └─com
+│  │  │      │  │      └─example
+│  │  │      │  │          └─first_app
+│  │  │      │  │                  MainActivity.kt
+│  │  │      │  │                  
+│  │  │      │  └─res
+│  │  │      │      ├─drawable
+│  │  │      │      │      launch_background.xml
+│  │  │      │      │      
+│  │  │      │      ├─drawable-v21
+│  │  │      │      │      launch_background.xml
+│  │  │      │      │      
+│  │  │      │      ├─mipmap-hdpi
+│  │  │      │      │      ic_launcher.png
+│  │  │      │      │      
+│  │  │      │      ├─mipmap-mdpi
+│  │  │      │      │      ic_launcher.png
+│  │  │      │      │      
+│  │  │      │      ├─mipmap-xhdpi
+│  │  │      │      │      ic_launcher.png
+│  │  │      │      │      
+│  │  │      │      ├─mipmap-xxhdpi
+│  │  │      │      │      ic_launcher.png
+│  │  │      │      │      
+│  │  │      │      ├─mipmap-xxxhdpi
+│  │  │      │      │      ic_launcher.png
+│  │  │      │      │      
+│  │  │      │      ├─values
+│  │  │      │      │      styles.xml
+│  │  │      │      │      
+│  │  │      │      └─values-night
+│  │  │      │              styles.xml
+│  │  │      │              
+│  │  │      └─profile
+│  │  │              AndroidManifest.xml
+│  │  │              
+│  │  └─gradle
+│  │      └─wrapper
+│  │              gradle-wrapper.properties
+│  │              
+│  ├─assets
+│  │      .env
+│  │      google_logo.png
+│  │      logo.png
+│  │      
+│  ├─build
+│  │  │  .last_build_id
+│  │  │  cache.dill.track.dill
+│  │  │  
+│  │  ├─a6e099ac4cc7e0d122d2be470661189e
+│  │  │      gen_dart_plugin_registrant.stamp
+│  │  │      gen_localizations.stamp
+│  │  │      _composite.stamp
+│  │  │      
+│  │  ├─flutter_assets
+│  │  │  │  AssetManifest.bin
+│  │  │  │  AssetManifest.bin.json
+│  │  │  │  AssetManifest.json
+│  │  │  │  FontManifest.json
+│  │  │  │  kernel_blob.bin
+│  │  │  │  NativeAssetsManifest.json
+│  │  │  │  NOTICES
+│  │  │  │  NOTICES.Z
+│  │  │  │  
+│  │  │  ├─assets
+│  │  │  │      .env
+│  │  │  │      google_logo.png
+│  │  │  │      logo.png
+│  │  │  │      
+│  │  │  ├─fonts
+│  │  │  │      MaterialIcons-Regular.otf
+│  │  │  │      
+│  │  │  ├─packages
+│  │  │  │  ├─cupertino_icons
+│  │  │  │  │  └─assets
+│  │  │  │  │          CupertinoIcons.ttf
+│  │  │  │  │          
+│  │  │  │  └─window_manager
+│  │  │  │      └─images
+│  │  │  │              ic_chrome_close.png
+│  │  │  │              ic_chrome_maximize.png
+│  │  │  │              ic_chrome_minimize.png
+│  │  │  │              ic_chrome_unmaximize.png
+│  │  │  │              
+│  │  │  └─shaders
+│  │  │          ink_sparkle.frag
+│  │  │          
+│  │  ├─native_assets
+│  │  │  └─windows
+│  │  └─windows
+│  │      └─x64
+│  │          │  ALL_BUILD.vcxproj
+│  │          │  ALL_BUILD.vcxproj.filters
+│  │          │  CMakeCache.txt
+│  │          │  cmake_install.cmake
+│  │          │  first_app.sln
+│  │          │  INSTALL.vcxproj
+│  │          │  INSTALL.vcxproj.filters
+│  │          │  install_manifest.txt
+│  │          │  ZERO_CHECK.vcxproj
+│  │          │  ZERO_CHECK.vcxproj.filters
+│  │          │  
+│  │          ├─CMakeFiles
+│  │          │  │  cmake.check_cache
+│  │          │  │  CMakeOutput.log
+│  │          │  │  generate.stamp
+│  │          │  │  generate.stamp.depend
+│  │          │  │  generate.stamp.list
+│  │          │  │  TargetDirectories.txt
+│  │          │  │  
+│  │          │  ├─29722ab436e5a8538e80499b3c458744
+│  │          │  │      INSTALL_force.rule
+│  │          │  │      
+│  │          │  ├─3.25.1-msvc1
+│  │          │  │  │  CMakeCXXCompiler.cmake
+│  │          │  │  │  CMakeDetermineCompilerABI_CXX.bin
+│  │          │  │  │  CMakeRCCompiler.cmake
+│  │          │  │  │  CMakeSystem.cmake
+│  │          │  │  │  VCTargetsPath.txt
+│  │          │  │  │  VCTargetsPath.vcxproj
+│  │          │  │  │  
+│  │          │  │  ├─CompilerIdCXX
+│  │          │  │  │  │  CMakeCXXCompilerId.cpp
+│  │          │  │  │  │  CompilerIdCXX.exe
+│  │          │  │  │  │  CompilerIdCXX.vcxproj
+│  │          │  │  │  │  
+│  │          │  │  │  ├─Debug
+│  │          │  │  │  │  │  CMakeCXXCompilerId.obj
+│  │          │  │  │  │  │  CompilerIdCXX.exe.recipe
+│  │          │  │  │  │  │  
+│  │          │  │  │  │  └─CompilerIdCXX.tlog
+│  │          │  │  │  │          CL.command.1.tlog
+│  │          │  │  │  │          CL.read.1.tlog
+│  │          │  │  │  │          CL.write.1.tlog
+│  │          │  │  │  │          CompilerIdCXX.lastbuildstate
+│  │          │  │  │  │          link.command.1.tlog
+│  │          │  │  │  │          link.read.1.tlog
+│  │          │  │  │  │          link.write.1.tlog
+│  │          │  │  │  │          
+│  │          │  │  │  └─tmp
+│  │          │  │  └─x64
+│  │          │  │      └─Debug
+│  │          │  │          │  VCTargetsPath.recipe
+│  │          │  │          │  
+│  │          │  │          └─VCTargetsPath.tlog
+│  │          │  │                  VCTargetsPath.lastbuildstate
+│  │          │  │                  
+│  │          │  ├─781e781397db92ecfcd446621eba0f39
+│  │          │  │      INSTALL_force.rule
+│  │          │  │      
+│  │          │  ├─9d08223572606ebf2eb27650db64e1ba
+│  │          │  │      flutter_assemble.rule
+│  │          │  │      INSTALL_force.rule
+│  │          │  │      
+│  │          │  ├─b1ca629c36e2183dde06390d4e0d507c
+│  │          │  │      flutter_windows.dll.rule
+│  │          │  │      
+│  │          │  ├─d98e5296b224c68bfb10ca3a41d474a2
+│  │          │  │      INSTALL_force.rule
+│  │          │  │      
+│  │          │  ├─e209853d523c01f20afe2ee9911a77f7
+│  │          │  │      INSTALL_force.rule
+│  │          │  │      
+│  │          │  ├─faf279cac9c743f427ffa6be6d952ddd
+│  │          │  │      generate.stamp.rule
+│  │          │  │      INSTALL_force.rule
+│  │          │  │      
+│  │          │  ├─fc02c139bb71c1086c49c68f923148fa
+│  │          │  │      INSTALL_force.rule
+│  │          │  │      
+│  │          │  └─pkgRedirects
+│  │          ├─flutter
+│  │          │  │  cmake_install.cmake
+│  │          │  │  flutter_assemble.vcxproj
+│  │          │  │  flutter_assemble.vcxproj.filters
+│  │          │  │  flutter_wrapper_app.vcxproj
+│  │          │  │  flutter_wrapper_app.vcxproj.filters
+│  │          │  │  flutter_wrapper_plugin.vcxproj
+│  │          │  │  flutter_wrapper_plugin.vcxproj.filters
+│  │          │  │  INSTALL.vcxproj
+│  │          │  │  INSTALL.vcxproj.filters
+│  │          │  │  
+│  │          │  ├─CMakeFiles
+│  │          │  │      generate.stamp
+│  │          │  │      generate.stamp.depend
+│  │          │  │      
+│  │          │  ├─Debug
+│  │          │  │      flutter_wrapper_app.lib
+│  │          │  │      flutter_wrapper_app.pdb
+│  │          │  │      flutter_wrapper_plugin.lib
+│  │          │  │      flutter_wrapper_plugin.pdb
+│  │          │  │      
+│  │          │  ├─flutter_wrapper_app.dir
+│  │          │  │  └─Debug
+│  │          │  │      │  core_implementations.obj
+│  │          │  │      │  flutter_engine.obj
+│  │          │  │      │  flutter_view_controller.obj
+│  │          │  │      │  flutter_wrapper_app.lib.recipe
+│  │          │  │      │  standard_codec.obj
+│  │          │  │      │  
+│  │          │  │      └─flutter_.9E5BC603.tlog
+│  │          │  │              CL.command.1.tlog
+│  │          │  │              CL.read.1.tlog
+│  │          │  │              CL.write.1.tlog
+│  │          │  │              CustomBuild.command.1.tlog
+│  │          │  │              CustomBuild.read.1.tlog
+│  │          │  │              CustomBuild.write.1.tlog
+│  │          │  │              flutter_wrapper_app.lastbuildstate
+│  │          │  │              Lib-link.read.1.tlog
+│  │          │  │              Lib-link.write.1.tlog
+│  │          │  │              Lib.command.1.tlog
+│  │          │  │              
+│  │          │  ├─flutter_wrapper_plugin.dir
+│  │          │  │  └─Debug
+│  │          │  │      │  core_implementations.obj
+│  │          │  │      │  flutter_wrapper_plugin.lib.recipe
+│  │          │  │      │  plugin_registrar.obj
+│  │          │  │      │  standard_codec.obj
+│  │          │  │      │  
+│  │          │  │      └─flutter_.A3A7DF1D.tlog
+│  │          │  │              CL.command.1.tlog
+│  │          │  │              CL.read.1.tlog
+│  │          │  │              CL.write.1.tlog
+│  │          │  │              CustomBuild.command.1.tlog
+│  │          │  │              CustomBuild.read.1.tlog
+│  │          │  │              CustomBuild.write.1.tlog
+│  │          │  │              flutter_wrapper_plugin.lastbuildstate
+│  │          │  │              Lib-link.read.1.tlog
+│  │          │  │              Lib-link.write.1.tlog
+│  │          │  │              Lib.command.1.tlog
+│  │          │  │              
+│  │          │  └─x64
+│  │          │      └─Debug
+│  │          │          └─flutter_assemble
+│  │          │              │  flutter_assemble.recipe
+│  │          │              │  
+│  │          │              └─flutter_assemble.tlog
+│  │          │                      CustomBuild.command.1.tlog
+│  │          │                      CustomBuild.read.1.tlog
+│  │          │                      CustomBuild.write.1.tlog
+│  │          │                      flutter_assemble.lastbuildstate
+│  │          │                      
+│  │          ├─plugins
+│  │          │  ├─flutter_secure_storage_windows
+│  │          │  │  │  ALL_BUILD.vcxproj
+│  │          │  │  │  ALL_BUILD.vcxproj.filters
+│  │          │  │  │  cmake_install.cmake
+│  │          │  │  │  flutter_secure_storage_windows.sln
+│  │          │  │  │  flutter_secure_storage_windows_plugin.vcxproj
+│  │          │  │  │  flutter_secure_storage_windows_plugin.vcxproj.filters
+│  │          │  │  │  INSTALL.vcxproj
+│  │          │  │  │  INSTALL.vcxproj.filters
+│  │          │  │  │  
+│  │          │  │  ├─CMakeFiles
+│  │          │  │  │      generate.stamp
+│  │          │  │  │      generate.stamp.depend
+│  │          │  │  │      
+│  │          │  │  ├─Debug
+│  │          │  │  │      flutter_secure_storage_windows_plugin.dll
+│  │          │  │  │      flutter_secure_storage_windows_plugin.exp
+│  │          │  │  │      flutter_secure_storage_windows_plugin.lib
+│  │          │  │  │      flutter_secure_storage_windows_plugin.pdb
+│  │          │  │  │      
+│  │          │  │  └─flutter_secure_storage_windows_plugin.dir
+│  │          │  │      └─Debug
+│  │          │  │          │  flutter_secure_storage_windows_plugin.dll.recipe
+│  │          │  │          │  flutter_secure_storage_windows_plugin.ilk
+│  │          │  │          │  flutter_secure_storage_windows_plugin.obj
+│  │          │  │          │  vc143.pdb
+│  │          │  │          │  
+│  │          │  │          └─flutter_.DA32E38A.tlog
+│  │          │  │                  CL.command.1.tlog
+│  │          │  │                  CL.read.1.tlog
+│  │          │  │                  CL.write.1.tlog
+│  │          │  │                  CustomBuild.command.1.tlog
+│  │          │  │                  CustomBuild.read.1.tlog
+│  │          │  │                  CustomBuild.write.1.tlog
+│  │          │  │                  flutter_secure_storage_windows_plugin.lastbuildstate
+│  │          │  │                  link.command.1.tlog
+│  │          │  │                  link.read.1.tlog
+│  │          │  │                  link.write.1.tlog
+│  │          │  │                  link.write.2u.tlog
+│  │          │  │                  
+│  │          │  ├─screen_retriever
+│  │          │  │  │  ALL_BUILD.vcxproj
+│  │          │  │  │  ALL_BUILD.vcxproj.filters
+│  │          │  │  │  cmake_install.cmake
+│  │          │  │  │  INSTALL.vcxproj
+│  │          │  │  │  INSTALL.vcxproj.filters
+│  │          │  │  │  screen_retriever.sln
+│  │          │  │  │  screen_retriever_plugin.vcxproj
+│  │          │  │  │  screen_retriever_plugin.vcxproj.filters
+│  │          │  │  │  
+│  │          │  │  ├─CMakeFiles
+│  │          │  │  │      generate.stamp
+│  │          │  │  │      generate.stamp.depend
+│  │          │  │  │      
+│  │          │  │  ├─Debug
+│  │          │  │  │      screen_retriever_plugin.dll
+│  │          │  │  │      screen_retriever_plugin.exp
+│  │          │  │  │      screen_retriever_plugin.lib
+│  │          │  │  │      screen_retriever_plugin.pdb
+│  │          │  │  │      
+│  │          │  │  └─screen_retriever_plugin.dir
+│  │          │  │      └─Debug
+│  │          │  │          │  screen_retriever_plugin.dll.recipe
+│  │          │  │          │  screen_retriever_plugin.ilk
+│  │          │  │          │  screen_retriever_plugin.obj
+│  │          │  │          │  vc143.pdb
+│  │          │  │          │  
+│  │          │  │          └─screen_r.F34E3B94.tlog
+│  │          │  │                  CL.command.1.tlog
+│  │          │  │                  CL.read.1.tlog
+│  │          │  │                  CL.write.1.tlog
+│  │          │  │                  CustomBuild.command.1.tlog
+│  │          │  │                  CustomBuild.read.1.tlog
+│  │          │  │                  CustomBuild.write.1.tlog
+│  │          │  │                  link.command.1.tlog
+│  │          │  │                  link.read.1.tlog
+│  │          │  │                  link.write.1.tlog
+│  │          │  │                  link.write.2u.tlog
+│  │          │  │                  screen_retriever_plugin.lastbuildstate
+│  │          │  │                  
+│  │          │  ├─url_launcher_windows
+│  │          │  │  │  ALL_BUILD.vcxproj
+│  │          │  │  │  ALL_BUILD.vcxproj.filters
+│  │          │  │  │  cmake_install.cmake
+│  │          │  │  │  INSTALL.vcxproj
+│  │          │  │  │  INSTALL.vcxproj.filters
+│  │          │  │  │  url_launcher_windows.sln
+│  │          │  │  │  url_launcher_windows_plugin.vcxproj
+│  │          │  │  │  url_launcher_windows_plugin.vcxproj.filters
+│  │          │  │  │  
+│  │          │  │  ├─CMakeFiles
+│  │          │  │  │      generate.stamp
+│  │          │  │  │      generate.stamp.depend
+│  │          │  │  │      
+│  │          │  │  ├─Debug
+│  │          │  │  │      url_launcher_windows_plugin.dll
+│  │          │  │  │      url_launcher_windows_plugin.exp
+│  │          │  │  │      url_launcher_windows_plugin.lib
+│  │          │  │  │      url_launcher_windows_plugin.pdb
+│  │          │  │  │      
+│  │          │  │  └─url_launcher_windows_plugin.dir
+│  │          │  │      └─Debug
+│  │          │  │          │  messages.g.obj
+│  │          │  │          │  system_apis.obj
+│  │          │  │          │  url_launcher_plugin.obj
+│  │          │  │          │  url_launcher_windows.obj
+│  │          │  │          │  url_launcher_windows_plugin.dll.recipe
+│  │          │  │          │  url_launcher_windows_plugin.ilk
+│  │          │  │          │  vc143.pdb
+│  │          │  │          │  
+│  │          │  │          └─url_laun.A144AFE5.tlog
+│  │          │  │                  CL.command.1.tlog
+│  │          │  │                  CL.read.1.tlog
+│  │          │  │                  CL.write.1.tlog
+│  │          │  │                  CustomBuild.command.1.tlog
+│  │          │  │                  CustomBuild.read.1.tlog
+│  │          │  │                  CustomBuild.write.1.tlog
+│  │          │  │                  link.command.1.tlog
+│  │          │  │                  link.read.1.tlog
+│  │          │  │                  link.write.1.tlog
+│  │          │  │                  link.write.2u.tlog
+│  │          │  │                  url_launcher_windows_plugin.lastbuildstate
+│  │          │  │                  
+│  │          │  └─window_manager
+│  │          │      │  ALL_BUILD.vcxproj
+│  │          │      │  ALL_BUILD.vcxproj.filters
+│  │          │      │  cmake_install.cmake
+│  │          │      │  INSTALL.vcxproj
+│  │          │      │  INSTALL.vcxproj.filters
+│  │          │      │  window_manager.sln
+│  │          │      │  window_manager_plugin.vcxproj
+│  │          │      │  window_manager_plugin.vcxproj.filters
+│  │          │      │  
+│  │          │      ├─CMakeFiles
+│  │          │      │      generate.stamp
+│  │          │      │      generate.stamp.depend
+│  │          │      │      
+│  │          │      ├─Debug
+│  │          │      │      window_manager_plugin.dll
+│  │          │      │      window_manager_plugin.exp
+│  │          │      │      window_manager_plugin.lib
+│  │          │      │      window_manager_plugin.pdb
+│  │          │      │      
+│  │          │      └─window_manager_plugin.dir
+│  │          │          └─Debug
+│  │          │              │  vc143.pdb
+│  │          │              │  window_manager.obj
+│  │          │              │  window_manager_plugin.dll.recipe
+│  │          │              │  window_manager_plugin.ilk
+│  │          │              │  window_manager_plugin.obj
+│  │          │              │  
+│  │          │              └─window_m.CD91406D.tlog
+│  │          │                      CL.command.1.tlog
+│  │          │                      CL.read.1.tlog
+│  │          │                      CL.write.1.tlog
+│  │          │                      CustomBuild.command.1.tlog
+│  │          │                      CustomBuild.read.1.tlog
+│  │          │                      CustomBuild.write.1.tlog
+│  │          │                      link.command.1.tlog
+│  │          │                      link.read.1.tlog
+│  │          │                      link.write.1.tlog
+│  │          │                      link.write.2u.tlog
+│  │          │                      window_manager_plugin.lastbuildstate
+│  │          │                      
+│  │          ├─runner
+│  │          │  │  ALL_BUILD.vcxproj
+│  │          │  │  ALL_BUILD.vcxproj.filters
+│  │          │  │  cmake_install.cmake
+│  │          │  │  first_app.vcxproj
+│  │          │  │  first_app.vcxproj.filters
+│  │          │  │  INSTALL.vcxproj
+│  │          │  │  INSTALL.vcxproj.filters
+│  │          │  │  runner.sln
+│  │          │  │  
+│  │          │  ├─CMakeFiles
+│  │          │  │      generate.stamp
+│  │          │  │      generate.stamp.depend
+│  │          │  │      
+│  │          │  ├─Debug
+│  │          │  │  │  first_app.exe
+│  │          │  │  │  first_app.pdb
+│  │          │  │  │  flutter_secure_storage_windows_plugin.dll
+│  │          │  │  │  flutter_windows.dll
+│  │          │  │  │  screen_retriever_plugin.dll
+│  │          │  │  │  url_launcher_windows_plugin.dll
+│  │          │  │  │  window_manager_plugin.dll
+│  │          │  │  │  
+│  │          │  │  └─data
+│  │          │  │      │  icudtl.dat
+│  │          │  │      │  
+│  │          │  │      └─flutter_assets
+│  │          │  │          │  AssetManifest.bin
+│  │          │  │          │  AssetManifest.bin.json
+│  │          │  │          │  AssetManifest.json
+│  │          │  │          │  FontManifest.json
+│  │          │  │          │  kernel_blob.bin
+│  │          │  │          │  NativeAssetsManifest.json
+│  │          │  │          │  NOTICES
+│  │          │  │          │  NOTICES.Z
+│  │          │  │          │  
+│  │          │  │          ├─assets
+│  │          │  │          │      .env
+│  │          │  │          │      google_logo.png
+│  │          │  │          │      logo.png
+│  │          │  │          │      
+│  │          │  │          ├─fonts
+│  │          │  │          │      MaterialIcons-Regular.otf
+│  │          │  │          │      
+│  │          │  │          ├─packages
+│  │          │  │          │  ├─cupertino_icons
+│  │          │  │          │  │  └─assets
+│  │          │  │          │  │          CupertinoIcons.ttf
+│  │          │  │          │  │          
+│  │          │  │          │  └─window_manager
+│  │          │  │          │      └─images
+│  │          │  │          │              ic_chrome_close.png
+│  │          │  │          │              ic_chrome_maximize.png
+│  │          │  │          │              ic_chrome_minimize.png
+│  │          │  │          │              ic_chrome_unmaximize.png
+│  │          │  │          │              
+│  │          │  │          └─shaders
+│  │          │  │                  ink_sparkle.frag
+│  │          │  │                  
+│  │          │  └─first_app.dir
+│  │          │      └─Debug
+│  │          │          │  first_app.exe.recipe
+│  │          │          │  first_app.ilk
+│  │          │          │  flutter_window.obj
+│  │          │          │  generated_plugin_registrant.obj
+│  │          │          │  main.obj
+│  │          │          │  Runner.res
+│  │          │          │  utils.obj
+│  │          │          │  vc143.pdb
+│  │          │          │  win32_window.obj
+│  │          │          │  
+│  │          │          └─first_app.tlog
+│  │          │                  CL.command.1.tlog
+│  │          │                  CL.read.1.tlog
+│  │          │                  CL.write.1.tlog
+│  │          │                  CustomBuild.command.1.tlog
+│  │          │                  CustomBuild.read.1.tlog
+│  │          │                  CustomBuild.write.1.tlog
+│  │          │                  first_app.lastbuildstate
+│  │          │                  link.command.1.tlog
+│  │          │                  link.read.1.tlog
+│  │          │                  link.write.1.tlog
+│  │          │                  rc.command.1.tlog
+│  │          │                  rc.read.1.tlog
+│  │          │                  rc.write.1.tlog
+│  │          │                  
+│  │          └─x64
+│  │              └─Debug
+│  │                  ├─ALL_BUILD
+│  │                  │  │  ALL_BUILD.recipe
+│  │                  │  │  
+│  │                  │  └─ALL_BUILD.tlog
+│  │                  │          ALL_BUILD.lastbuildstate
+│  │                  │          CustomBuild.command.1.tlog
+│  │                  │          CustomBuild.read.1.tlog
+│  │                  │          CustomBuild.write.1.tlog
+│  │                  │          
+│  │                  ├─INSTALL
+│  │                  │  │  INSTALL.recipe
+│  │                  │  │  
+│  │                  │  └─INSTALL.tlog
+│  │                  │          CustomBuild.command.1.tlog
+│  │                  │          CustomBuild.read.1.tlog
+│  │                  │          CustomBuild.write.1.tlog
+│  │                  │          INSTALL.lastbuildstate
+│  │                  │          
+│  │                  └─ZERO_CHECK
+│  │                      │  ZERO_CHECK.recipe
+│  │                      │  
+│  │                      └─ZERO_CHECK.tlog
+│  │                              CustomBuild.command.1.tlog
+│  │                              CustomBuild.read.1.tlog
+│  │                              CustomBuild.write.1.tlog
+│  │                              ZERO_CHECK.lastbuildstate
+│  │                              
+│  ├─ios
+│  │  │  .gitignore
+│  │  │  Podfile
+│  │  │  
+│  │  ├─Flutter
+│  │  │      AppFrameworkInfo.plist
+│  │  │      Debug.xcconfig
+│  │  │      flutter_export_environment.sh
+│  │  │      Generated.xcconfig
+│  │  │      Release.xcconfig
+│  │  │      
+│  │  ├─Runner
+│  │  │  │  AppDelegate.swift
+│  │  │  │  GeneratedPluginRegistrant.h
+│  │  │  │  GeneratedPluginRegistrant.m
+│  │  │  │  Info.plist
+│  │  │  │  Runner-Bridging-Header.h
+│  │  │  │  
+│  │  │  ├─Assets.xcassets
+│  │  │  │  ├─AppIcon.appiconset
+│  │  │  │  │      Contents.json
+│  │  │  │  │      Icon-App-1024x1024@1x.png
+│  │  │  │  │      Icon-App-20x20@1x.png
+│  │  │  │  │      Icon-App-20x20@2x.png
+│  │  │  │  │      Icon-App-20x20@3x.png
+│  │  │  │  │      Icon-App-29x29@1x.png
+│  │  │  │  │      Icon-App-29x29@2x.png
+│  │  │  │  │      Icon-App-29x29@3x.png
+│  │  │  │  │      Icon-App-40x40@1x.png
+│  │  │  │  │      Icon-App-40x40@2x.png
+│  │  │  │  │      Icon-App-40x40@3x.png
+│  │  │  │  │      Icon-App-60x60@2x.png
+│  │  │  │  │      Icon-App-60x60@3x.png
+│  │  │  │  │      Icon-App-76x76@1x.png
+│  │  │  │  │      Icon-App-76x76@2x.png
+│  │  │  │  │      Icon-App-83.5x83.5@2x.png
+│  │  │  │  │      
+│  │  │  │  └─LaunchImage.imageset
+│  │  │  │          Contents.json
+│  │  │  │          LaunchImage.png
+│  │  │  │          LaunchImage@2x.png
+│  │  │  │          LaunchImage@3x.png
+│  │  │  │          README.md
+│  │  │  │          
+│  │  │  └─Base.lproj
+│  │  │          LaunchScreen.storyboard
+│  │  │          Main.storyboard
+│  │  │          
+│  │  ├─Runner.xcodeproj
+│  │  │  │  project.pbxproj
+│  │  │  │  
+│  │  │  ├─project.xcworkspace
+│  │  │  │  │  contents.xcworkspacedata
+│  │  │  │  │  
+│  │  │  │  └─xcshareddata
+│  │  │  │          IDEWorkspaceChecks.plist
+│  │  │  │          WorkspaceSettings.xcsettings
+│  │  │  │          
+│  │  │  └─xcshareddata
+│  │  │      └─xcschemes
+│  │  │              Runner.xcscheme
+│  │  │              
+│  │  ├─Runner.xcworkspace
+│  │  │  │  contents.xcworkspacedata
+│  │  │  │  
+│  │  │  └─xcshareddata
+│  │  │          IDEWorkspaceChecks.plist
+│  │  │          WorkspaceSettings.xcsettings
+│  │  │          
+│  │  └─RunnerTests
+│  │          RunnerTests.swift
+│  │          
+│  ├─lib
+│  │  │  main.dart
+│  │  │  
+│  │  ├─auth
+│  │  │      email_check_page.dart
+│  │  │      find_id_page.dart
+│  │  │      login_page.dart
+│  │  │      password_reset_page.dart
+│  │  │      signup_page.dart
+│  │  │      splash_page.dart
+│  │  │      
+│  │  ├─features
+│  │  │      calendar_page.dart
+│  │  │      graph_page.dart
+│  │  │      history.dart
+│  │  │      meeting_screen.dart
+│  │  │      page_type.dart
+│  │  │      settings_page.dart
+│  │  │      
+│  │  ├─layout
+│  │  │      ai_summary_controller.dart
+│  │  │      bottom_section_controller.dart
+│  │  │      left_sidebar_content.dart
+│  │  │      main_layout.dart
+│  │  │      right_sidebar_content.dart
+│  │  │      
+│  │  ├─model
+│  │  │      file_system_entry.dart
+│  │  │      token_status_model.dart
+│  │  │      
+│  │  ├─providers
+│  │  │      token_status_provider.dart
+│  │  │      
+│  │  ├─services
+│  │  │      AI_run.dart
+│  │  │      auth_token.dart
+│  │  │      
+│  │  ├─utils
+│  │  │      ai_service.dart
+│  │  │      web_helper.dart
+│  │  │      web_helper_real.dart
+│  │  │      web_helper_stub.dart
+│  │  │      
+│  │  └─widgets
+│  │          ai_summary_widget.dart
+│  │          expandable_folder_tile.dart
+│  │          
+│  ├─linux
+│  │  │  .gitignore
+│  │  │  CMakeLists.txt
+│  │  │  
+│  │  ├─flutter
+│  │  │  │  CMakeLists.txt
+│  │  │  │  generated_plugins.cmake
+│  │  │  │  generated_plugin_registrant.cc
+│  │  │  │  generated_plugin_registrant.h
+│  │  │  │  
+│  │  │  └─ephemeral
+│  │  │      └─.plugin_symlinks
+│  │  │          ├─flutter_secure_storage_linux
+│  │  │          │  │  CHANGELOG.md
+│  │  │          │  │  LICENSE
+│  │  │          │  │  pubspec.yaml
+│  │  │          │  │  README.md
+│  │  │          │  │  
+│  │  │          │  └─linux
+│  │  │          │      │  CMakeLists.txt
+│  │  │          │      │  flutter_secure_storage_linux_plugin.cc
+│  │  │          │      │  
+│  │  │          │      └─include
+│  │  │          │          │  FHashTable.hpp
+│  │  │          │          │  json.hpp
+│  │  │          │          │  Secret.hpp
+│  │  │          │          │  
+│  │  │          │          └─flutter_secure_storage_linux
+│  │  │          │                  flutter_secure_storage_linux_plugin.h
+│  │  │          │                  
+│  │  │          ├─path_provider_linux
+│  │  │          │  │  AUTHORS
+│  │  │          │  │  CHANGELOG.md
+│  │  │          │  │  LICENSE
+│  │  │          │  │  pubspec.yaml
+│  │  │          │  │  README.md
+│  │  │          │  │  
+│  │  │          │  ├─example
+│  │  │          │  │  │  pubspec.yaml
+│  │  │          │  │  │  README.md
+│  │  │          │  │  │  
+│  │  │          │  │  ├─integration_test
+│  │  │          │  │  │      path_provider_test.dart
+│  │  │          │  │  │      
+│  │  │          │  │  ├─lib
+│  │  │          │  │  │      main.dart
+│  │  │          │  │  │      
+│  │  │          │  │  ├─linux
+│  │  │          │  │  │  │  CMakeLists.txt
+│  │  │          │  │  │  │  main.cc
+│  │  │          │  │  │  │  my_application.cc
+│  │  │          │  │  │  │  my_application.h
+│  │  │          │  │  │  │  
+│  │  │          │  │  │  └─flutter
+│  │  │          │  │  │          CMakeLists.txt
+│  │  │          │  │  │          generated_plugins.cmake
+│  │  │          │  │  │          
+│  │  │          │  │  └─test_driver
+│  │  │          │  │          integration_test.dart
+│  │  │          │  │          
+│  │  │          │  ├─lib
+│  │  │          │  │  │  path_provider_linux.dart
+│  │  │          │  │  │  
+│  │  │          │  │  └─src
+│  │  │          │  │          get_application_id.dart
+│  │  │          │  │          get_application_id_real.dart
+│  │  │          │  │          get_application_id_stub.dart
+│  │  │          │  │          path_provider_linux.dart
+│  │  │          │  │          
+│  │  │          │  └─test
+│  │  │          │          get_application_id_test.dart
+│  │  │          │          path_provider_linux_test.dart
+│  │  │          │          
+│  │  │          ├─screen_retriever
+│  │  │          │  │  analysis_options.yaml
+│  │  │          │  │  CHANGELOG.md
+│  │  │          │  │  dart_dependency_validator.yaml
+│  │  │          │  │  LICENSE
+│  │  │          │  │  pubspec.yaml
+│  │  │          │  │  README-ZH.md
+│  │  │          │  │  README.md
+│  │  │          │  │  
+│  │  │          │  ├─example
+│  │  │          │  │  │  analysis_options.yaml
+│  │  │          │  │  │  pubspec.yaml
+│  │  │          │  │  │  README.md
+│  │  │          │  │  │  
+│  │  │          │  │  ├─lib
+│  │  │          │  │  │  │  main.dart
+│  │  │          │  │  │  │  
+│  │  │          │  │  │  └─pages
+│  │  │          │  │  │          home.dart
+│  │  │          │  │  │          
+│  │  │          │  │  ├─linux
+│  │  │          │  │  │  │  CMakeLists.txt
+│  │  │          │  │  │  │  main.cc
+│  │  │          │  │  │  │  my_application.cc
+│  │  │          │  │  │  │  my_application.h
+│  │  │          │  │  │  │  
+│  │  │          │  │  │  └─flutter
+│  │  │          │  │  │          CMakeLists.txt
+│  │  │          │  │  │          generated_plugins.cmake
+│  │  │          │  │  │          generated_plugin_registrant.cc
+│  │  │          │  │  │          generated_plugin_registrant.h
+│  │  │          │  │  │          
+│  │  │          │  │  ├─macos
+│  │  │          │  │  │  │  Podfile
+│  │  │          │  │  │  │  Podfile.lock
+│  │  │          │  │  │  │  
+│  │  │          │  │  │  ├─Flutter
+│  │  │          │  │  │  │      Flutter-Debug.xcconfig
+│  │  │          │  │  │  │      Flutter-Release.xcconfig
+│  │  │          │  │  │  │      GeneratedPluginRegistrant.swift
+│  │  │          │  │  │  │      
+│  │  │          │  │  │  ├─Runner
+│  │  │          │  │  │  │  │  AppDelegate.swift
+│  │  │          │  │  │  │  │  DebugProfile.entitlements
+│  │  │          │  │  │  │  │  Info.plist
+│  │  │          │  │  │  │  │  MainFlutterWindow.swift
+│  │  │          │  │  │  │  │  Release.entitlements
+│  │  │          │  │  │  │  │  
+│  │  │          │  │  │  │  ├─Assets.xcassets
+│  │  │          │  │  │  │  │  └─AppIcon.appiconset
+│  │  │          │  │  │  │  │          app_icon_1024.png
+│  │  │          │  │  │  │  │          app_icon_128.png
+│  │  │          │  │  │  │  │          app_icon_16.png
+│  │  │          │  │  │  │  │          app_icon_256.png
+│  │  │          │  │  │  │  │          app_icon_32.png
+│  │  │          │  │  │  │  │          app_icon_512.png
+│  │  │          │  │  │  │  │          app_icon_64.png
+│  │  │          │  │  │  │  │          Contents.json
+│  │  │          │  │  │  │  │          
+│  │  │          │  │  │  │  ├─Base.lproj
+│  │  │          │  │  │  │  │      MainMenu.xib
+│  │  │          │  │  │  │  │      
+│  │  │          │  │  │  │  └─Configs
+│  │  │          │  │  │  │          AppInfo.xcconfig
+│  │  │          │  │  │  │          Debug.xcconfig
+│  │  │          │  │  │  │          Release.xcconfig
+│  │  │          │  │  │  │          Warnings.xcconfig
+│  │  │          │  │  │  │          
+│  │  │          │  │  │  ├─Runner.xcodeproj
+│  │  │          │  │  │  │  │  project.pbxproj
+│  │  │          │  │  │  │  │  
+│  │  │          │  │  │  │  ├─project.xcworkspace
+│  │  │          │  │  │  │  │  └─xcshareddata
+│  │  │          │  │  │  │  │          IDEWorkspaceChecks.plist
+│  │  │          │  │  │  │  │          
+│  │  │          │  │  │  │  └─xcshareddata
+│  │  │          │  │  │  │      └─xcschemes
+│  │  │          │  │  │  │              Runner.xcscheme
+│  │  │          │  │  │  │              
+│  │  │          │  │  │  └─Runner.xcworkspace
+│  │  │          │  │  │      │  contents.xcworkspacedata
+│  │  │          │  │  │      │  
+│  │  │          │  │  │      └─xcshareddata
+│  │  │          │  │  │              IDEWorkspaceChecks.plist
+│  │  │          │  │  │              
+│  │  │          │  │  ├─test
+│  │  │          │  │  │      widget_test.dart
+│  │  │          │  │  │      
+│  │  │          │  │  └─windows
+│  │  │          │  │      │  CMakeLists.txt
+│  │  │          │  │      │  
+│  │  │          │  │      ├─flutter
+│  │  │          │  │      │      CMakeLists.txt
+│  │  │          │  │      │      generated_plugins.cmake
+│  │  │          │  │      │      generated_plugin_registrant.cc
+│  │  │          │  │      │      generated_plugin_registrant.h
+│  │  │          │  │      │      
+│  │  │          │  │      └─runner
+│  │  │          │  │          │  CMakeLists.txt
+│  │  │          │  │          │  flutter_window.cpp
+│  │  │          │  │          │  flutter_window.h
+│  │  │          │  │          │  main.cpp
+│  │  │          │  │          │  resource.h
+│  │  │          │  │          │  runner.exe.manifest
+│  │  │          │  │          │  Runner.rc
+│  │  │          │  │          │  run_loop.cpp
+│  │  │          │  │          │  run_loop.h
+│  │  │          │  │          │  utils.cpp
+│  │  │          │  │          │  utils.h
+│  │  │          │  │          │  win32_window.cpp
+│  │  │          │  │          │  win32_window.h
+│  │  │          │  │          │  
+│  │  │          │  │          └─resources
+│  │  │          │  │                  app_icon.ico
+│  │  │          │  │                  
+│  │  │          │  ├─lib
+│  │  │          │  │  │  screen_retriever.dart
+│  │  │          │  │  │  
+│  │  │          │  │  └─src
+│  │  │          │  │          display.dart
+│  │  │          │  │          screen_listener.dart
+│  │  │          │  │          screen_retriever.dart
+│  │  │          │  │          
+│  │  │          │  ├─linux
+│  │  │          │  │  │  CMakeLists.txt
+│  │  │          │  │  │  screen_retriever_plugin.cc
+│  │  │          │  │  │  
+│  │  │          │  │  └─include
+│  │  │          │  │      └─screen_retriever
+│  │  │          │  │              screen_retriever_plugin.h
+│  │  │          │  │              
+│  │  │          │  ├─macos
+│  │  │          │  │  │  screen_retriever.podspec
+│  │  │          │  │  │  
+│  │  │          │  │  └─Classes
+│  │  │          │  │          ScreenRetrieverPlugin.swift
+│  │  │          │  │          
+│  │  │          │  ├─test
+│  │  │          │  │      screen_retriever_test.dart
+│  │  │          │  │      
+│  │  │          │  └─windows
+│  │  │          │      │  CMakeLists.txt
+│  │  │          │      │  screen_retriever_plugin.cpp
+│  │  │          │      │  
+│  │  │          │      └─include
+│  │  │          │          └─screen_retriever
+│  │  │          │                  screen_retriever_plugin.h
+│  │  │          │                  
+│  │  │          ├─shared_preferences_linux
+│  │  │          │  │  AUTHORS
+│  │  │          │  │  CHANGELOG.md
+│  │  │          │  │  LICENSE
+│  │  │          │  │  pubspec.yaml
+│  │  │          │  │  README.md
+│  │  │          │  │  
+│  │  │          │  ├─example
+│  │  │          │  │  │  pubspec.yaml
+│  │  │          │  │  │  README.md
+│  │  │          │  │  │  
+│  │  │          │  │  ├─integration_test
+│  │  │          │  │  │      shared_preferences_test.dart
+│  │  │          │  │  │      
+│  │  │          │  │  ├─lib
+│  │  │          │  │  │      main.dart
+│  │  │          │  │  │      
+│  │  │          │  │  ├─linux
+│  │  │          │  │  │  │  CMakeLists.txt
+│  │  │          │  │  │  │  main.cc
+│  │  │          │  │  │  │  my_application.cc
+│  │  │          │  │  │  │  my_application.h
+│  │  │          │  │  │  │  
+│  │  │          │  │  │  └─flutter
+│  │  │          │  │  │          CMakeLists.txt
+│  │  │          │  │  │          generated_plugins.cmake
+│  │  │          │  │  │          
+│  │  │          │  │  └─test_driver
+│  │  │          │  │          integration_test.dart
+│  │  │          │  │          
+│  │  │          │  ├─lib
+│  │  │          │  │      shared_preferences_linux.dart
+│  │  │          │  │      
+│  │  │          │  └─test
+│  │  │          │          fake_path_provider_linux.dart
+│  │  │          │          legacy_shared_preferences_linux_test.dart
+│  │  │          │          shared_preferences_linux_async_test.dart
+│  │  │          │          
+│  │  │          ├─url_launcher_linux
+│  │  │          │  │  AUTHORS
+│  │  │          │  │  CHANGELOG.md
+│  │  │          │  │  LICENSE
+│  │  │          │  │  pubspec.yaml
+│  │  │          │  │  README.md
+│  │  │          │  │  
+│  │  │          │  ├─example
+│  │  │          │  │  │  pubspec.yaml
+│  │  │          │  │  │  README.md
+│  │  │          │  │  │  
+│  │  │          │  │  ├─integration_test
+│  │  │          │  │  │      url_launcher_test.dart
+│  │  │          │  │  │      
+│  │  │          │  │  ├─lib
+│  │  │          │  │  │      main.dart
+│  │  │          │  │  │      
+│  │  │          │  │  ├─linux
+│  │  │          │  │  │  │  CMakeLists.txt
+│  │  │          │  │  │  │  main.cc
+│  │  │          │  │  │  │  my_application.cc
+│  │  │          │  │  │  │  my_application.h
+│  │  │          │  │  │  │  
+│  │  │          │  │  │  └─flutter
+│  │  │          │  │  │          CMakeLists.txt
+│  │  │          │  │  │          generated_plugins.cmake
+│  │  │          │  │  │          
+│  │  │          │  │  └─test_driver
+│  │  │          │  │          integration_test.dart
+│  │  │          │  │          
+│  │  │          │  ├─lib
+│  │  │          │  │  │  url_launcher_linux.dart
+│  │  │          │  │  │  
+│  │  │          │  │  └─src
+│  │  │          │  │          messages.g.dart
+│  │  │          │  │          
+│  │  │          │  ├─linux
+│  │  │          │  │  │  CMakeLists.txt
+│  │  │          │  │  │  messages.g.cc
+│  │  │          │  │  │  messages.g.h
+│  │  │          │  │  │  url_launcher_plugin.cc
+│  │  │          │  │  │  url_launcher_plugin_private.h
+│  │  │          │  │  │  
+│  │  │          │  │  ├─include
+│  │  │          │  │  │  └─url_launcher_linux
+│  │  │          │  │  │          url_launcher_plugin.h
+│  │  │          │  │  │          
+│  │  │          │  │  └─test
+│  │  │          │  │          url_launcher_linux_test.cc
+│  │  │          │  │          
+│  │  │          │  ├─pigeons
+│  │  │          │  │      copyright.txt
+│  │  │          │  │      messages.dart
+│  │  │          │  │      
+│  │  │          │  └─test
+│  │  │          │          url_launcher_linux_test.dart
+│  │  │          │          
+│  │  │          └─window_manager
+│  │  │              │  analysis_options.yaml
+│  │  │              │  CHANGELOG.md
+│  │  │              │  dart_dependency_validator.yaml
+│  │  │              │  LICENSE
+│  │  │              │  pubspec.yaml
+│  │  │              │  README-ZH.md
+│  │  │              │  README.md
+│  │  │              │  
+│  │  │              ├─example
+│  │  │              │  │  analysis_options.yaml
+│  │  │              │  │  pubspec.yaml
+│  │  │              │  │  README.md
+│  │  │              │  │  
+│  │  │              │  ├─images
+│  │  │              │  │      tray_icon.ico
+│  │  │              │  │      tray_icon.png
+│  │  │              │  │      tray_icon_original.ico
+│  │  │              │  │      tray_icon_original.png
+│  │  │              │  │      
+│  │  │              │  ├─integration_test
+│  │  │              │  │      window_manager_test.dart
+│  │  │              │  │      
+│  │  │              │  ├─lib
+│  │  │              │  │  │  main.dart
+│  │  │              │  │  │  
+│  │  │              │  │  ├─pages
+│  │  │              │  │  │      home.dart
+│  │  │              │  │  │      
+│  │  │              │  │  ├─themes
+│  │  │              │  │  │      dark_theme.dart
+│  │  │              │  │  │      light_theme.dart
+│  │  │              │  │  │      themes.dart
+│  │  │              │  │  │      
+│  │  │              │  │  └─utilities
+│  │  │              │  │          config.dart
+│  │  │              │  │          utilities.dart
+│  │  │              │  │          
+│  │  │              │  ├─linux
+│  │  │              │  │  │  CMakeLists.txt
+│  │  │              │  │  │  main.cc
+│  │  │              │  │  │  my_application.cc
+│  │  │              │  │  │  my_application.h
+│  │  │              │  │  │  
+│  │  │              │  │  └─flutter
+│  │  │              │  │          CMakeLists.txt
+│  │  │              │  │          
+│  │  │              │  ├─macos
+│  │  │              │  │  │  Podfile
+│  │  │              │  │  │  Podfile.lock
+│  │  │              │  │  │  
+│  │  │              │  │  ├─Flutter
+│  │  │              │  │  │      Flutter-Debug.xcconfig
+│  │  │              │  │  │      Flutter-Release.xcconfig
+│  │  │              │  │  │      
+│  │  │              │  │  ├─Runner
+│  │  │              │  │  │  │  AppDelegate.swift
+│  │  │              │  │  │  │  DebugProfile.entitlements
+│  │  │              │  │  │  │  Info.plist
+│  │  │              │  │  │  │  MainFlutterWindow.swift
+│  │  │              │  │  │  │  Release.entitlements
+│  │  │              │  │  │  │  
+│  │  │              │  │  │  ├─Assets.xcassets
+│  │  │              │  │  │  │  └─AppIcon.appiconset
+│  │  │              │  │  │  │          app_icon_1024.png
+│  │  │              │  │  │  │          app_icon_128.png
+│  │  │              │  │  │  │          app_icon_16.png
+│  │  │              │  │  │  │          app_icon_256.png
+│  │  │              │  │  │  │          app_icon_32.png
+│  │  │              │  │  │  │          app_icon_512.png
+│  │  │              │  │  │  │          app_icon_64.png
+│  │  │              │  │  │  │          Contents.json
+│  │  │              │  │  │  │          
+│  │  │              │  │  │  ├─Base.lproj
+│  │  │              │  │  │  │      MainMenu.xib
+│  │  │              │  │  │  │      
+│  │  │              │  │  │  └─Configs
+│  │  │              │  │  │          AppInfo.xcconfig
+│  │  │              │  │  │          Debug.xcconfig
+│  │  │              │  │  │          Release.xcconfig
+│  │  │              │  │  │          Warnings.xcconfig
+│  │  │              │  │  │          
+│  │  │              │  │  ├─Runner.xcodeproj
+│  │  │              │  │  │  │  project.pbxproj
+│  │  │              │  │  │  │  
+│  │  │              │  │  │  ├─project.xcworkspace
+│  │  │              │  │  │  │  └─xcshareddata
+│  │  │              │  │  │  │          IDEWorkspaceChecks.plist
+│  │  │              │  │  │  │          
+│  │  │              │  │  │  └─xcshareddata
+│  │  │              │  │  │      └─xcschemes
+│  │  │              │  │  │              Runner.xcscheme
+│  │  │              │  │  │              
+│  │  │              │  │  └─Runner.xcworkspace
+│  │  │              │  │      │  contents.xcworkspacedata
+│  │  │              │  │      │  
+│  │  │              │  │      └─xcshareddata
+│  │  │              │  │              IDEWorkspaceChecks.plist
+│  │  │              │  │              
+│  │  │              │  ├─test
+│  │  │              │  │      widget_test.dart
+│  │  │              │  │      
+│  │  │              │  └─windows
+│  │  │              │      │  CMakeLists.txt
+│  │  │              │      │  
+│  │  │              │      ├─flutter
+│  │  │              │      │      CMakeLists.txt
+│  │  │              │      │      
+│  │  │              │      └─runner
+│  │  │              │          │  CMakeLists.txt
+│  │  │              │          │  flutter_window.cpp
+│  │  │              │          │  flutter_window.h
+│  │  │              │          │  main.cpp
+│  │  │              │          │  resource.h
+│  │  │              │          │  runner.exe.manifest
+│  │  │              │          │  Runner.rc
+│  │  │              │          │  utils.cpp
+│  │  │              │          │  utils.h
+│  │  │              │          │  win32_window.cpp
+│  │  │              │          │  win32_window.h
+│  │  │              │          │  
+│  │  │              │          └─resources
+│  │  │              │                  app_icon.ico
+│  │  │              │                  
+│  │  │              ├─images
+│  │  │              │      ic_chrome_close.png
+│  │  │              │      ic_chrome_maximize.png
+│  │  │              │      ic_chrome_minimize.png
+│  │  │              │      ic_chrome_unmaximize.png
+│  │  │              │      
+│  │  │              ├─lib
+│  │  │              │  │  window_manager.dart
+│  │  │              │  │  
+│  │  │              │  └─src
+│  │  │              │      │  resize_edge.dart
+│  │  │              │      │  title_bar_style.dart
+│  │  │              │      │  window_listener.dart
+│  │  │              │      │  window_manager.dart
+│  │  │              │      │  window_options.dart
+│  │  │              │      │  
+│  │  │              │      ├─utils
+│  │  │              │      │      calc_window_position.dart
+│  │  │              │      │      
+│  │  │              │      └─widgets
+│  │  │              │              drag_to_move_area.dart
+│  │  │              │              drag_to_resize_area.dart
+│  │  │              │              virtual_window_frame.dart
+│  │  │              │              window_caption.dart
+│  │  │              │              window_caption_button.dart
+│  │  │              │              
+│  │  │              ├─linux
+│  │  │              │  │  CMakeLists.txt
+│  │  │              │  │  window_manager_plugin.cc
+│  │  │              │  │  
+│  │  │              │  └─include
+│  │  │              │      └─window_manager
+│  │  │              │              window_manager_plugin.h
+│  │  │              │              
+│  │  │              ├─macos
+│  │  │              │  │  window_manager.podspec
+│  │  │              │  │  
+│  │  │              │  └─Classes
+│  │  │              │          WindowManager.swift
+│  │  │              │          WindowManagerPlugin.swift
+│  │  │              │          
+│  │  │              ├─test
+│  │  │              │      window_manager_test.dart
+│  │  │              │      
+│  │  │              └─windows
+│  │  │                  │  CMakeLists.txt
+│  │  │                  │  window_manager.cpp
+│  │  │                  │  window_manager_plugin.cpp
+│  │  │                  │  
+│  │  │                  └─include
+│  │  │                      └─window_manager
+│  │  │                              window_manager_plugin.h
+│  │  │                              
+│  │  └─runner
+│  │          CMakeLists.txt
+│  │          main.cc
+│  │          my_application.cc
+│  │          my_application.h
+│  │          
+│  ├─macos
+│  │  │  .gitignore
+│  │  │  Podfile
+│  │  │  Podfile.lock
+│  │  │  
+│  │  ├─Flutter
+│  │  │  │  Flutter-Debug.xcconfig
+│  │  │  │  Flutter-Release.xcconfig
+│  │  │  │  GeneratedPluginRegistrant.swift
+│  │  │  │  
+│  │  │  └─ephemeral
+│  │  │          Flutter-Generated.xcconfig
+│  │  │          flutter_export_environment.sh
+│  │  │          
+│  │  ├─Runner
+│  │  │  │  AppDelegate.swift
+│  │  │  │  DebugProfile.entitlements
+│  │  │  │  Info.plist
+│  │  │  │  MainFlutterWindow.swift
+│  │  │  │  Release.entitlements
+│  │  │  │  
+│  │  │  ├─Assets.xcassets
+│  │  │  │  └─AppIcon.appiconset
+│  │  │  │          app_icon_1024.png
+│  │  │  │          app_icon_128.png
+│  │  │  │          app_icon_16.png
+│  │  │  │          app_icon_256.png
+│  │  │  │          app_icon_32.png
+│  │  │  │          app_icon_512.png
+│  │  │  │          app_icon_64.png
+│  │  │  │          Contents.json
+│  │  │  │          
+│  │  │  ├─Base.lproj
+│  │  │  │      MainMenu.xib
+│  │  │  │      
+│  │  │  └─Configs
+│  │  │          AppInfo.xcconfig
+│  │  │          Debug.xcconfig
+│  │  │          Release.xcconfig
+│  │  │          Warnings.xcconfig
+│  │  │          
+│  │  ├─Runner.xcodeproj
+│  │  │  │  project.pbxproj
+│  │  │  │  
+│  │  │  ├─project.xcworkspace
+│  │  │  │  └─xcshareddata
+│  │  │  │          IDEWorkspaceChecks.plist
+│  │  │  │          
+│  │  │  └─xcshareddata
+│  │  │      └─xcschemes
+│  │  │              Runner.xcscheme
+│  │  │              
+│  │  ├─Runner.xcworkspace
+│  │  │  │  contents.xcworkspacedata
+│  │  │  │  
+│  │  │  └─xcshareddata
+│  │  │          IDEWorkspaceChecks.plist
+│  │  │          
+│  │  └─RunnerTests
+│  │          RunnerTests.swift
+│  │          
+│  ├─test
+│  │      widget_test.dart
+│  │      
+│  ├─web
+│  │  │  favicon.png
+│  │  │  index.html
+│  │  │  manifest.json
+│  │  │  oauth2callback.html
+│  │  │  
+│  │  └─icons
+│  │          Icon-192.png
+│  │          Icon-512.png
+│  │          Icon-maskable-192.png
+│  │          Icon-maskable-512.png
+│  │          
+│  └─windows
+│      │  .gitignore
+│      │  CMakeLists.txt
+│      │  
+│      ├─flutter
+│      │  │  CMakeLists.txt
+│      │  │  generated_plugins.cmake
+│      │  │  generated_plugin_registrant.cc
+│      │  │  generated_plugin_registrant.h
+│      │  │  
+│      │  └─ephemeral
+│      │      │  flutter_export.h
+│      │      │  flutter_messenger.h
+│      │      │  flutter_plugin_registrar.h
+│      │      │  flutter_texture_registrar.h
+│      │      │  flutter_windows.dll
+│      │      │  flutter_windows.dll.exp
+│      │      │  flutter_windows.dll.lib
+│      │      │  flutter_windows.dll.pdb
+│      │      │  flutter_windows.h
+│      │      │  generated_config.cmake
+│      │      │  icudtl.dat
+│      │      │  
+│      │      ├─.plugin_symlinks
+│      │      │  ├─flutter_secure_storage_windows
+│      │      │  │  │  analysis_options.yaml
+│      │      │  │  │  CHANGELOG.md
+│      │      │  │  │  LICENSE
+│      │      │  │  │  pubspec.yaml
+│      │      │  │  │  README.md
+│      │      │  │  │  
+│      │      │  │  ├─example
+│      │      │  │  │  │  analysis_options.yaml
+│      │      │  │  │  │  pubspec.yaml
+│      │      │  │  │  │  README.md
+│      │      │  │  │  │  
+│      │      │  │  │  ├─integration_test
+│      │      │  │  │  │      app_test.dart
+│      │      │  │  │  │      
+│      │      │  │  │  ├─lib
+│      │      │  │  │  │      main.dart
+│      │      │  │  │  │      
+│      │      │  │  │  └─windows
+│      │      │  │  │      │  CMakeLists.txt
+│      │      │  │  │      │  
+│      │      │  │  │      ├─flutter
+│      │      │  │  │      │      CMakeLists.txt
+│      │      │  │  │      │      generated_plugins.cmake
+│      │      │  │  │      │      generated_plugin_registrant.cc
+│      │      │  │  │      │      generated_plugin_registrant.h
+│      │      │  │  │      │      
+│      │      │  │  │      └─runner
+│      │      │  │  │          │  CMakeLists.txt
+│      │      │  │  │          │  flutter_window.cpp
+│      │      │  │  │          │  flutter_window.h
+│      │      │  │  │          │  main.cpp
+│      │      │  │  │          │  resource.h
+│      │      │  │  │          │  runner.exe.manifest
+│      │      │  │  │          │  Runner.rc
+│      │      │  │  │          │  utils.cpp
+│      │      │  │  │          │  utils.h
+│      │      │  │  │          │  win32_window.cpp
+│      │      │  │  │          │  win32_window.h
+│      │      │  │  │          │  
+│      │      │  │  │          └─resources
+│      │      │  │  │                  app_icon.ico
+│      │      │  │  │                  
+│      │      │  │  ├─lib
+│      │      │  │  │  │  flutter_secure_storage_windows.dart
+│      │      │  │  │  │  
+│      │      │  │  │  └─src
+│      │      │  │  │          flutter_secure_storage_windows_ffi.dart
+│      │      │  │  │          flutter_secure_storage_windows_stub.dart
+│      │      │  │  │          
+│      │      │  │  ├─test
+│      │      │  │  │      unit_test.dart
+│      │      │  │  │      
+│      │      │  │  └─windows
+│      │      │  │      │  CMakeLists.txt
+│      │      │  │      │  flutter_secure_storage_windows_plugin.cpp
+│      │      │  │      │  
+│      │      │  │      └─include
+│      │      │  │          └─flutter_secure_storage_windows
+│      │      │  │                  flutter_secure_storage_windows_plugin.h
+│      │      │  │                  
+│      │      │  ├─path_provider_windows
+│      │      │  │  │  AUTHORS
+│      │      │  │  │  CHANGELOG.md
+│      │      │  │  │  LICENSE
+│      │      │  │  │  pubspec.yaml
+│      │      │  │  │  README.md
+│      │      │  │  │  
+│      │      │  │  ├─example
+│      │      │  │  │  │  pubspec.yaml
+│      │      │  │  │  │  README.md
+│      │      │  │  │  │  
+│      │      │  │  │  ├─integration_test
+│      │      │  │  │  │      path_provider_test.dart
+│      │      │  │  │  │      
+│      │      │  │  │  ├─lib
+│      │      │  │  │  │      main.dart
+│      │      │  │  │  │      
+│      │      │  │  │  ├─test_driver
+│      │      │  │  │  │      integration_test.dart
+│      │      │  │  │  │      
+│      │      │  │  │  └─windows
+│      │      │  │  │      │  CMakeLists.txt
+│      │      │  │  │      │  
+│      │      │  │  │      ├─flutter
+│      │      │  │  │      │      CMakeLists.txt
+│      │      │  │  │      │      generated_plugins.cmake
+│      │      │  │  │      │      
+│      │      │  │  │      └─runner
+│      │      │  │  │          │  CMakeLists.txt
+│      │      │  │  │          │  flutter_window.cpp
+│      │      │  │  │          │  flutter_window.h
+│      │      │  │  │          │  main.cpp
+│      │      │  │  │          │  resource.h
+│      │      │  │  │          │  runner.exe.manifest
+│      │      │  │  │          │  Runner.rc
+│      │      │  │  │          │  run_loop.cpp
+│      │      │  │  │          │  run_loop.h
+│      │      │  │  │          │  utils.cpp
+│      │      │  │  │          │  utils.h
+│      │      │  │  │          │  win32_window.cpp
+│      │      │  │  │          │  win32_window.h
+│      │      │  │  │          │  
+│      │      │  │  │          └─resources
+│      │      │  │  │                  app_icon.ico
+│      │      │  │  │                  
+│      │      │  │  ├─lib
+│      │      │  │  │  │  path_provider_windows.dart
+│      │      │  │  │  │  
+│      │      │  │  │  └─src
+│      │      │  │  │          folders.dart
+│      │      │  │  │          folders_stub.dart
+│      │      │  │  │          guid.dart
+│      │      │  │  │          path_provider_windows_real.dart
+│      │      │  │  │          path_provider_windows_stub.dart
+│      │      │  │  │          win32_wrappers.dart
+│      │      │  │  │          
+│      │      │  │  └─test
+│      │      │  │          guid_test.dart
+│      │      │  │          path_provider_windows_test.dart
+│      │      │  │          
+│      │      │  ├─screen_retriever
+│      │      │  │  │  analysis_options.yaml
+│      │      │  │  │  CHANGELOG.md
+│      │      │  │  │  dart_dependency_validator.yaml
+│      │      │  │  │  LICENSE
+│      │      │  │  │  pubspec.yaml
+│      │      │  │  │  README-ZH.md
+│      │      │  │  │  README.md
+│      │      │  │  │  
+│      │      │  │  ├─example
+│      │      │  │  │  │  analysis_options.yaml
+│      │      │  │  │  │  pubspec.yaml
+│      │      │  │  │  │  README.md
+│      │      │  │  │  │  
+│      │      │  │  │  ├─lib
+│      │      │  │  │  │  │  main.dart
+│      │      │  │  │  │  │  
+│      │      │  │  │  │  └─pages
+│      │      │  │  │  │          home.dart
+│      │      │  │  │  │          
+│      │      │  │  │  ├─linux
+│      │      │  │  │  │  │  CMakeLists.txt
+│      │      │  │  │  │  │  main.cc
+│      │      │  │  │  │  │  my_application.cc
+│      │      │  │  │  │  │  my_application.h
+│      │      │  │  │  │  │  
+│      │      │  │  │  │  └─flutter
+│      │      │  │  │  │          CMakeLists.txt
+│      │      │  │  │  │          generated_plugins.cmake
+│      │      │  │  │  │          generated_plugin_registrant.cc
+│      │      │  │  │  │          generated_plugin_registrant.h
+│      │      │  │  │  │          
+│      │      │  │  │  ├─macos
+│      │      │  │  │  │  │  Podfile
+│      │      │  │  │  │  │  Podfile.lock
+│      │      │  │  │  │  │  
+│      │      │  │  │  │  ├─Flutter
+│      │      │  │  │  │  │      Flutter-Debug.xcconfig
+│      │      │  │  │  │  │      Flutter-Release.xcconfig
+│      │      │  │  │  │  │      GeneratedPluginRegistrant.swift
+│      │      │  │  │  │  │      
+│      │      │  │  │  │  ├─Runner
+│      │      │  │  │  │  │  │  AppDelegate.swift
+│      │      │  │  │  │  │  │  DebugProfile.entitlements
+│      │      │  │  │  │  │  │  Info.plist
+│      │      │  │  │  │  │  │  MainFlutterWindow.swift
+│      │      │  │  │  │  │  │  Release.entitlements
+│      │      │  │  │  │  │  │  
+│      │      │  │  │  │  │  ├─Assets.xcassets
+│      │      │  │  │  │  │  │  └─AppIcon.appiconset
+│      │      │  │  │  │  │  │          app_icon_1024.png
+│      │      │  │  │  │  │  │          app_icon_128.png
+│      │      │  │  │  │  │  │          app_icon_16.png
+│      │      │  │  │  │  │  │          app_icon_256.png
+│      │      │  │  │  │  │  │          app_icon_32.png
+│      │      │  │  │  │  │  │          app_icon_512.png
+│      │      │  │  │  │  │  │          app_icon_64.png
+│      │      │  │  │  │  │  │          Contents.json
+│      │      │  │  │  │  │  │          
+│      │      │  │  │  │  │  ├─Base.lproj
+│      │      │  │  │  │  │  │      MainMenu.xib
+│      │      │  │  │  │  │  │      
+│      │      │  │  │  │  │  └─Configs
+│      │      │  │  │  │  │          AppInfo.xcconfig
+│      │      │  │  │  │  │          Debug.xcconfig
+│      │      │  │  │  │  │          Release.xcconfig
+│      │      │  │  │  │  │          Warnings.xcconfig
+│      │      │  │  │  │  │          
+│      │      │  │  │  │  ├─Runner.xcodeproj
+│      │      │  │  │  │  │  │  project.pbxproj
+│      │      │  │  │  │  │  │  
+│      │      │  │  │  │  │  ├─project.xcworkspace
+│      │      │  │  │  │  │  │  └─xcshareddata
+│      │      │  │  │  │  │  │          IDEWorkspaceChecks.plist
+│      │      │  │  │  │  │  │          
+│      │      │  │  │  │  │  └─xcshareddata
+│      │      │  │  │  │  │      └─xcschemes
+│      │      │  │  │  │  │              Runner.xcscheme
+│      │      │  │  │  │  │              
+│      │      │  │  │  │  └─Runner.xcworkspace
+│      │      │  │  │  │      │  contents.xcworkspacedata
+│      │      │  │  │  │      │  
+│      │      │  │  │  │      └─xcshareddata
+│      │      │  │  │  │              IDEWorkspaceChecks.plist
+│      │      │  │  │  │              
+│      │      │  │  │  ├─test
+│      │      │  │  │  │      widget_test.dart
+│      │      │  │  │  │      
+│      │      │  │  │  └─windows
+│      │      │  │  │      │  CMakeLists.txt
+│      │      │  │  │      │  
+│      │      │  │  │      ├─flutter
+│      │      │  │  │      │      CMakeLists.txt
+│      │      │  │  │      │      generated_plugins.cmake
+│      │      │  │  │      │      generated_plugin_registrant.cc
+│      │      │  │  │      │      generated_plugin_registrant.h
+│      │      │  │  │      │      
+│      │      │  │  │      └─runner
+│      │      │  │  │          │  CMakeLists.txt
+│      │      │  │  │          │  flutter_window.cpp
+│      │      │  │  │          │  flutter_window.h
+│      │      │  │  │          │  main.cpp
+│      │      │  │  │          │  resource.h
+│      │      │  │  │          │  runner.exe.manifest
+│      │      │  │  │          │  Runner.rc
+│      │      │  │  │          │  run_loop.cpp
+│      │      │  │  │          │  run_loop.h
+│      │      │  │  │          │  utils.cpp
+│      │      │  │  │          │  utils.h
+│      │      │  │  │          │  win32_window.cpp
+│      │      │  │  │          │  win32_window.h
+│      │      │  │  │          │  
+│      │      │  │  │          └─resources
+│      │      │  │  │                  app_icon.ico
+│      │      │  │  │                  
+│      │      │  │  ├─lib
+│      │      │  │  │  │  screen_retriever.dart
+│      │      │  │  │  │  
+│      │      │  │  │  └─src
+│      │      │  │  │          display.dart
+│      │      │  │  │          screen_listener.dart
+│      │      │  │  │          screen_retriever.dart
+│      │      │  │  │          
+│      │      │  │  ├─linux
+│      │      │  │  │  │  CMakeLists.txt
+│      │      │  │  │  │  screen_retriever_plugin.cc
+│      │      │  │  │  │  
+│      │      │  │  │  └─include
+│      │      │  │  │      └─screen_retriever
+│      │      │  │  │              screen_retriever_plugin.h
+│      │      │  │  │              
+│      │      │  │  ├─macos
+│      │      │  │  │  │  screen_retriever.podspec
+│      │      │  │  │  │  
+│      │      │  │  │  └─Classes
+│      │      │  │  │          ScreenRetrieverPlugin.swift
+│      │      │  │  │          
+│      │      │  │  ├─test
+│      │      │  │  │      screen_retriever_test.dart
+│      │      │  │  │      
+│      │      │  │  └─windows
+│      │      │  │      │  CMakeLists.txt
+│      │      │  │      │  screen_retriever_plugin.cpp
+│      │      │  │      │  
+│      │      │  │      └─include
+│      │      │  │          └─screen_retriever
+│      │      │  │                  screen_retriever_plugin.h
+│      │      │  │                  
+│      │      │  ├─shared_preferences_windows
+│      │      │  │  │  AUTHORS
+│      │      │  │  │  CHANGELOG.md
+│      │      │  │  │  LICENSE
+│      │      │  │  │  pubspec.yaml
+│      │      │  │  │  README.md
+│      │      │  │  │  
+│      │      │  │  ├─example
+│      │      │  │  │  │  AUTHORS
+│      │      │  │  │  │  LICENSE
+│      │      │  │  │  │  pubspec.yaml
+│      │      │  │  │  │  README.md
+│      │      │  │  │  │  
+│      │      │  │  │  ├─integration_test
+│      │      │  │  │  │      shared_preferences_test.dart
+│      │      │  │  │  │      
+│      │      │  │  │  ├─lib
+│      │      │  │  │  │      main.dart
+│      │      │  │  │  │      
+│      │      │  │  │  ├─test_driver
+│      │      │  │  │  │      integration_test.dart
+│      │      │  │  │  │      
+│      │      │  │  │  └─windows
+│      │      │  │  │      │  CMakeLists.txt
+│      │      │  │  │      │  
+│      │      │  │  │      ├─flutter
+│      │      │  │  │      │      CMakeLists.txt
+│      │      │  │  │      │      generated_plugins.cmake
+│      │      │  │  │      │      
+│      │      │  │  │      └─runner
+│      │      │  │  │          │  CMakeLists.txt
+│      │      │  │  │          │  flutter_window.cpp
+│      │      │  │  │          │  flutter_window.h
+│      │      │  │  │          │  main.cpp
+│      │      │  │  │          │  resource.h
+│      │      │  │  │          │  runner.exe.manifest
+│      │      │  │  │          │  Runner.rc
+│      │      │  │  │          │  run_loop.cpp
+│      │      │  │  │          │  run_loop.h
+│      │      │  │  │          │  utils.cpp
+│      │      │  │  │          │  utils.h
+│      │      │  │  │          │  win32_window.cpp
+│      │      │  │  │          │  win32_window.h
+│      │      │  │  │          │  
+│      │      │  │  │          └─resources
+│      │      │  │  │                  app_icon.ico
+│      │      │  │  │                  
+│      │      │  │  ├─lib
+│      │      │  │  │      shared_preferences_windows.dart
+│      │      │  │  │      
+│      │      │  │  └─test
+│      │      │  │          fake_path_provider_windows.dart
+│      │      │  │          legacy_shared_preferences_windows_test.dart
+│      │      │  │          shared_preferences_windows_async_test.dart
+│      │      │  │          
+│      │      │  ├─url_launcher_windows
+│      │      │  │  │  AUTHORS
+│      │      │  │  │  CHANGELOG.md
+│      │      │  │  │  LICENSE
+│      │      │  │  │  pubspec.yaml
+│      │      │  │  │  README.md
+│      │      │  │  │  
+│      │      │  │  ├─example
+│      │      │  │  │  │  pubspec.yaml
+│      │      │  │  │  │  README.md
+│      │      │  │  │  │  
+│      │      │  │  │  ├─integration_test
+│      │      │  │  │  │      url_launcher_test.dart
+│      │      │  │  │  │      
+│      │      │  │  │  ├─lib
+│      │      │  │  │  │      main.dart
+│      │      │  │  │  │      
+│      │      │  │  │  ├─test_driver
+│      │      │  │  │  │      integration_test.dart
+│      │      │  │  │  │      
+│      │      │  │  │  └─windows
+│      │      │  │  │      │  CMakeLists.txt
+│      │      │  │  │      │  
+│      │      │  │  │      ├─flutter
+│      │      │  │  │      │      CMakeLists.txt
+│      │      │  │  │      │      generated_plugins.cmake
+│      │      │  │  │      │      
+│      │      │  │  │      └─runner
+│      │      │  │  │          │  CMakeLists.txt
+│      │      │  │  │          │  flutter_window.cpp
+│      │      │  │  │          │  flutter_window.h
+│      │      │  │  │          │  main.cpp
+│      │      │  │  │          │  resource.h
+│      │      │  │  │          │  runner.exe.manifest
+│      │      │  │  │          │  Runner.rc
+│      │      │  │  │          │  run_loop.cpp
+│      │      │  │  │          │  run_loop.h
+│      │      │  │  │          │  utils.cpp
+│      │      │  │  │          │  utils.h
+│      │      │  │  │          │  win32_window.cpp
+│      │      │  │  │          │  win32_window.h
+│      │      │  │  │          │  
+│      │      │  │  │          └─resources
+│      │      │  │  │                  app_icon.ico
+│      │      │  │  │                  
+│      │      │  │  ├─lib
+│      │      │  │  │  │  url_launcher_windows.dart
+│      │      │  │  │  │  
+│      │      │  │  │  └─src
+│      │      │  │  │          messages.g.dart
+│      │      │  │  │          
+│      │      │  │  ├─pigeons
+│      │      │  │  │      copyright.txt
+│      │      │  │  │      messages.dart
+│      │      │  │  │      
+│      │      │  │  ├─test
+│      │      │  │  │      url_launcher_windows_test.dart
+│      │      │  │  │      
+│      │      │  │  └─windows
+│      │      │  │      │  CMakeLists.txt
+│      │      │  │      │  messages.g.cpp
+│      │      │  │      │  messages.g.h
+│      │      │  │      │  system_apis.cpp
+│      │      │  │      │  system_apis.h
+│      │      │  │      │  url_launcher_plugin.cpp
+│      │      │  │      │  url_launcher_plugin.h
+│      │      │  │      │  url_launcher_windows.cpp
+│      │      │  │      │  
+│      │      │  │      ├─include
+│      │      │  │      │  └─url_launcher_windows
+│      │      │  │      │          url_launcher_windows.h
+│      │      │  │      │          
+│      │      │  │      └─test
+│      │      │  │              url_launcher_windows_test.cpp
+│      │      │  │              
+│      │      │  └─window_manager
+│      │      │      │  analysis_options.yaml
+│      │      │      │  CHANGELOG.md
+│      │      │      │  dart_dependency_validator.yaml
+│      │      │      │  LICENSE
+│      │      │      │  pubspec.yaml
+│      │      │      │  README-ZH.md
+│      │      │      │  README.md
+│      │      │      │  
+│      │      │      ├─example
+│      │      │      │  │  analysis_options.yaml
+│      │      │      │  │  pubspec.yaml
+│      │      │      │  │  README.md
+│      │      │      │  │  
+│      │      │      │  ├─images
+│      │      │      │  │      tray_icon.ico
+│      │      │      │  │      tray_icon.png
+│      │      │      │  │      tray_icon_original.ico
+│      │      │      │  │      tray_icon_original.png
+│      │      │      │  │      
+│      │      │      │  ├─integration_test
+│      │      │      │  │      window_manager_test.dart
+│      │      │      │  │      
+│      │      │      │  ├─lib
+│      │      │      │  │  │  main.dart
+│      │      │      │  │  │  
+│      │      │      │  │  ├─pages
+│      │      │      │  │  │      home.dart
+│      │      │      │  │  │      
+│      │      │      │  │  ├─themes
+│      │      │      │  │  │      dark_theme.dart
+│      │      │      │  │  │      light_theme.dart
+│      │      │      │  │  │      themes.dart
+│      │      │      │  │  │      
+│      │      │      │  │  └─utilities
+│      │      │      │  │          config.dart
+│      │      │      │  │          utilities.dart
+│      │      │      │  │          
+│      │      │      │  ├─linux
+│      │      │      │  │  │  CMakeLists.txt
+│      │      │      │  │  │  main.cc
+│      │      │      │  │  │  my_application.cc
+│      │      │      │  │  │  my_application.h
+│      │      │      │  │  │  
+│      │      │      │  │  └─flutter
+│      │      │      │  │          CMakeLists.txt
+│      │      │      │  │          
+│      │      │      │  ├─macos
+│      │      │      │  │  │  Podfile
+│      │      │      │  │  │  Podfile.lock
+│      │      │      │  │  │  
+│      │      │      │  │  ├─Flutter
+│      │      │      │  │  │      Flutter-Debug.xcconfig
+│      │      │      │  │  │      Flutter-Release.xcconfig
+│      │      │      │  │  │      
+│      │      │      │  │  ├─Runner
+│      │      │      │  │  │  │  AppDelegate.swift
+│      │      │      │  │  │  │  DebugProfile.entitlements
+│      │      │      │  │  │  │  Info.plist
+│      │      │      │  │  │  │  MainFlutterWindow.swift
+│      │      │      │  │  │  │  Release.entitlements
+│      │      │      │  │  │  │  
+│      │      │      │  │  │  ├─Assets.xcassets
+│      │      │      │  │  │  │  └─AppIcon.appiconset
+│      │      │      │  │  │  │          app_icon_1024.png
+│      │      │      │  │  │  │          app_icon_128.png
+│      │      │      │  │  │  │          app_icon_16.png
+│      │      │      │  │  │  │          app_icon_256.png
+│      │      │      │  │  │  │          app_icon_32.png
+│      │      │      │  │  │  │          app_icon_512.png
+│      │      │      │  │  │  │          app_icon_64.png
+│      │      │      │  │  │  │          Contents.json
+│      │      │      │  │  │  │          
+│      │      │      │  │  │  ├─Base.lproj
+│      │      │      │  │  │  │      MainMenu.xib
+│      │      │      │  │  │  │      
+│      │      │      │  │  │  └─Configs
+│      │      │      │  │  │          AppInfo.xcconfig
+│      │      │      │  │  │          Debug.xcconfig
+│      │      │      │  │  │          Release.xcconfig
+│      │      │      │  │  │          Warnings.xcconfig
+│      │      │      │  │  │          
+│      │      │      │  │  ├─Runner.xcodeproj
+│      │      │      │  │  │  │  project.pbxproj
+│      │      │      │  │  │  │  
+│      │      │      │  │  │  ├─project.xcworkspace
+│      │      │      │  │  │  │  └─xcshareddata
+│      │      │      │  │  │  │          IDEWorkspaceChecks.plist
+│      │      │      │  │  │  │          
+│      │      │      │  │  │  └─xcshareddata
+│      │      │      │  │  │      └─xcschemes
+│      │      │      │  │  │              Runner.xcscheme
+│      │      │      │  │  │              
+│      │      │      │  │  └─Runner.xcworkspace
+│      │      │      │  │      │  contents.xcworkspacedata
+│      │      │      │  │      │  
+│      │      │      │  │      └─xcshareddata
+│      │      │      │  │              IDEWorkspaceChecks.plist
+│      │      │      │  │              
+│      │      │      │  ├─test
+│      │      │      │  │      widget_test.dart
+│      │      │      │  │      
+│      │      │      │  └─windows
+│      │      │      │      │  CMakeLists.txt
+│      │      │      │      │  
+│      │      │      │      ├─flutter
+│      │      │      │      │      CMakeLists.txt
+│      │      │      │      │      
+│      │      │      │      └─runner
+│      │      │      │          │  CMakeLists.txt
+│      │      │      │          │  flutter_window.cpp
+│      │      │      │          │  flutter_window.h
+│      │      │      │          │  main.cpp
+│      │      │      │          │  resource.h
+│      │      │      │          │  runner.exe.manifest
+│      │      │      │          │  Runner.rc
+│      │      │      │          │  utils.cpp
+│      │      │      │          │  utils.h
+│      │      │      │          │  win32_window.cpp
+│      │      │      │          │  win32_window.h
+│      │      │      │          │  
+│      │      │      │          └─resources
+│      │      │      │                  app_icon.ico
+│      │      │      │                  
+│      │      │      ├─images
+│      │      │      │      ic_chrome_close.png
+│      │      │      │      ic_chrome_maximize.png
+│      │      │      │      ic_chrome_minimize.png
+│      │      │      │      ic_chrome_unmaximize.png
+│      │      │      │      
+│      │      │      ├─lib
+│      │      │      │  │  window_manager.dart
+│      │      │      │  │  
+│      │      │      │  └─src
+│      │      │      │      │  resize_edge.dart
+│      │      │      │      │  title_bar_style.dart
+│      │      │      │      │  window_listener.dart
+│      │      │      │      │  window_manager.dart
+│      │      │      │      │  window_options.dart
+│      │      │      │      │  
+│      │      │      │      ├─utils
+│      │      │      │      │      calc_window_position.dart
+│      │      │      │      │      
+│      │      │      │      └─widgets
+│      │      │      │              drag_to_move_area.dart
+│      │      │      │              drag_to_resize_area.dart
+│      │      │      │              virtual_window_frame.dart
+│      │      │      │              window_caption.dart
+│      │      │      │              window_caption_button.dart
+│      │      │      │              
+│      │      │      ├─linux
+│      │      │      │  │  CMakeLists.txt
+│      │      │      │  │  window_manager_plugin.cc
+│      │      │      │  │  
+│      │      │      │  └─include
+│      │      │      │      └─window_manager
+│      │      │      │              window_manager_plugin.h
+│      │      │      │              
+│      │      │      ├─macos
+│      │      │      │  │  window_manager.podspec
+│      │      │      │  │  
+│      │      │      │  └─Classes
+│      │      │      │          WindowManager.swift
+│      │      │      │          WindowManagerPlugin.swift
+│      │      │      │          
+│      │      │      ├─test
+│      │      │      │      window_manager_test.dart
+│      │      │      │      
+│      │      │      └─windows
+│      │      │          │  CMakeLists.txt
+│      │      │          │  window_manager.cpp
+│      │      │          │  window_manager_plugin.cpp
+│      │      │          │  
+│      │      │          └─include
+│      │      │              └─window_manager
+│      │      │                      window_manager_plugin.h
+│      │      │                      
+│      │      └─cpp_client_wrapper
+│      │          │  binary_messenger_impl.h
+│      │          │  byte_buffer_streams.h
+│      │          │  core_implementations.cc
+│      │          │  engine_method_result.cc
+│      │          │  flutter_engine.cc
+│      │          │  flutter_view_controller.cc
+│      │          │  plugin_registrar.cc
+│      │          │  readme
+│      │          │  standard_codec.cc
+│      │          │  texture_registrar_impl.h
+│      │          │  
+│      │          └─include
+│      │              └─flutter
+│      │                      basic_message_channel.h
+│      │                      binary_messenger.h
+│      │                      byte_streams.h
+│      │                      dart_project.h
+│      │                      encodable_value.h
+│      │                      engine_method_result.h
+│      │                      event_channel.h
+│      │                      event_sink.h
+│      │                      event_stream_handler.h
+│      │                      event_stream_handler_functions.h
+│      │                      flutter_engine.h
+│      │                      flutter_view.h
+│      │                      flutter_view_controller.h
+│      │                      message_codec.h
+│      │                      method_call.h
+│      │                      method_channel.h
+│      │                      method_codec.h
+│      │                      method_result.h
+│      │                      method_result_functions.h
+│      │                      plugin_registrar.h
+│      │                      plugin_registrar_windows.h
+│      │                      plugin_registry.h
+│      │                      standard_codec_serializer.h
+│      │                      standard_message_codec.h
+│      │                      standard_method_codec.h
+│      │                      texture_registrar.h
+│      │                      
+│      └─runner
+│          │  CMakeLists.txt
+│          │  flutter_window.cpp
+│          │  flutter_window.h
+│          │  main.cpp
+│          │  resource.h
+│          │  runner.exe.manifest
+│          │  Runner.rc
+│          │  utils.cpp
+│          │  utils.h
+│          │  win32_window.cpp
+│          │  win32_window.h
+│          │  
+│          └─resources
+│                  app_icon.ico
+│                  
+├─Memordo_Extension-main
+│  │  manifest.json
+│  │  README.md
+│  │  
+│  ├─assets
+│  │      style.css
+│  │      
+│  ├─background
+│  │      background.js
+│  │      
+│  ├─history
+│  │      history.css
+│  │      history.html
+│  │      history.js
+│  │      
+│  ├─icons
+│  │      logo_final_128.png
+│  │      logo_final_16.png
+│  │      logo_final_32.png
+│  │      logo_final_48.png
+│  │      logo_final_512.png
+│  │      
+│  └─popup
+│          index.html
+│          popup.js
+│          
+├─py
+│  │  .env
+│  │  app.py
+│  │  gemini_ai.py
+│  │  requirements.txt
+│  │  trans-ai.py
+│  │  
+│  ├─chroma_db_st_google
+│  │  │  chroma.sqlite3
+│  │  │  
+│  │  └─7c3b28a3-b01d-4620-8c5e-5f31da8226d2
+│  │          data_level0.bin
+│  │          header.bin
+│  │          length.bin
+│  │          link_lists.bin
+│  │          
+│  ├─chroma_db_st_multi
+│  │      chroma.sqlite3
+│  │      
+│  ├─Doc
+│  │      1.md
+│  │      10.md
+│  │      2.md
+│  │      3.md
+│  │      4.md
+│  │      5.md
+│  │      6.md
+│  │      7.md
+│  │      8.md
+│  │      9.md
+│  │      
+│  ├─log
+│  │      api_interaction_log.jsonl
+│  │      interaction_log.jsonl
+│  │      interaction_log_st_google.jsonl
+│  │      
+│  └─__pycache__
+│          app.cpython-311.pyc
+│          gemini_ai.cpython-311.pyc
+│          gemini_ai.cpython-313.pyc
+│          
+└─server
+    │  .DS_Store
+    │  .gitignore
+    │  api.html
+    │  app.js
+    │  auth_DG.js
+    │  auth_MEMO.js
+    │  db_DG.js
+    │  db_MEMO.js
+    │  email_auth_DG.js
+    │  email_auth_MEMO.js
+    │  hi
+    │  login_DG.js
+    │  login_MEMO.js
+    │  mailer_DG.js
+    │  mailer_MEMO.js
+    │  make_sql.sql
+    │  package-lock.json
+    │  package.json
+    │  start_redis.sh
+    │  
+    └─node_modules
+        │  .package-lock.json
+        │  
+        ├─.bin
+        │      bcrypt
+        │      semver
+        │      
+        ├─@ioredis
+        │  └─commands
+        │      │  LICENSE
+        │      │  package.json
+        │      │  README.md
+        │      │  
+        │      └─built
+        │              commands.json
+        │              index.d.ts
+        │              index.js
+        │              
+        ├─accepts
+        │      HISTORY.md
+        │      index.js
+        │      LICENSE
+        │      package.json
+        │      README.md
+        │      
+        ├─aws-ssl-profiles
+        │  │  LICENSE
+        │  │  package.json
+        │  │  README.md
+        │  │  
+        │  └─lib
+        │      │  index.d.ts
+        │      │  index.js
+        │      │  
+        │      ├─@types
+        │      │      profiles.d.ts
+        │      │      profiles.js
+        │      │      
+        │      └─profiles
+        │          └─ca
+        │                  defaults.d.ts
+        │                  defaults.js
+        │                  proxies.d.ts
+        │                  proxies.js
+        │                  
+        ├─bcryptjs
+        │  │  index.d.ts
+        │  │  index.js
+        │  │  LICENSE
+        │  │  package.json
+        │  │  README.md
+        │  │  types.d.ts
+        │  │  
+        │  ├─bin
+        │  │      bcrypt
+        │  │      
+        │  └─umd
+        │          index.d.ts
+        │          index.js
+        │          package.json
+        │          types.d.ts
+        │          
+        ├─body-parser
+        │  │  HISTORY.md
+        │  │  index.js
+        │  │  LICENSE
+        │  │  package.json
+        │  │  README.md
+        │  │  
+        │  └─lib
+        │      │  read.js
+        │      │  utils.js
+        │      │  
+        │      └─types
+        │              json.js
+        │              raw.js
+        │              text.js
+        │              urlencoded.js
+        │              
+        ├─buffer-equal-constant-time
+        │      .npmignore
+        │      .travis.yml
+        │      index.js
+        │      LICENSE.txt
+        │      package.json
+        │      README.md
+        │      test.js
+        │      
+        ├─bytes
+        │      History.md
+        │      index.js
+        │      LICENSE
+        │      package.json
+        │      Readme.md
+        │      
+        ├─call-bind-apply-helpers
+        │  │  .eslintrc
+        │  │  .nycrc
+        │  │  actualApply.d.ts
+        │  │  actualApply.js
+        │  │  applyBind.d.ts
+        │  │  applyBind.js
+        │  │  CHANGELOG.md
+        │  │  functionApply.d.ts
+        │  │  functionApply.js
+        │  │  functionCall.d.ts
+        │  │  functionCall.js
+        │  │  index.d.ts
+        │  │  index.js
+        │  │  LICENSE
+        │  │  package.json
+        │  │  README.md
+        │  │  reflectApply.d.ts
+        │  │  reflectApply.js
+        │  │  tsconfig.json
+        │  │  
+        │  ├─.github
+        │  │      FUNDING.yml
+        │  │      
+        │  └─test
+        │          index.js
+        │          
+        ├─call-bound
+        │  │  .eslintrc
+        │  │  .nycrc
+        │  │  CHANGELOG.md
+        │  │  index.d.ts
+        │  │  index.js
+        │  │  LICENSE
+        │  │  package.json
+        │  │  README.md
+        │  │  tsconfig.json
+        │  │  
+        │  ├─.github
+        │  │      FUNDING.yml
+        │  │      
+        │  └─test
+        │          index.js
+        │          
+        ├─cluster-key-slot
+        │  │  .eslintrc
+        │  │  index.d.ts
+        │  │  LICENSE
+        │  │  package.json
+        │  │  README.md
+        │  │  
+        │  └─lib
+        │          index.js
+        │          
+        ├─content-disposition
+        │      HISTORY.md
+        │      index.js
+        │      LICENSE
+        │      package.json
+        │      README.md
+        │      
+        ├─content-type
+        │      HISTORY.md
+        │      index.js
+        │      LICENSE
+        │      package.json
+        │      README.md
+        │      
+        ├─cookie
+        │      index.js
+        │      LICENSE
+        │      package.json
+        │      README.md
+        │      SECURITY.md
+        │      
+        ├─cookie-signature
+        │      History.md
+        │      index.js
+        │      LICENSE
+        │      package.json
+        │      Readme.md
+        │      
+        ├─cors
+        │  │  CONTRIBUTING.md
+        │  │  HISTORY.md
+        │  │  LICENSE
+        │  │  package.json
+        │  │  README.md
+        │  │  
+        │  └─lib
+        │          index.js
+        │          
+        ├─debug
+        │  │  LICENSE
+        │  │  package.json
+        │  │  README.md
+        │  │  
+        │  └─src
+        │          browser.js
+        │          common.js
+        │          index.js
+        │          node.js
+        │          
+        ├─denque
+        │      CHANGELOG.md
+        │      index.d.ts
+        │      index.js
+        │      LICENSE
+        │      package.json
+        │      README.md
+        │      
+        ├─depd
+        │  │  History.md
+        │  │  index.js
+        │  │  LICENSE
+        │  │  package.json
+        │  │  Readme.md
+        │  │  
+        │  └─lib
+        │      └─browser
+        │              index.js
+        │              
+        ├─dotenv
+        │  │  CHANGELOG.md
+        │  │  config.d.ts
+        │  │  config.js
+        │  │  LICENSE
+        │  │  package.json
+        │  │  README-es.md
+        │  │  README.md
+        │  │  
+        │  └─lib
+        │          cli-options.js
+        │          env-options.js
+        │          main.d.ts
+        │          main.js
+        │          
+        ├─dunder-proto
+        │  │  .eslintrc
+        │  │  .nycrc
+        │  │  CHANGELOG.md
+        │  │  get.d.ts
+        │  │  get.js
+        │  │  LICENSE
+        │  │  package.json
+        │  │  README.md
+        │  │  set.d.ts
+        │  │  set.js
+        │  │  tsconfig.json
+        │  │  
+        │  ├─.github
+        │  │      FUNDING.yml
+        │  │      
+        │  └─test
+        │          get.js
+        │          index.js
+        │          set.js
+        │          
+        ├─ecdsa-sig-formatter
+        │  │  CODEOWNERS
+        │  │  LICENSE
+        │  │  package.json
+        │  │  README.md
+        │  │  
+        │  └─src
+        │          ecdsa-sig-formatter.d.ts
+        │          ecdsa-sig-formatter.js
+        │          param-bytes-for-alg.js
+        │          
+        ├─ee-first
+        │      index.js
+        │      LICENSE
+        │      package.json
+        │      README.md
+        │      
+        ├─encodeurl
+        │      index.js
+        │      LICENSE
+        │      package.json
+        │      README.md
+        │      
+        ├─es-define-property
+        │  │  .eslintrc
+        │  │  .nycrc
+        │  │  CHANGELOG.md
+        │  │  index.d.ts
+        │  │  index.js
+        │  │  LICENSE
+        │  │  package.json
+        │  │  README.md
+        │  │  tsconfig.json
+        │  │  
+        │  ├─.github
+        │  │      FUNDING.yml
+        │  │      
+        │  └─test
+        │          index.js
+        │          
+        ├─es-errors
+        │  │  .eslintrc
+        │  │  CHANGELOG.md
+        │  │  eval.d.ts
+        │  │  eval.js
+        │  │  index.d.ts
+        │  │  index.js
+        │  │  LICENSE
+        │  │  package.json
+        │  │  range.d.ts
+        │  │  range.js
+        │  │  README.md
+        │  │  ref.d.ts
+        │  │  ref.js
+        │  │  syntax.d.ts
+        │  │  syntax.js
+        │  │  tsconfig.json
+        │  │  type.d.ts
+        │  │  type.js
+        │  │  uri.d.ts
+        │  │  uri.js
+        │  │  
+        │  ├─.github
+        │  │      FUNDING.yml
+        │  │      
+        │  └─test
+        │          index.js
+        │          
+        ├─es-object-atoms
+        │  │  .eslintrc
+        │  │  CHANGELOG.md
+        │  │  index.d.ts
+        │  │  index.js
+        │  │  isObject.d.ts
+        │  │  isObject.js
+        │  │  LICENSE
+        │  │  package.json
+        │  │  README.md
+        │  │  RequireObjectCoercible.d.ts
+        │  │  RequireObjectCoercible.js
+        │  │  ToObject.d.ts
+        │  │  ToObject.js
+        │  │  tsconfig.json
+        │  │  
+        │  ├─.github
+        │  │      FUNDING.yml
+        │  │      
+        │  └─test
+        │          index.js
+        │          
+        ├─escape-html
+        │      index.js
+        │      LICENSE
+        │      package.json
+        │      Readme.md
+        │      
+        ├─etag
+        │      HISTORY.md
+        │      index.js
+        │      LICENSE
+        │      package.json
+        │      README.md
+        │      
+        ├─express
+        │  │  History.md
+        │  │  index.js
+        │  │  LICENSE
+        │  │  package.json
+        │  │  Readme.md
+        │  │  
+        │  └─lib
+        │          application.js
+        │          express.js
+        │          request.js
+        │          response.js
+        │          utils.js
+        │          view.js
+        │          
+        ├─finalhandler
+        │      HISTORY.md
+        │      index.js
+        │      LICENSE
+        │      package.json
+        │      README.md
+        │      
+        ├─forwarded
+        │      HISTORY.md
+        │      index.js
+        │      LICENSE
+        │      package.json
+        │      README.md
+        │      
+        ├─fresh
+        │      HISTORY.md
+        │      index.js
+        │      LICENSE
+        │      package.json
+        │      README.md
+        │      
+        ├─function-bind
+        │  │  .eslintrc
+        │  │  .nycrc
+        │  │  CHANGELOG.md
+        │  │  implementation.js
+        │  │  index.js
+        │  │  LICENSE
+        │  │  package.json
+        │  │  README.md
+        │  │  
+        │  ├─.github
+        │  │      FUNDING.yml
+        │  │      SECURITY.md
+        │  │      
+        │  └─test
+        │          .eslintrc
+        │          index.js
+        │          
+        ├─generate-function
+        │      .travis.yml
+        │      example.js
+        │      index.js
+        │      LICENSE
+        │      package.json
+        │      README.md
+        │      test.js
+        │      
+        ├─get-intrinsic
+        │  │  .eslintrc
+        │  │  .nycrc
+        │  │  CHANGELOG.md
+        │  │  index.js
+        │  │  LICENSE
+        │  │  package.json
+        │  │  README.md
+        │  │  
+        │  ├─.github
+        │  │      FUNDING.yml
+        │  │      
+        │  └─test
+        │          GetIntrinsic.js
+        │          
+        ├─get-proto
+        │  │  .eslintrc
+        │  │  .nycrc
+        │  │  CHANGELOG.md
+        │  │  index.d.ts
+        │  │  index.js
+        │  │  LICENSE
+        │  │  Object.getPrototypeOf.d.ts
+        │  │  Object.getPrototypeOf.js
+        │  │  package.json
+        │  │  README.md
+        │  │  Reflect.getPrototypeOf.d.ts
+        │  │  Reflect.getPrototypeOf.js
+        │  │  tsconfig.json
+        │  │  
+        │  ├─.github
+        │  │      FUNDING.yml
+        │  │      
+        │  └─test
+        │          index.js
+        │          
+        ├─gopd
+        │  │  .eslintrc
+        │  │  CHANGELOG.md
+        │  │  gOPD.d.ts
+        │  │  gOPD.js
+        │  │  index.d.ts
+        │  │  index.js
+        │  │  LICENSE
+        │  │  package.json
+        │  │  README.md
+        │  │  tsconfig.json
+        │  │  
+        │  ├─.github
+        │  │      FUNDING.yml
+        │  │      
+        │  └─test
+        │          index.js
+        │          
+        ├─has-symbols
+        │  │  .eslintrc
+        │  │  .nycrc
+        │  │  CHANGELOG.md
+        │  │  index.d.ts
+        │  │  index.js
+        │  │  LICENSE
+        │  │  package.json
+        │  │  README.md
+        │  │  shams.d.ts
+        │  │  shams.js
+        │  │  tsconfig.json
+        │  │  
+        │  ├─.github
+        │  │      FUNDING.yml
+        │  │      
+        │  └─test
+        │      │  index.js
+        │      │  tests.js
+        │      │  
+        │      └─shams
+        │              core-js.js
+        │              get-own-property-symbols.js
+        │              
+        ├─hasown
+        │  │  .eslintrc
+        │  │  .nycrc
+        │  │  CHANGELOG.md
+        │  │  index.d.ts
+        │  │  index.js
+        │  │  LICENSE
+        │  │  package.json
+        │  │  README.md
+        │  │  tsconfig.json
+        │  │  
+        │  └─.github
+        │          FUNDING.yml
+        │          
+        ├─http-errors
+        │      HISTORY.md
+        │      index.js
+        │      LICENSE
+        │      package.json
+        │      README.md
+        │      
+        ├─iconv-lite
+        │  │  Changelog.md
+        │  │  LICENSE
+        │  │  package.json
+        │  │  README.md
+        │  │  
+        │  ├─.github
+        │  │      dependabot.yml
+        │  │      
+        │  ├─.idea
+        │  │  │  iconv-lite.iml
+        │  │  │  modules.xml
+        │  │  │  vcs.xml
+        │  │  │  
+        │  │  ├─codeStyles
+        │  │  │      codeStyleConfig.xml
+        │  │  │      Project.xml
+        │  │  │      
+        │  │  └─inspectionProfiles
+        │  │          Project_Default.xml
+        │  │          
+        │  ├─encodings
+        │  │  │  dbcs-codec.js
+        │  │  │  dbcs-data.js
+        │  │  │  index.js
+        │  │  │  internal.js
+        │  │  │  sbcs-codec.js
+        │  │  │  sbcs-data-generated.js
+        │  │  │  sbcs-data.js
+        │  │  │  utf16.js
+        │  │  │  utf32.js
+        │  │  │  utf7.js
+        │  │  │  
+        │  │  └─tables
+        │  │          big5-added.json
+        │  │          cp936.json
+        │  │          cp949.json
+        │  │          cp950.json
+        │  │          eucjp.json
+        │  │          gb18030-ranges.json
+        │  │          gbk-added.json
+        │  │          shiftjis.json
+        │  │          
+        │  └─lib
+        │          bom-handling.js
+        │          index.d.ts
+        │          index.js
+        │          streams.js
+        │          
+        ├─inherits
+        │      inherits.js
+        │      inherits_browser.js
+        │      LICENSE
+        │      package.json
+        │      README.md
+        │      
+        ├─ioredis
+        │  │  LICENSE
+        │  │  package.json
+        │  │  README.md
+        │  │  
+        │  └─built
+        │      │  autoPipelining.d.ts
+        │      │  autoPipelining.js
+        │      │  Command.d.ts
+        │      │  Command.js
+        │      │  DataHandler.d.ts
+        │      │  DataHandler.js
+        │      │  index.d.ts
+        │      │  index.js
+        │      │  Pipeline.d.ts
+        │      │  Pipeline.js
+        │      │  Redis.d.ts
+        │      │  Redis.js
+        │      │  ScanStream.d.ts
+        │      │  ScanStream.js
+        │      │  Script.d.ts
+        │      │  Script.js
+        │      │  SubscriptionSet.d.ts
+        │      │  SubscriptionSet.js
+        │      │  transaction.d.ts
+        │      │  transaction.js
+        │      │  types.d.ts
+        │      │  types.js
+        │      │  
+        │      ├─cluster
+        │      │      ClusterOptions.d.ts
+        │      │      ClusterOptions.js
+        │      │      ClusterSubscriber.d.ts
+        │      │      ClusterSubscriber.js
+        │      │      ClusterSubscriberGroup.d.ts
+        │      │      ClusterSubscriberGroup.js
+        │      │      ConnectionPool.d.ts
+        │      │      ConnectionPool.js
+        │      │      DelayQueue.d.ts
+        │      │      DelayQueue.js
+        │      │      index.d.ts
+        │      │      index.js
+        │      │      util.d.ts
+        │      │      util.js
+        │      │      
+        │      ├─connectors
+        │      │  │  AbstractConnector.d.ts
+        │      │  │  AbstractConnector.js
+        │      │  │  ConnectorConstructor.d.ts
+        │      │  │  ConnectorConstructor.js
+        │      │  │  index.d.ts
+        │      │  │  index.js
+        │      │  │  StandaloneConnector.d.ts
+        │      │  │  StandaloneConnector.js
+        │      │  │  
+        │      │  └─SentinelConnector
+        │      │          FailoverDetector.d.ts
+        │      │          FailoverDetector.js
+        │      │          index.d.ts
+        │      │          index.js
+        │      │          SentinelIterator.d.ts
+        │      │          SentinelIterator.js
+        │      │          types.d.ts
+        │      │          types.js
+        │      │          
+        │      ├─constants
+        │      │      TLSProfiles.d.ts
+        │      │      TLSProfiles.js
+        │      │      
+        │      ├─errors
+        │      │      ClusterAllFailedError.d.ts
+        │      │      ClusterAllFailedError.js
+        │      │      index.d.ts
+        │      │      index.js
+        │      │      MaxRetriesPerRequestError.d.ts
+        │      │      MaxRetriesPerRequestError.js
+        │      │      
+        │      ├─redis
+        │      │      event_handler.d.ts
+        │      │      event_handler.js
+        │      │      RedisOptions.d.ts
+        │      │      RedisOptions.js
+        │      │      
+        │      └─utils
+        │              applyMixin.d.ts
+        │              applyMixin.js
+        │              Commander.d.ts
+        │              Commander.js
+        │              debug.d.ts
+        │              debug.js
+        │              index.d.ts
+        │              index.js
+        │              lodash.d.ts
+        │              lodash.js
+        │              RedisCommander.d.ts
+        │              RedisCommander.js
+        │              
+        ├─ipaddr.js
+        │  │  ipaddr.min.js
+        │  │  LICENSE
+        │  │  package.json
+        │  │  README.md
+        │  │  
+        │  └─lib
+        │          ipaddr.js
+        │          ipaddr.js.d.ts
+        │          
+        ├─is-promise
+        │      index.d.ts
+        │      index.js
+        │      index.mjs
+        │      LICENSE
+        │      package.json
+        │      readme.md
+        │      
+        ├─is-property
+        │      .npmignore
+        │      is-property.js
+        │      LICENSE
+        │      package.json
+        │      README.md
+        │      
+        ├─jsonwebtoken
+        │  │  decode.js
+        │  │  index.js
+        │  │  LICENSE
+        │  │  package.json
+        │  │  README.md
+        │  │  sign.js
+        │  │  verify.js
+        │  │  
+        │  └─lib
+        │          asymmetricKeyDetailsSupported.js
+        │          JsonWebTokenError.js
+        │          NotBeforeError.js
+        │          psSupported.js
+        │          rsaPssKeyDetailsSupported.js
+        │          timespan.js
+        │          TokenExpiredError.js
+        │          validateAsymmetricKey.js
+        │          
+        ├─jwa
+        │      index.js
+        │      LICENSE
+        │      package.json
+        │      README.md
+        │      
+        ├─jws
+        │  │  CHANGELOG.md
+        │  │  index.js
+        │  │  LICENSE
+        │  │  package.json
+        │  │  readme.md
+        │  │  
+        │  └─lib
+        │          data-stream.js
+        │          sign-stream.js
+        │          tostring.js
+        │          verify-stream.js
+        │          
+        ├─lodash.defaults
+        │      index.js
+        │      LICENSE
+        │      package.json
+        │      README.md
+        │      
+        ├─lodash.includes
+        │      index.js
+        │      LICENSE
+        │      package.json
+        │      README.md
+        │      
+        ├─lodash.isarguments
+        │      index.js
+        │      LICENSE
+        │      package.json
+        │      README.md
+        │      
+        ├─lodash.isboolean
+        │      index.js
+        │      LICENSE
+        │      package.json
+        │      README.md
+        │      
+        ├─lodash.isinteger
+        │      index.js
+        │      LICENSE
+        │      package.json
+        │      README.md
+        │      
+        ├─lodash.isnumber
+        │      index.js
+        │      LICENSE
+        │      package.json
+        │      README.md
+        │      
+        ├─lodash.isplainobject
+        │      index.js
+        │      LICENSE
+        │      package.json
+        │      README.md
+        │      
+        ├─lodash.isstring
+        │      index.js
+        │      LICENSE
+        │      package.json
+        │      README.md
+        │      
+        ├─lodash.once
+        │      index.js
+        │      LICENSE
+        │      package.json
+        │      README.md
+        │      
+        ├─long
+        │  │  index.d.ts
+        │  │  index.js
+        │  │  LICENSE
+        │  │  package.json
+        │  │  README.md
+        │  │  types.d.ts
+        │  │  
+        │  └─umd
+        │          index.d.ts
+        │          index.js
+        │          package.json
+        │          types.d.ts
+        │          
+        ├─lru-cache
+        │      index.d.ts
+        │      index.js
+        │      index.mjs
+        │      LICENSE
+        │      package.json
+        │      README.md
+        │      
+        ├─lru.min
+        │  │  LICENSE
+        │  │  package.json
+        │  │  README.md
+        │  │  
+        │  ├─browser
+        │  │      lru.min.js
+        │  │      
+        │  └─lib
+        │          index.d.ts
+        │          index.js
+        │          index.mjs
+        │          
+        ├─math-intrinsics
+        │  │  .eslintrc
+        │  │  abs.d.ts
+        │  │  abs.js
+        │  │  CHANGELOG.md
+        │  │  floor.d.ts
+        │  │  floor.js
+        │  │  isFinite.d.ts
+        │  │  isFinite.js
+        │  │  isInteger.d.ts
+        │  │  isInteger.js
+        │  │  isNaN.d.ts
+        │  │  isNaN.js
+        │  │  isNegativeZero.d.ts
+        │  │  isNegativeZero.js
+        │  │  LICENSE
+        │  │  max.d.ts
+        │  │  max.js
+        │  │  min.d.ts
+        │  │  min.js
+        │  │  mod.d.ts
+        │  │  mod.js
+        │  │  package.json
+        │  │  pow.d.ts
+        │  │  pow.js
+        │  │  README.md
+        │  │  round.d.ts
+        │  │  round.js
+        │  │  sign.d.ts
+        │  │  sign.js
+        │  │  tsconfig.json
+        │  │  
+        │  ├─.github
+        │  │      FUNDING.yml
+        │  │      
+        │  ├─constants
+        │  │      maxArrayLength.d.ts
+        │  │      maxArrayLength.js
+        │  │      maxSafeInteger.d.ts
+        │  │      maxSafeInteger.js
+        │  │      maxValue.d.ts
+        │  │      maxValue.js
+        │  │      
+        │  └─test
+        │          index.js
+        │          
+        ├─media-typer
+        │      HISTORY.md
+        │      index.js
+        │      LICENSE
+        │      package.json
+        │      README.md
+        │      
+        ├─merge-descriptors
+        │      index.d.ts
+        │      index.js
+        │      license
+        │      package.json
+        │      readme.md
+        │      
+        ├─mime-db
+        │      db.json
+        │      HISTORY.md
+        │      index.js
+        │      LICENSE
+        │      package.json
+        │      README.md
+        │      
+        ├─mime-types
+        │      HISTORY.md
+        │      index.js
+        │      LICENSE
+        │      mimeScore.js
+        │      package.json
+        │      README.md
+        │      
+        ├─ms
+        │      index.js
+        │      license.md
+        │      package.json
+        │      readme.md
+        │      
+        ├─mysql2
+        │  │  index.d.ts
+        │  │  index.js
+        │  │  License
+        │  │  package.json
+        │  │  promise.d.ts
+        │  │  promise.js
+        │  │  README.md
+        │  │  
+        │  ├─lib
+        │  │  │  auth_41.js
+        │  │  │  compressed_protocol.js
+        │  │  │  connection.js
+        │  │  │  connection_config.js
+        │  │  │  create_connection.js
+        │  │  │  create_pool.js
+        │  │  │  create_pool_cluster.js
+        │  │  │  helpers.js
+        │  │  │  packet_parser.js
+        │  │  │  pool.js
+        │  │  │  pool_cluster.js
+        │  │  │  pool_config.js
+        │  │  │  pool_connection.js
+        │  │  │  results_stream.js
+        │  │  │  server.js
+        │  │  │  
+        │  │  ├─auth_plugins
+        │  │  │      caching_sha2_password.js
+        │  │  │      caching_sha2_password.md
+        │  │  │      index.js
+        │  │  │      mysql_clear_password.js
+        │  │  │      mysql_native_password.js
+        │  │  │      sha256_password.js
+        │  │  │      
+        │  │  ├─base
+        │  │  │      connection.js
+        │  │  │      pool.js
+        │  │  │      pool_connection.js
+        │  │  │      
+        │  │  ├─commands
+        │  │  │      auth_switch.js
+        │  │  │      binlog_dump.js
+        │  │  │      change_user.js
+        │  │  │      client_handshake.js
+        │  │  │      close_statement.js
+        │  │  │      command.js
+        │  │  │      execute.js
+        │  │  │      index.js
+        │  │  │      ping.js
+        │  │  │      prepare.js
+        │  │  │      query.js
+        │  │  │      quit.js
+        │  │  │      register_slave.js
+        │  │  │      server_handshake.js
+        │  │  │      
+        │  │  ├─constants
+        │  │  │      charsets.js
+        │  │  │      charset_encodings.js
+        │  │  │      client.js
+        │  │  │      commands.js
+        │  │  │      cursor.js
+        │  │  │      encoding_charset.js
+        │  │  │      errors.js
+        │  │  │      field_flags.js
+        │  │  │      server_status.js
+        │  │  │      session_track.js
+        │  │  │      ssl_profiles.js
+        │  │  │      types.js
+        │  │  │      
+        │  │  ├─packets
+        │  │  │      auth_next_factor.js
+        │  │  │      auth_switch_request.js
+        │  │  │      auth_switch_request_more_data.js
+        │  │  │      auth_switch_response.js
+        │  │  │      binary_row.js
+        │  │  │      binlog_dump.js
+        │  │  │      binlog_query_statusvars.js
+        │  │  │      change_user.js
+        │  │  │      close_statement.js
+        │  │  │      column_definition.js
+        │  │  │      execute.js
+        │  │  │      handshake.js
+        │  │  │      handshake_response.js
+        │  │  │      index.js
+        │  │  │      packet.js
+        │  │  │      prepared_statement_header.js
+        │  │  │      prepare_statement.js
+        │  │  │      query.js
+        │  │  │      register_slave.js
+        │  │  │      resultset_header.js
+        │  │  │      ssl_request.js
+        │  │  │      text_row.js
+        │  │  │      
+        │  │  ├─parsers
+        │  │  │      binary_parser.js
+        │  │  │      parser_cache.js
+        │  │  │      static_binary_parser.js
+        │  │  │      static_text_parser.js
+        │  │  │      string.js
+        │  │  │      text_parser.js
+        │  │  │      
+        │  │  └─promise
+        │  │          connection.js
+        │  │          inherit_events.js
+        │  │          make_done_cb.js
+        │  │          pool.js
+        │  │          pool_cluster.js
+        │  │          pool_connection.js
+        │  │          prepared_statement_info.js
+        │  │          
+        │  └─typings
+        │      └─mysql
+        │          │  index.d.ts
+        │          │  info.txt
+        │          │  LICENSE.txt
+        │          │  
+        │          └─lib
+        │              │  Auth.d.ts
+        │              │  Connection.d.ts
+        │              │  Pool.d.ts
+        │              │  PoolCluster.d.ts
+        │              │  PoolConnection.d.ts
+        │              │  Server.d.ts
+        │              │  
+        │              ├─constants
+        │              │      Charsets.d.ts
+        │              │      CharsetToEncoding.d.ts
+        │              │      index.d.ts
+        │              │      Types.d.ts
+        │              │      
+        │              ├─parsers
+        │              │      index.d.ts
+        │              │      ParserCache.d.ts
+        │              │      typeCast.d.ts
+        │              │      
+        │              └─protocol
+        │                  ├─packets
+        │                  │  │  Field.d.ts
+        │                  │  │  FieldPacket.d.ts
+        │                  │  │  index.d.ts
+        │                  │  │  OkPacket.d.ts
+        │                  │  │  ProcedurePacket.d.ts
+        │                  │  │  ResultSetHeader.d.ts
+        │                  │  │  RowDataPacket.d.ts
+        │                  │  │  
+        │                  │  └─params
+        │                  │          ErrorPacketParams.d.ts
+        │                  │          OkPacketParams.d.ts
+        │                  │          
+        │                  └─sequences
+        │                      │  ExecutableBase.d.ts
+        │                      │  Prepare.d.ts
+        │                      │  Query.d.ts
+        │                      │  QueryableBase.d.ts
+        │                      │  Sequence.d.ts
+        │                      │  
+        │                      └─promise
+        │                              ExecutableBase.d.ts
+        │                              QueryableBase.d.ts
+        │                              
+        ├─named-placeholders
+        │      index.js
+        │      LICENSE
+        │      package.json
+        │      README.md
+        │      
+        ├─negotiator
+        │  │  HISTORY.md
+        │  │  index.js
+        │  │  LICENSE
+        │  │  package.json
+        │  │  README.md
+        │  │  
+        │  └─lib
+        │          charset.js
+        │          encoding.js
+        │          language.js
+        │          mediaType.js
+        │          
+        ├─nodemailer
+        │  │  .gitattributes
+        │  │  .ncurc.js
+        │  │  .prettierrc.js
+        │  │  CHANGELOG.md
+        │  │  CODE_OF_CONDUCT.md
+        │  │  LICENSE
+        │  │  package.json
+        │  │  README.md
+        │  │  SECURITY.txt
+        │  │  
+        │  └─lib
+        │      │  nodemailer.js
+        │      │  
+        │      ├─addressparser
+        │      │      index.js
+        │      │      
+        │      ├─base64
+        │      │      index.js
+        │      │      
+        │      ├─dkim
+        │      │      index.js
+        │      │      message-parser.js
+        │      │      relaxed-body.js
+        │      │      sign.js
+        │      │      
+        │      ├─fetch
+        │      │      cookies.js
+        │      │      index.js
+        │      │      
+        │      ├─json-transport
+        │      │      index.js
+        │      │      
+        │      ├─mail-composer
+        │      │      index.js
+        │      │      
+        │      ├─mailer
+        │      │      index.js
+        │      │      mail-message.js
+        │      │      
+        │      ├─mime-funcs
+        │      │      index.js
+        │      │      mime-types.js
+        │      │      
+        │      ├─mime-node
+        │      │      index.js
+        │      │      last-newline.js
+        │      │      le-unix.js
+        │      │      le-windows.js
+        │      │      
+        │      ├─punycode
+        │      │      index.js
+        │      │      
+        │      ├─qp
+        │      │      index.js
+        │      │      
+        │      ├─sendmail-transport
+        │      │      index.js
+        │      │      
+        │      ├─ses-transport
+        │      │      index.js
+        │      │      
+        │      ├─shared
+        │      │      index.js
+        │      │      
+        │      ├─smtp-connection
+        │      │      data-stream.js
+        │      │      http-proxy-client.js
+        │      │      index.js
+        │      │      
+        │      ├─smtp-pool
+        │      │      index.js
+        │      │      pool-resource.js
+        │      │      
+        │      ├─smtp-transport
+        │      │      index.js
+        │      │      
+        │      ├─stream-transport
+        │      │      index.js
+        │      │      
+        │      ├─well-known
+        │      │      index.js
+        │      │      services.json
+        │      │      
+        │      └─xoauth2
+        │              index.js
+        │              
+        ├─object-assign
+        │      index.js
+        │      license
+        │      package.json
+        │      readme.md
+        │      
+        ├─object-inspect
+        │  │  .eslintrc
+        │  │  .nycrc
+        │  │  CHANGELOG.md
+        │  │  index.js
+        │  │  LICENSE
+        │  │  package-support.json
+        │  │  package.json
+        │  │  readme.markdown
+        │  │  test-core-js.js
+        │  │  util.inspect.js
+        │  │  
+        │  ├─.github
+        │  │      FUNDING.yml
+        │  │      
+        │  ├─example
+        │  │      all.js
+        │  │      circular.js
+        │  │      fn.js
+        │  │      inspect.js
+        │  │      
+        │  └─test
+        │      │  bigint.js
+        │      │  circular.js
+        │      │  deep.js
+        │      │  element.js
+        │      │  err.js
+        │      │  fakes.js
+        │      │  fn.js
+        │      │  global.js
+        │      │  has.js
+        │      │  holes.js
+        │      │  indent-option.js
+        │      │  inspect.js
+        │      │  lowbyte.js
+        │      │  number.js
+        │      │  quoteStyle.js
+        │      │  toStringTag.js
+        │      │  undef.js
+        │      │  values.js
+        │      │  
+        │      └─browser
+        │              dom.js
+        │              
+        ├─on-finished
+        │      HISTORY.md
+        │      index.js
+        │      LICENSE
+        │      package.json
+        │      README.md
+        │      
+        ├─once
+        │      LICENSE
+        │      once.js
+        │      package.json
+        │      README.md
+        │      
+        ├─parseurl
+        │      HISTORY.md
+        │      index.js
+        │      LICENSE
+        │      package.json
+        │      README.md
+        │      
+        ├─path-to-regexp
+        │  │  LICENSE
+        │  │  package.json
+        │  │  Readme.md
+        │  │  
+        │  └─dist
+        │          index.d.ts
+        │          index.js
+        │          index.js.map
+        │          
+        ├─proxy-addr
+        │      HISTORY.md
+        │      index.js
+        │      LICENSE
+        │      package.json
+        │      README.md
+        │      
+        ├─qs
+        │  │  .editorconfig
+        │  │  .eslintrc
+        │  │  .nycrc
+        │  │  CHANGELOG.md
+        │  │  LICENSE.md
+        │  │  package.json
+        │  │  README.md
+        │  │  
+        │  ├─.github
+        │  │      FUNDING.yml
+        │  │      
+        │  ├─dist
+        │  │      qs.js
+        │  │      
+        │  ├─lib
+        │  │      formats.js
+        │  │      index.js
+        │  │      parse.js
+        │  │      stringify.js
+        │  │      utils.js
+        │  │      
+        │  └─test
+        │          empty-keys-cases.js
+        │          parse.js
+        │          stringify.js
+        │          utils.js
+        │          
+        ├─range-parser
+        │      HISTORY.md
+        │      index.js
+        │      LICENSE
+        │      package.json
+        │      README.md
+        │      
+        ├─raw-body
+        │      HISTORY.md
+        │      index.d.ts
+        │      index.js
+        │      LICENSE
+        │      package.json
+        │      README.md
+        │      SECURITY.md
+        │      
+        ├─redis-errors
+        │  │  .npmignore
+        │  │  index.js
+        │  │  LICENSE
+        │  │  package.json
+        │  │  README.md
+        │  │  
+        │  └─lib
+        │          modern.js
+        │          old.js
+        │          
+        ├─redis-parser
+        │  │  .npmignore
+        │  │  changelog.md
+        │  │  index.js
+        │  │  LICENSE
+        │  │  package.json
+        │  │  README.md
+        │  │  
+        │  └─lib
+        │          parser.js
+        │          
+        ├─router
+        │  │  HISTORY.md
+        │  │  index.js
+        │  │  LICENSE
+        │  │  package.json
+        │  │  README.md
+        │  │  
+        │  └─lib
+        │          layer.js
+        │          route.js
+        │          
+        ├─safe-buffer
+        │      index.d.ts
+        │      index.js
+        │      LICENSE
+        │      package.json
+        │      README.md
+        │      
+        ├─safer-buffer
+        │      dangerous.js
+        │      LICENSE
+        │      package.json
+        │      Porting-Buffer.md
+        │      Readme.md
+        │      safer.js
+        │      tests.js
+        │      
+        ├─semver
+        │  │  index.js
+        │  │  LICENSE
+        │  │  package.json
+        │  │  preload.js
+        │  │  range.bnf
+        │  │  README.md
+        │  │  
+        │  ├─bin
+        │  │      semver.js
+        │  │      
+        │  ├─classes
+        │  │      comparator.js
+        │  │      index.js
+        │  │      range.js
+        │  │      semver.js
+        │  │      
+        │  ├─functions
+        │  │      clean.js
+        │  │      cmp.js
+        │  │      coerce.js
+        │  │      compare-build.js
+        │  │      compare-loose.js
+        │  │      compare.js
+        │  │      diff.js
+        │  │      eq.js
+        │  │      gt.js
+        │  │      gte.js
+        │  │      inc.js
+        │  │      lt.js
+        │  │      lte.js
+        │  │      major.js
+        │  │      minor.js
+        │  │      neq.js
+        │  │      parse.js
+        │  │      patch.js
+        │  │      prerelease.js
+        │  │      rcompare.js
+        │  │      rsort.js
+        │  │      satisfies.js
+        │  │      sort.js
+        │  │      valid.js
+        │  │      
+        │  ├─internal
+        │  │      constants.js
+        │  │      debug.js
+        │  │      identifiers.js
+        │  │      lrucache.js
+        │  │      parse-options.js
+        │  │      re.js
+        │  │      
+        │  └─ranges
+        │          gtr.js
+        │          intersects.js
+        │          ltr.js
+        │          max-satisfying.js
+        │          min-satisfying.js
+        │          min-version.js
+        │          outside.js
+        │          simplify.js
+        │          subset.js
+        │          to-comparators.js
+        │          valid.js
+        │          
+        ├─send
+        │      HISTORY.md
+        │      index.js
+        │      LICENSE
+        │      package.json
+        │      README.md
+        │      
+        ├─seq-queue
+        │  │  .jshintrc
+        │  │  .npmignore
+        │  │  AUTHORS
+        │  │  index.js
+        │  │  LICENSE
+        │  │  Makefile
+        │  │  package.json
+        │  │  README.md
+        │  │  
+        │  ├─lib
+        │  │      .npmignore
+        │  │      seq-queue.js
+        │  │      
+        │  └─test
+        │          seq-queue-test.js
+        │          
+        ├─serve-static
+        │      HISTORY.md
+        │      index.js
+        │      LICENSE
+        │      package.json
+        │      README.md
+        │      
+        ├─setprototypeof
+        │  │  index.d.ts
+        │  │  index.js
+        │  │  LICENSE
+        │  │  package.json
+        │  │  README.md
+        │  │  
+        │  └─test
+        │          index.js
+        │          
+        ├─side-channel
+        │  │  .editorconfig
+        │  │  .eslintrc
+        │  │  .nycrc
+        │  │  CHANGELOG.md
+        │  │  index.d.ts
+        │  │  index.js
+        │  │  LICENSE
+        │  │  package.json
+        │  │  README.md
+        │  │  tsconfig.json
+        │  │  
+        │  ├─.github
+        │  │      FUNDING.yml
+        │  │      
+        │  └─test
+        │          index.js
+        │          
+        ├─side-channel-list
+        │  │  .editorconfig
+        │  │  .eslintrc
+        │  │  .nycrc
+        │  │  CHANGELOG.md
+        │  │  index.d.ts
+        │  │  index.js
+        │  │  LICENSE
+        │  │  list.d.ts
+        │  │  package.json
+        │  │  README.md
+        │  │  tsconfig.json
+        │  │  
+        │  ├─.github
+        │  │      FUNDING.yml
+        │  │      
+        │  └─test
+        │          index.js
+        │          
+        ├─side-channel-map
+        │  │  .editorconfig
+        │  │  .eslintrc
+        │  │  .nycrc
+        │  │  CHANGELOG.md
+        │  │  index.d.ts
+        │  │  index.js
+        │  │  LICENSE
+        │  │  package.json
+        │  │  README.md
+        │  │  tsconfig.json
+        │  │  
+        │  ├─.github
+        │  │      FUNDING.yml
+        │  │      
+        │  └─test
+        │          index.js
+        │          
+        ├─side-channel-weakmap
+        │  │  .editorconfig
+        │  │  .eslintrc
+        │  │  .nycrc
+        │  │  CHANGELOG.md
+        │  │  index.d.ts
+        │  │  index.js
+        │  │  LICENSE
+        │  │  package.json
+        │  │  README.md
+        │  │  tsconfig.json
+        │  │  
+        │  ├─.github
+        │  │      FUNDING.yml
+        │  │      
+        │  └─test
+        │          index.js
+        │          
+        ├─sqlstring
+        │  │  HISTORY.md
+        │  │  index.js
+        │  │  LICENSE
+        │  │  package.json
+        │  │  README.md
+        │  │  
+        │  └─lib
+        │          SqlString.js
+        │          
+        ├─standard-as-callback
+        │  │  LICENSE
+        │  │  package.json
+        │  │  README.md
+        │  │  
+        │  └─built
+        │          index.d.ts
+        │          index.js
+        │          types.d.ts
+        │          types.js
+        │          utils.d.ts
+        │          utils.js
+        │          
+        ├─statuses
+        │      codes.json
+        │      HISTORY.md
+        │      index.js
+        │      LICENSE
+        │      package.json
+        │      README.md
+        │      
+        ├─toidentifier
+        │      HISTORY.md
+        │      index.js
+        │      LICENSE
+        │      package.json
+        │      README.md
+        │      
+        ├─type-is
+        │      HISTORY.md
+        │      index.js
+        │      LICENSE
+        │      package.json
+        │      README.md
+        │      
+        ├─unpipe
+        │      HISTORY.md
+        │      index.js
+        │      LICENSE
+        │      package.json
+        │      README.md
+        │      
+        ├─validator
+        │  │  index.js
+        │  │  LICENSE
+        │  │  package.json
+        │  │  README.md
+        │  │  validator.js
+        │  │  validator.min.js
+        │  │  
+        │  ├─es
+        │  │  │  index.js
+        │  │  │  
+        │  │  └─lib
+        │  │      │  alpha.js
+        │  │      │  blacklist.js
+        │  │      │  contains.js
+        │  │      │  equals.js
+        │  │      │  escape.js
+        │  │      │  isAbaRouting.js
+        │  │      │  isAfter.js
+        │  │      │  isAlpha.js
+        │  │      │  isAlphanumeric.js
+        │  │      │  isAscii.js
+        │  │      │  isBase32.js
+        │  │      │  isBase58.js
+        │  │      │  isBase64.js
+        │  │      │  isBefore.js
+        │  │      │  isBIC.js
+        │  │      │  isBoolean.js
+        │  │      │  isBtcAddress.js
+        │  │      │  isByteLength.js
+        │  │      │  isCreditCard.js
+        │  │      │  isCurrency.js
+        │  │      │  isDataURI.js
+        │  │      │  isDate.js
+        │  │      │  isDecimal.js
+        │  │      │  isDivisibleBy.js
+        │  │      │  isEAN.js
+        │  │      │  isEmail.js
+        │  │      │  isEmpty.js
+        │  │      │  isEthereumAddress.js
+        │  │      │  isFloat.js
+        │  │      │  isFQDN.js
+        │  │      │  isFullWidth.js
+        │  │      │  isHalfWidth.js
+        │  │      │  isHash.js
+        │  │      │  isHexadecimal.js
+        │  │      │  isHexColor.js
+        │  │      │  isHSL.js
+        │  │      │  isIBAN.js
+        │  │      │  isIdentityCard.js
+        │  │      │  isIMEI.js
+        │  │      │  isIn.js
+        │  │      │  isInt.js
+        │  │      │  isIP.js
+        │  │      │  isIPRange.js
+        │  │      │  isISBN.js
+        │  │      │  isISIN.js
+        │  │      │  isISO15924.js
+        │  │      │  isISO31661Alpha2.js
+        │  │      │  isISO31661Alpha3.js
+        │  │      │  isISO31661Numeric.js
+        │  │      │  isISO4217.js
+        │  │      │  isISO6346.js
+        │  │      │  isISO6391.js
+        │  │      │  isISO8601.js
+        │  │      │  isISRC.js
+        │  │      │  isISSN.js
+        │  │      │  isJSON.js
+        │  │      │  isJWT.js
+        │  │      │  isLatLong.js
+        │  │      │  isLength.js
+        │  │      │  isLicensePlate.js
+        │  │      │  isLocale.js
+        │  │      │  isLowercase.js
+        │  │      │  isLuhnNumber.js
+        │  │      │  isMACAddress.js
+        │  │      │  isMagnetURI.js
+        │  │      │  isMailtoURI.js
+        │  │      │  isMD5.js
+        │  │      │  isMimeType.js
+        │  │      │  isMobilePhone.js
+        │  │      │  isMongoId.js
+        │  │      │  isMultibyte.js
+        │  │      │  isNumeric.js
+        │  │      │  isOctal.js
+        │  │      │  isPassportNumber.js
+        │  │      │  isPort.js
+        │  │      │  isPostalCode.js
+        │  │      │  isRFC3339.js
+        │  │      │  isRgbColor.js
+        │  │      │  isSemVer.js
+        │  │      │  isSlug.js
+        │  │      │  isStrongPassword.js
+        │  │      │  isSurrogatePair.js
+        │  │      │  isTaxID.js
+        │  │      │  isTime.js
+        │  │      │  isULID.js
+        │  │      │  isUppercase.js
+        │  │      │  isURL.js
+        │  │      │  isUUID.js
+        │  │      │  isVariableWidth.js
+        │  │      │  isVAT.js
+        │  │      │  isWhitelisted.js
+        │  │      │  ltrim.js
+        │  │      │  matches.js
+        │  │      │  normalizeEmail.js
+        │  │      │  rtrim.js
+        │  │      │  stripLow.js
+        │  │      │  toBoolean.js
+        │  │      │  toDate.js
+        │  │      │  toFloat.js
+        │  │      │  toInt.js
+        │  │      │  trim.js
+        │  │      │  unescape.js
+        │  │      │  whitelist.js
+        │  │      │  
+        │  │      └─util
+        │  │              algorithms.js
+        │  │              assertString.js
+        │  │              checkHost.js
+        │  │              includes.js
+        │  │              merge.js
+        │  │              multilineRegex.js
+        │  │              nullUndefinedCheck.js
+        │  │              toString.js
+        │  │              typeOf.js
+        │  │              
+        │  └─lib
+        │      │  alpha.js
+        │      │  blacklist.js
+        │      │  contains.js
+        │      │  equals.js
+        │      │  escape.js
+        │      │  isAbaRouting.js
+        │      │  isAfter.js
+        │      │  isAlpha.js
+        │      │  isAlphanumeric.js
+        │      │  isAscii.js
+        │      │  isBase32.js
+        │      │  isBase58.js
+        │      │  isBase64.js
+        │      │  isBefore.js
+        │      │  isBIC.js
+        │      │  isBoolean.js
+        │      │  isBtcAddress.js
+        │      │  isByteLength.js
+        │      │  isCreditCard.js
+        │      │  isCurrency.js
+        │      │  isDataURI.js
+        │      │  isDate.js
+        │      │  isDecimal.js
+        │      │  isDivisibleBy.js
+        │      │  isEAN.js
+        │      │  isEmail.js
+        │      │  isEmpty.js
+        │      │  isEthereumAddress.js
+        │      │  isFloat.js
+        │      │  isFQDN.js
+        │      │  isFullWidth.js
+        │      │  isHalfWidth.js
+        │      │  isHash.js
+        │      │  isHexadecimal.js
+        │      │  isHexColor.js
+        │      │  isHSL.js
+        │      │  isIBAN.js
+        │      │  isIdentityCard.js
+        │      │  isIMEI.js
+        │      │  isIn.js
+        │      │  isInt.js
+        │      │  isIP.js
+        │      │  isIPRange.js
+        │      │  isISBN.js
+        │      │  isISIN.js
+        │      │  isISO15924.js
+        │      │  isISO31661Alpha2.js
+        │      │  isISO31661Alpha3.js
+        │      │  isISO31661Numeric.js
+        │      │  isISO4217.js
+        │      │  isISO6346.js
+        │      │  isISO6391.js
+        │      │  isISO8601.js
+        │      │  isISRC.js
+        │      │  isISSN.js
+        │      │  isJSON.js
+        │      │  isJWT.js
+        │      │  isLatLong.js
+        │      │  isLength.js
+        │      │  isLicensePlate.js
+        │      │  isLocale.js
+        │      │  isLowercase.js
+        │      │  isLuhnNumber.js
+        │      │  isMACAddress.js
+        │      │  isMagnetURI.js
+        │      │  isMailtoURI.js
+        │      │  isMD5.js
+        │      │  isMimeType.js
+        │      │  isMobilePhone.js
+        │      │  isMongoId.js
+        │      │  isMultibyte.js
+        │      │  isNumeric.js
+        │      │  isOctal.js
+        │      │  isPassportNumber.js
+        │      │  isPort.js
+        │      │  isPostalCode.js
+        │      │  isRFC3339.js
+        │      │  isRgbColor.js
+        │      │  isSemVer.js
+        │      │  isSlug.js
+        │      │  isStrongPassword.js
+        │      │  isSurrogatePair.js
+        │      │  isTaxID.js
+        │      │  isTime.js
+        │      │  isULID.js
+        │      │  isUppercase.js
+        │      │  isURL.js
+        │      │  isUUID.js
+        │      │  isVariableWidth.js
+        │      │  isVAT.js
+        │      │  isWhitelisted.js
+        │      │  ltrim.js
+        │      │  matches.js
+        │      │  normalizeEmail.js
+        │      │  rtrim.js
+        │      │  stripLow.js
+        │      │  toBoolean.js
+        │      │  toDate.js
+        │      │  toFloat.js
+        │      │  toInt.js
+        │      │  trim.js
+        │      │  unescape.js
+        │      │  whitelist.js
+        │      │  
+        │      └─util
+        │              algorithms.js
+        │              assertString.js
+        │              checkHost.js
+        │              includes.js
+        │              merge.js
+        │              multilineRegex.js
+        │              nullUndefinedCheck.js
+        │              toString.js
+        │              typeOf.js
+        │              
+        ├─vary
+        │      HISTORY.md
+        │      index.js
+        │      LICENSE
+        │      package.json
+        │      README.md
+        │      
+        └─wrappy
+                LICENSE
+                package.json
+                README.md
+                wrappy.js
+                

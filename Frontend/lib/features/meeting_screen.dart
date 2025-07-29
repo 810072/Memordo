@@ -11,17 +11,16 @@ import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../layout/bottom_section_controller.dart';
-// import '../layout/main_layout.dart'; // MainLayout 임포트 제거
-// import '../layout/right_sidebar_content.dart'; // RightSidebarContent 임포트 제거 (MeetingScreen에서 직접 사용 안함)
 import '../widgets/ai_summary_widget.dart';
 import '../utils/ai_service.dart';
 import '../utils/web_helper.dart' as web_helper;
 import 'page_type.dart';
 import '../model/file_system_entry.dart';
-import '../providers/file_system_provider.dart'; // FileSystemProvider 임포트
+import '../providers/file_system_provider.dart';
 
-// 옵시디언 스타일 마크다운 에디터 컨트롤러 (커서 위치 수정 버전)
+// ObsidianMarkdownController 클래스는 기존과 동일하게 유지됩니다.
 class ObsidianMarkdownController extends TextEditingController {
+  // ... (이전 코드와 동일)
   final Map<String, TextStyle> _styleMap;
 
   // 정규식을 미리 컴파일해서 성능 최적화
@@ -354,11 +353,13 @@ class _MeetingScreenState extends State<MeetingScreen> {
   final FocusNode _focusNode = FocusNode();
 
   String _saveStatus = '';
-
   bool _showHintText = true;
 
   String? _currentEditingFilePath;
   String _currentEditingFileName = '새 메모';
+
+  // [수정 1] Provider 인스턴스를 저장할 멤버 변수 선언
+  FileSystemProvider? _fileSystemProvider;
 
   @override
   void initState() {
@@ -431,22 +432,15 @@ class _MeetingScreenState extends State<MeetingScreen> {
       }
     });
 
-    // Initial scan for file system using the provider
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<FileSystemProvider>(
+      // [수정 2] initState에서 Provider 인스턴스를 가져와 변수에 저장하고 사용합니다.
+      _fileSystemProvider = Provider.of<FileSystemProvider>(
         context,
         listen: false,
-      ).scanForFileSystem();
-    });
+      );
+      _fileSystemProvider?.scanForFileSystem();
+      _fileSystemProvider?.addListener(_handleSelectedFileChange); // 리스너 추가
 
-    // MeetingScreen이 활성화되어 있을 때만 FileSystemProvider의 selectedFileForMeetingScreen 구독
-    // Provider.of를 사용하여 selectedFileForMeetingScreen 변경을 감지하고 에디터 업데이트
-    Provider.of<FileSystemProvider>(
-      context,
-      listen: false,
-    ).addListener(_handleSelectedFileChange);
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
       final bottomController = Provider.of<BottomSectionController>(
         context,
         listen: false,
@@ -467,18 +461,13 @@ class _MeetingScreenState extends State<MeetingScreen> {
             : '새 메모';
   }
 
-  // FileSystemProvider의 selectedFileForMeetingScreen 변경을 처리하는 리스너
   void _handleSelectedFileChange() {
-    final fileSystemProvider = Provider.of<FileSystemProvider>(
-      context,
-      listen: false,
-    );
-    final selectedEntry = fileSystemProvider.selectedFileForMeetingScreen;
+    // [수정 3] Provider.of 대신 저장된 멤버 변수(_fileSystemProvider)를 사용합니다.
+    final selectedEntry = _fileSystemProvider?.selectedFileForMeetingScreen;
     if (selectedEntry != null &&
         selectedEntry.path != _currentEditingFilePath) {
       loadSelectedMemo(selectedEntry);
-      // 파일을 로드한 후 selectedFileForMeetingScreen을 null로 초기화하여 중복 로드 방지
-      fileSystemProvider.setSelectedFileForMeetingScreen(null);
+      _fileSystemProvider?.setSelectedFileForMeetingScreen(null);
     }
   }
 
@@ -486,10 +475,8 @@ class _MeetingScreenState extends State<MeetingScreen> {
   void dispose() {
     _controller.dispose();
     _focusNode.dispose();
-    Provider.of<FileSystemProvider>(
-      context,
-      listen: false,
-    ).removeListener(_handleSelectedFileChange); // 리스너 제거
+    // [수정 4] Provider.of 대신 저장된 멤버 변수를 사용하여 안전하게 리스너를 제거합니다.
+    _fileSystemProvider?.removeListener(_handleSelectedFileChange);
     super.dispose();
   }
 
@@ -532,7 +519,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
         setState(() {
           _saveStatus = "저장 완료: ${_currentEditingFileName}.md ✅";
         });
-        fileSystemProvider.scanForFileSystem(); // Use provider
+        fileSystemProvider.scanForFileSystem();
         return;
       } catch (e) {
         if (!mounted) return;
@@ -567,9 +554,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
         if (filePath != null) {
           final file = File(filePath);
           await file.writeAsString(content);
-          fileSystemProvider.updateLastSavedDirectoryPath(
-            p.dirname(filePath),
-          ); // Update provider
+          fileSystemProvider.updateLastSavedDirectoryPath(p.dirname(filePath));
 
           if (!mounted) return;
           setState(() {
@@ -577,7 +562,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
             _currentEditingFileName = p.basenameWithoutExtension(filePath);
             _saveStatus = "새 파일 저장 완료: $filePath ✅";
           });
-          fileSystemProvider.scanForFileSystem(); // Use provider
+          fileSystemProvider.scanForFileSystem();
         } else {
           if (!mounted) return;
           setState(() {
@@ -643,9 +628,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
           content = await file.readAsString();
           fileName = p.basenameWithoutExtension(file.path);
           filePath = file.path;
-          fileSystemProvider.updateLastSavedDirectoryPath(
-            p.dirname(file.path),
-          ); // Update provider
+          fileSystemProvider.updateLastSavedDirectoryPath(p.dirname(file.path));
         } else {
           if (!mounted) return;
           setState(() {
@@ -672,7 +655,6 @@ class _MeetingScreenState extends State<MeetingScreen> {
     }
   }
 
-  // 이 함수는 FileSystemProvider에 의해 호출될 수 있음
   Future<void> loadSelectedMemo(FileSystemEntry entry) async {
     if (entry.isDirectory) {
       debugPrint('폴더는 로드할 수 없습니다: ${entry.name}');
@@ -809,7 +791,6 @@ class _MeetingScreenState extends State<MeetingScreen> {
     final bottomController = Provider.of<BottomSectionController>(context);
     final fileSystemProvider = Provider.of<FileSystemProvider>(context);
 
-    // MeetingScreen은 이제 메인 콘텐츠 영역만 반환합니다.
     return Padding(
       padding: const EdgeInsets.all(24.0),
       child: SingleChildScrollView(
@@ -832,7 +813,6 @@ class _MeetingScreenState extends State<MeetingScreen> {
                     _buildButton(
                       Icons.create_new_folder_outlined,
                       '새 폴더',
-                      // FileSystemProvider를 통해 폴더 생성
                       () => fileSystemProvider.createNewFolder(context, ''),
                       const Color(0xFF2ecc71),
                       fgColor: Colors.white,
@@ -990,7 +970,6 @@ class _MeetingScreenState extends State<MeetingScreen> {
   }
 }
 
-// 기존 코드 유지 (파일 하단에 있는 중복 선언 제거)
 class _LineMatch {
   final RegExpMatch match;
   final String type;

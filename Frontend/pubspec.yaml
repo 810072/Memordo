@@ -51,6 +51,7 @@ dependencies:
   graphview: ^1.0.4
   flutter_highlighter: ^0.1.1
   window_manager: ^0.3.0 # ✅ 새로 추가
+  desktop_multi_window: ^0.2.1
 
 
 

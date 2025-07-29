@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+// import 'package:flutter/services.dart'; // RawKeyboardListener를 사용하지 않으므로 제거 가능
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -21,7 +21,7 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final FocusNode _focusNode = FocusNode();
+  // final FocusNode _focusNode = FocusNode(); // 더 이상 필요 없으므로 제거
   bool _isLoading = false;
   bool _isGoogleLoading = false;
 
@@ -32,7 +32,7 @@ class _LoginPageState extends State<LoginPage> {
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
-    _focusNode.dispose();
+    // _focusNode.dispose(); // 더 이상 필요 없으므로 제거
     super.dispose();
   }
 
@@ -189,7 +189,7 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  // 인증 코드 대기 함수 (로컬 서버 사용)
+  // 인증 코드 대기 함수
   Future<String?> _waitForCode(String redirectUriString) async {
     HttpServer? server;
     try {
@@ -263,6 +263,7 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  // 스낵바 함수
   void _showSnackBar(String message, {bool isError = false}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -278,117 +279,110 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  void _handleKey(RawKeyEvent event) {
-    if (event is RawKeyDownEvent &&
-        event.logicalKey == LogicalKeyboardKey.enter &&
-        !_isLoading &&
-        !_isGoogleLoading) {
-      _login(context);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[100],
-      body: RawKeyboardListener(
-        focusNode: _focusNode,
-        autofocus: true,
-        onKey: _handleKey,
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24.0),
-            child: Card(
-              elevation: 5.0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16.0),
+      // RawKeyboardListener를 제거하고 Center만 남김
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24.0),
+          child: Card(
+            elevation: 5.0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16.0),
+            ),
+            child: Container(
+              width: 400,
+              constraints: const BoxConstraints(maxWidth: 400),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 32.0,
+                vertical: 48.0,
               ),
-              child: Container(
-                width: 400,
-                constraints: const BoxConstraints(maxWidth: 400),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 32.0,
-                  vertical: 48.0,
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.note_alt_rounded,
-                      size: 50,
-                      color: Colors.deepPurple.shade300,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.note_alt_rounded,
+                    size: 50,
+                    color: Colors.deepPurple.shade300,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Memordo',
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.deepPurple.shade400,
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Memordo',
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.deepPurple.shade400,
-                      ),
+                  ),
+                  const SizedBox(height: 40),
+                  _buildTextField(
+                    controller: _emailController,
+                    labelText: 'Email',
+                    icon: Icons.email_outlined,
+                    keyboardType: TextInputType.emailAddress,
+                  ),
+                  const SizedBox(height: 16),
+                  _buildTextField(
+                    controller: _passwordController,
+                    labelText: 'Password',
+                    icon: Icons.lock_outline,
+                    obscureText: true,
+                    // ======== onSubmitted 속성 추가 ========
+                    onSubmitted: (_) {
+                      if (!_isLoading && !_isGoogleLoading) {
+                        _login(context);
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 32),
+                  _buildElevatedButton(
+                    text: 'LOGIN',
+                    onPressed:
+                        _isLoading || _isGoogleLoading
+                            ? null
+                            : () => _login(context),
+                    isLoading: _isLoading,
+                  ),
+                  const SizedBox(height: 16),
+                  _buildGoogleButton(
+                    text: "Continue with Google",
+                    onPressed:
+                        _isLoading || _isGoogleLoading
+                            ? null
+                            : _signInWithGoogle,
+                    isLoading: _isGoogleLoading,
+                  ),
+                  const SizedBox(height: 32),
+                  _buildTextLink(
+                    "Don't have an account? Sign up",
+                    () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => SignUpPage()),
                     ),
-                    const SizedBox(height: 40),
-                    _buildTextField(
-                      controller: _emailController,
-                      labelText: 'Email',
-                      icon: Icons.email_outlined,
-                      keyboardType: TextInputType.emailAddress,
-                    ),
-                    const SizedBox(height: 16),
-                    _buildTextField(
-                      controller: _passwordController,
-                      labelText: 'Password',
-                      icon: Icons.lock_outline,
-                      obscureText: true,
-                    ),
-                    const SizedBox(height: 32),
-                    _buildElevatedButton(
-                      text: 'LOGIN',
-                      onPressed:
-                          _isLoading || _isGoogleLoading
-                              ? null
-                              : () => _login(context),
-                      isLoading: _isLoading,
-                    ),
-                    const SizedBox(height: 16),
-                    _buildGoogleButton(
-                      text: "Continue with Google",
-                      onPressed:
-                          _isLoading || _isGoogleLoading
-                              ? null
-                              : _signInWithGoogle,
-                      isLoading: _isGoogleLoading,
-                    ),
-                    const SizedBox(height: 32),
-                    _buildTextLink(
-                      "Don't have an account? Sign up",
-                      () => Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => SignUpPage()),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        _buildTextLink(
-                          "아이디 찾기",
-                          () => Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (_) => FindIdPage()),
-                          ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _buildTextLink(
+                        "아이디 찾기",
+                        () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => FindIdPage()),
                         ),
-                        _buildTextLink(
-                          "비밀번호 찾기",
-                          () => Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (_) => EmailCheckPage()),
-                          ),
+                      ),
+                      _buildTextLink(
+                        "비밀번호 찾기",
+                        () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => EmailCheckPage()),
                         ),
-                      ],
-                    ),
-                  ],
-                ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
           ),
@@ -397,7 +391,7 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  // --- 공통 위젯 빌더 (이전 답변과 동일) ---
+  // --- 공통 위젯 빌더 수정 ---
   Widget _buildTextField({
     required TextEditingController controller,
     required String labelText,
@@ -405,12 +399,14 @@ class _LoginPageState extends State<LoginPage> {
     bool obscureText = false,
     TextInputType? keyboardType,
     bool enabled = true,
+    void Function(String)? onSubmitted, // onSubmitted 콜백을 파라미터로 받도록 추가
   }) {
     return TextField(
       controller: controller,
       obscureText: obscureText,
       keyboardType: keyboardType,
       enabled: enabled,
+      onSubmitted: onSubmitted, // 전달받은 콜백을 연결
       decoration: InputDecoration(
         labelText: labelText,
         prefixIcon: Icon(icon, color: Colors.grey[600]),
@@ -430,6 +426,9 @@ class _LoginPageState extends State<LoginPage> {
           horizontal: 12.0,
         ),
       ),
+      // 사용자가 다음 필드로 쉽게 이동하거나 입력을 완료할 수 있도록 설정
+      textInputAction:
+          onSubmitted != null ? TextInputAction.done : TextInputAction.next,
     );
   }
 
