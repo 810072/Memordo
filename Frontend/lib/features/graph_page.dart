@@ -1,16 +1,13 @@
-// Frontend/lib/features/graph_page.dart
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:graphview/GraphView.dart';
 import 'package:path/path.dart' as p;
-import './meeting_screen.dart';
+import './meeting_screen.dart'; // 사용자 정의 위젯
+import '../utils/ai_service.dart' as ai_service; // 사용자 정의 서비스
 
-import '../utils/ai_service.dart' as ai_service;
-// import '../layout/main_layout.dart'; // MainLayout 임포트 제거
-import 'page_type.dart';
-
-// 서버로부터 받은 노드와 엣지 데이터를 담을 데이터 모델 클래스
+// 데이터 모델 클래스
 class GraphNodeData {
   final String id;
   GraphNodeData({required this.id});
@@ -43,25 +40,153 @@ class GraphPage extends StatefulWidget {
 
 class _GraphPageState extends State<GraphPage> {
   final Graph graph = Graph();
-  late final Algorithm builder;
+  late Algorithm builder;
 
   bool _isLoading = false;
+  bool _showUserGraph = false;
   String _statusMessage = '그래프를 보려면 우측 상단 버튼을 눌러 임베딩을 생성하세요.';
+
+  static const double _similarityThreshold = 0.8;
+  final double _canvasWidth = 4000;
+  final double _canvasHeight = 4000;
+
+  // 그래프 데이터를 저장할 상태 변수
+  List<GraphNodeData> _allNodesData = [];
+  List<GraphEdgeData> _aiEdges = [];
+  List<GraphEdgeData> _userEdges = [];
+  Set<String> _topicIds = {};
+  final Map<String, Node> _nodeMap = {};
+  Set<String> _activeUserNodeIds = {};
 
   @override
   void initState() {
     super.initState();
-    builder = FruchtermanReingoldAlgorithm(iterations: 1000);
     _loadGraphFromEmbeddingsFile();
   }
 
-  Future<String> _getNotesDirectory() async {
-    final home =
-        Platform.environment['USERPROFILE'] ?? Platform.environment['HOME'];
-    if (home == null) throw Exception('홈 디렉토리를 찾을 수 없습니다.');
-    return Platform.isMacOS
-        ? p.join(home, 'Memordo_Notes')
-        : p.join(home, 'Documents', 'Memordo_Notes');
+  void _setAlgorithm() {
+    builder = FruchtermanReingoldAlgorithm(iterations: 8000);
+  }
+
+  void _updateEdges() {
+    graph.edges.clear();
+    final edgesToShow = _showUserGraph ? _userEdges : _aiEdges;
+
+    for (var edgeData in edgesToShow) {
+      if (!_showUserGraph && edgeData.similarity < _similarityThreshold) {
+        continue;
+      }
+      final fromNode = _nodeMap[edgeData.from];
+      final toNode = _nodeMap[edgeData.to];
+
+      if (fromNode != null && toNode != null) {
+        final paint =
+            Paint()
+              ..color =
+                  _showUserGraph
+                      ? Colors.blue
+                      : Colors.grey.withOpacity(edgeData.similarity)
+              ..strokeWidth =
+                  _showUserGraph
+                      ? 2.5
+                      : (1.0 + (edgeData.similarity - 0.75) * 16).clamp(
+                        1.0,
+                        5.0,
+                      );
+        graph.addEdge(fromNode, toNode, paint: paint);
+      }
+    }
+  }
+
+  void _buildGraphFromData(Map<String, dynamic> data) {
+    graph.nodes.clear();
+    graph.edges.clear();
+    _nodeMap.clear();
+
+    _topicIds = (data['userTopics'] as List? ?? []).whereType<String>().toSet();
+    _allNodesData =
+        (data['nodes'] as List? ?? [])
+            .map((nodeJson) => GraphNodeData.fromJson(nodeJson))
+            .toList();
+    _aiEdges =
+        (data['edges'] as List? ?? [])
+            .map((edgeJson) => GraphEdgeData.fromJson(edgeJson))
+            .toList();
+    _userEdges =
+        (data['userEdges'] as List? ?? [])
+            .map((edgeJson) => GraphEdgeData.fromJson(edgeJson))
+            .toList();
+
+    // ## [최종 수정 1] 사용자 정의 노드 목록을 여기서 미리 생성 ##
+    _activeUserNodeIds.clear();
+    for (var edge in _userEdges) {
+      _activeUserNodeIds.add(edge.from);
+      _activeUserNodeIds.add(edge.to);
+    }
+
+    for (var nodeData in _allNodesData) {
+      _nodeMap[nodeData.id] = Node.Id(nodeData.id);
+    }
+    for (var topic in _topicIds) {
+      if (!_nodeMap.containsKey(topic)) {
+        _nodeMap[topic] = Node.Id(topic);
+      }
+    }
+
+    if (_nodeMap.isEmpty) {
+      setState(() {
+        _statusMessage = '표시할 노트가 없습니다.';
+        _isLoading = false;
+      });
+      return;
+    }
+
+    final random = Random();
+    for (var node in _nodeMap.values) {
+      node.position = Offset(
+        random.nextDouble() * _canvasWidth,
+        random.nextDouble() * _canvasHeight,
+      );
+    }
+
+    _setAlgorithm();
+
+    for (var node in _nodeMap.values) {
+      graph.addNode(node);
+    }
+
+    _updateEdges();
+
+    setState(() {
+      _isLoading = false;
+    });
+  }
+
+  Future<void> _loadGraphFromEmbeddingsFile() async {
+    setState(() {
+      _isLoading = true;
+      _statusMessage = '저장된 임베딩 파일을 찾는 중...';
+    });
+    try {
+      final notesDir = await _getNotesDirectory();
+      final embeddingsFile = File(p.join(notesDir, 'embeddings.json'));
+
+      if (await embeddingsFile.exists()) {
+        final jsonString = await embeddingsFile.readAsString();
+        final data = jsonDecode(jsonString);
+        _buildGraphFromData(data);
+      } else {
+        setState(() {
+          _statusMessage = '임베딩 파일이 없습니다. 우측 상단 버튼을 눌러 생성해주세요.';
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _statusMessage = '그래프 파일 로딩 중 오류 발생: $e';
+        _isLoading = false;
+      });
+    }
   }
 
   Future<void> _triggerEmbeddingProcess() async {
@@ -74,24 +199,15 @@ class _GraphPageState extends State<GraphPage> {
     try {
       final notesDir = await _getNotesDirectory();
       final directory = Directory(notesDir);
-
       if (!await directory.exists()) {
         _showSnackBar('노트 폴더를 찾을 수 없습니다: $notesDir');
-        setState(() {
-          _isLoading = false;
-          _statusMessage = '노트 폴더를 먼저 생성해주세요.';
-        });
+        setState(() => _isLoading = false);
         return;
       }
-
       final files = await _getAllMarkdownFiles(directory);
-
       if (files.isEmpty) {
         _showSnackBar('노트 폴더에 분석할 .md 파일이 없습니다.');
-        setState(() {
-          _isLoading = false;
-          _statusMessage = '분석할 노트가 없습니다.';
-        });
+        setState(() => _isLoading = false);
         return;
       }
 
@@ -103,19 +219,14 @@ class _GraphPageState extends State<GraphPage> {
       }
 
       final result = await _extractUserDefinedEdgesAndTopics(notesData);
-      final userEdges = result.userEdges;
-      final topicNodes = result.topicNodes;
-
       setState(() {
-        _statusMessage =
-            'AI 서버에 임베딩 요청 중... (${notesData.length}개 파일)\n이 작업은 몇 분 정도 소요될 수 있습니다.';
+        _statusMessage = 'AI 서버에 임베딩 요청 중... (${notesData.length}개 파일)';
       });
 
       final graphData = await ai_service.generateGraphData(notesData);
-
       if (graphData != null && graphData['error'] == null) {
         graphData['userEdges'] =
-            userEdges
+            result.userEdges
                 .map(
                   (e) => {
                     'from': e.from,
@@ -124,185 +235,118 @@ class _GraphPageState extends State<GraphPage> {
                   },
                 )
                 .toList();
-
-        graphData['userTopics'] = topicNodes.toList();
+        graphData['userTopics'] = result.topicNodes.toList();
 
         final jsonString = jsonEncode(graphData);
         final embeddingsFile = File(p.join(notesDir, 'embeddings.json'));
         await embeddingsFile.writeAsString(jsonString);
 
-        _showSnackBar('임베딩 + 사용자 연결 포함 그래프 생성 완료');
+        _showSnackBar('그래프 생성 완료');
         _buildGraphFromData(graphData);
       } else {
         final errorMsg = graphData?['error'] ?? '알 수 없는 오류';
-        _showSnackBar('오류: $errorMsg. 백엔드 서버 로그를 확인하세요.');
+        _showSnackBar('오류: $errorMsg');
         _statusMessage = '그래프 생성에 실패했습니다.';
       }
     } catch (e) {
       _showSnackBar('오류 발생: ${e.toString()}');
       _statusMessage = '오류가 발생했습니다.';
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
-    }
-  }
-
-  Future<List<File>> _getAllMarkdownFiles(Directory dir) async {
-    final List<File> mdFiles = [];
-
-    await for (var entity in dir.list(recursive: true, followLinks: false)) {
-      if (entity is File && p.extension(entity.path).toLowerCase() == '.md') {
-        mdFiles.add(entity);
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
       }
     }
-
-    return mdFiles;
   }
 
-  Future<void> _openNoteEditor(BuildContext context, String filePath) async {
-    final notesDir = await _getNotesDirectory();
-    final fullPath = p.join(notesDir, filePath);
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        AppBar(
+          title: const Text('AI 노트 관계도'),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.hub_rounded),
+              tooltip: '임베딩 생성 및 새로고침',
+              onPressed: _triggerEmbeddingProcess,
+            ),
+            IconButton(
+              icon: Icon(_showUserGraph ? Icons.person : Icons.smart_toy),
+              tooltip: _showUserGraph ? '사용자 정의 링크 보기' : 'AI 추천 관계 보기',
+              // ## [최종 수정 2] 버튼 로직을 가장 간결하고 안정적인 형태로 수정 ##
+              onPressed: () {
+                if (_isLoading || _nodeMap.isEmpty) return;
 
-    final file = File(fullPath);
-    if (await file.exists()) {
-      final content = await file.readAsString();
-      if (!mounted) return;
-      // ✨ 수정: MeetingScreen을 Scaffold로 감싸서 Material 위젯 문제를 해결합니다.
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder:
-              (context) => Scaffold(
-                appBar: AppBar(
-                  title: Text(p.basenameWithoutExtension(filePath)),
-                  leading: IconButton(
-                    icon: const Icon(Icons.arrow_back),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                ),
-                body: MeetingScreen(initialText: content, filePath: fullPath),
-              ),
+                setState(() {
+                  _showUserGraph = !_showUserGraph;
+                  _updateEdges();
+                });
+              },
+            ),
+          ],
         ),
-      );
-    } else {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('파일을 찾을 수 없습니다: $fullPath'),
-          backgroundColor: Colors.red,
+        Expanded(
+          child: Center(
+            child:
+                _isLoading
+                    ? Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const CircularProgressIndicator(),
+                        const SizedBox(height: 20),
+                        Text(
+                          _statusMessage,
+                          style: Theme.of(context).textTheme.titleMedium,
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    )
+                    : graph.nodeCount() == 0
+                    ? Text(
+                      _statusMessage,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    )
+                    : InteractiveViewer(
+                      constrained: false,
+                      boundaryMargin: const EdgeInsets.all(double.infinity),
+                      minScale: 0.01,
+                      maxScale: 5.0,
+                      child: SizedBox(
+                        width: _canvasWidth,
+                        height: _canvasHeight,
+                        child: GraphView(
+                          graph: graph,
+                          algorithm: builder,
+                          paint:
+                              Paint()
+                                ..color = Colors.grey
+                                ..strokeWidth = 1
+                                ..style = PaintingStyle.stroke,
+                          builder: (Node node) {
+                            final label = node.key!.value as String;
+
+                            if (_showUserGraph &&
+                                !_activeUserNodeIds.contains(label)) {
+                              return const SizedBox.shrink();
+                            }
+
+                            return _buildNodeWidget(label);
+                          },
+                        ),
+                      ),
+                    ),
+          ),
         ),
-      );
-    }
-  }
-
-  Future<void> _loadGraphFromEmbeddingsFile() async {
-    setState(() {
-      _isLoading = true;
-      _statusMessage = '저장된 임베딩 파일을 찾는 중...';
-    });
-
-    try {
-      final notesDir = await _getNotesDirectory();
-      final embeddingsFile = File(p.join(notesDir, 'embeddings.json'));
-
-      if (await embeddingsFile.exists()) {
-        try {
-          final jsonString = await embeddingsFile.readAsString();
-          final data = jsonDecode(jsonString);
-          _buildGraphFromData(data);
-          _statusMessage = '저장된 데이터로 그래프를 그렸습니다.';
-        } catch (e) {
-          _statusMessage = '임베딩 파일을 읽는 중 오류 발생: ${e.toString()}';
-        }
-      } else {
-        _statusMessage = '임베딩 파일이 없습니다. 우측 상단 버튼을 눌러 생성해주세요.';
-      }
-    } catch (e) {
-      _statusMessage = '노트 디렉토리 접근 중 오류 발생: $e';
-    }
-
-    setState(() {
-      _isLoading = false;
-    });
-  }
-
-  void _buildGraphFromData(Map<String, dynamic> data) {
-    graph.nodes.clear();
-    graph.edges.clear();
-
-    final List<String> topicIds =
-        (data['userTopics'] as List? ?? []).whereType<String>().toList();
-
-    final List<GraphNodeData> nodes =
-        (data['nodes'] as List? ?? [])
-            .map((nodeJson) => GraphNodeData.fromJson(nodeJson))
-            .toList();
-
-    final List<GraphEdgeData> aiEdges =
-        (data['edges'] as List? ?? [])
-            .map((edgeJson) => GraphEdgeData.fromJson(edgeJson))
-            .toList();
-
-    final List<GraphEdgeData> userEdges =
-        (data['userEdges'] as List? ?? [])
-            .map((edgeJson) => GraphEdgeData.fromJson(edgeJson))
-            .toList();
-
-    final nodeMap = <String, Node>{};
-    for (var nodeData in nodes) {
-      nodeMap[nodeData.id] = Node.Id(nodeData.id);
-    }
-    for (var topic in topicIds) {
-      if (!nodeMap.containsKey(topic)) {
-        nodeMap[topic] = Node.Id(topic);
-      }
-    }
-
-    if (nodeMap.isEmpty) {
-      setState(() {
-        _statusMessage = '표시할 노트가 없습니다.';
-      });
-      return;
-    }
-
-    for (var edgeData in aiEdges) {
-      final fromNode = nodeMap[edgeData.from];
-      final toNode = nodeMap[edgeData.to];
-      if (fromNode != null && toNode != null) {
-        final strokeWidth = 1.0 + (edgeData.similarity - 0.75) * 16;
-        final paint =
-            Paint()
-              ..color = Colors.grey.withOpacity(edgeData.similarity)
-              ..strokeWidth = strokeWidth.clamp(1.0, 5.0);
-        graph.addEdge(fromNode, toNode, paint: paint);
-      }
-    }
-
-    for (var edgeData in userEdges) {
-      final fromNode = nodeMap[edgeData.from];
-      final toNode = nodeMap[edgeData.to];
-      if (fromNode != null && toNode != null) {
-        final paint =
-            Paint()
-              ..color = Colors.blue
-              ..strokeWidth = 2.5;
-        graph.addEdge(fromNode, toNode, paint: paint);
-      }
-    }
-    setState(() {}); // 그래프 데이터 변경 후 UI 갱신
-  }
-
-  void _showSnackBar(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), duration: const Duration(seconds: 3)),
+      ],
     );
   }
 
+  // --- 이하 Helper & Utility Functions ---
+
   Widget _buildNodeWidget(String label) {
     final isMdFile = label.toLowerCase().endsWith('.md');
-
     return GestureDetector(
       onTap: () {
         if (isMdFile) {
@@ -332,66 +376,59 @@ class _GraphPageState extends State<GraphPage> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      // Scaffold 대신 Column 반환
-      children: [
-        AppBar(
-          // GraphPage 전용 AppBar
-          title: const Text('AI 노트 관계도'),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.hub_rounded),
-              tooltip: '임베딩 생성 및 새로고침',
-              onPressed: _triggerEmbeddingProcess,
-            ),
-          ],
-        ),
-        Expanded(
-          child: Center(
-            child:
-                _isLoading
-                    ? Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const CircularProgressIndicator(),
-                        const SizedBox(height: 20),
-                        Text(
-                          _statusMessage,
-                          style: Theme.of(context).textTheme.titleMedium,
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                    )
-                    : graph.nodeCount() == 0
-                    ? Text(
-                      _statusMessage,
-                      style: Theme.of(context).textTheme.titleMedium,
-                    )
-                    : InteractiveViewer(
-                      constrained: false,
-                      boundaryMargin: const EdgeInsets.all(100),
-                      minScale: 0.01,
-                      maxScale: 5.0,
-                      child: GraphView(
-                        graph: graph,
-                        algorithm: builder,
-                        paint:
-                            Paint()
-                              ..color = Colors.grey
-                              ..strokeWidth = 1
-                              ..style = PaintingStyle.stroke,
-                        builder: (Node node) {
-                          final label = node.key!.value as String;
-                          return _buildNodeWidget(label);
-                        },
-                      ),
-                    ),
-          ),
-        ),
-      ],
+  void _showSnackBar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), duration: const Duration(seconds: 3)),
     );
+  }
+
+  Future<String> _getNotesDirectory() async {
+    final home =
+        Platform.environment['USERPROFILE'] ?? Platform.environment['HOME'];
+    if (home == null) throw Exception('홈 디렉토리를 찾을 수 없습니다.');
+    return Platform.isMacOS
+        ? p.join(home, 'Memordo_Notes')
+        : p.join(home, 'Documents', 'Memordo_Notes');
+  }
+
+  Future<List<File>> _getAllMarkdownFiles(Directory dir) async {
+    final List<File> mdFiles = [];
+    await for (var entity in dir.list(recursive: true, followLinks: false)) {
+      if (entity is File && p.extension(entity.path).toLowerCase() == '.md') {
+        mdFiles.add(entity);
+      }
+    }
+    return mdFiles;
+  }
+
+  Future<void> _openNoteEditor(BuildContext context, String filePath) async {
+    final notesDir = await _getNotesDirectory();
+    final fullPath = p.join(notesDir, filePath);
+    final file = File(fullPath);
+
+    if (await file.exists()) {
+      final content = await file.readAsString();
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder:
+              (context) => Scaffold(
+                appBar: AppBar(
+                  title: Text(p.basenameWithoutExtension(filePath)),
+                  leading: IconButton(
+                    icon: const Icon(Icons.arrow_back),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ),
+                body: MeetingScreen(initialText: content, filePath: fullPath),
+              ),
+        ),
+      );
+    } else {
+      _showSnackBar('파일을 찾을 수 없습니다: $fullPath');
+    }
   }
 }
 
@@ -399,6 +436,7 @@ Future<({List<GraphEdgeData> userEdges, Set<String> topicNodes})>
 _extractUserDefinedEdgesAndTopics(List<Map<String, String>> notesData) async {
   final userEdges = <GraphEdgeData>[];
   final topicNodes = <String>{};
+  final allNoteFileNames = notesData.map((e) => e['fileName']!).toSet();
 
   for (final note in notesData) {
     final fileName = note['fileName']!;
@@ -407,14 +445,21 @@ _extractUserDefinedEdgesAndTopics(List<Map<String, String>> notesData) async {
 
     for (final match in matches) {
       final target = match.group(1)?.trim();
-      if (target != null && target.isNotEmpty && target != fileName) {
-        userEdges.add(
-          GraphEdgeData(from: fileName, to: target, similarity: 1.0),
-        );
-        topicNodes.add(target);
+      if (target != null && target.isNotEmpty) {
+        final targetMd = target.endsWith('.md') ? target : '$target.md';
+
+        if (targetMd != fileName && allNoteFileNames.contains(targetMd)) {
+          userEdges.add(
+            GraphEdgeData(from: fileName, to: targetMd, similarity: 1.0),
+          );
+        } else if (targetMd != fileName) {
+          userEdges.add(
+            GraphEdgeData(from: fileName, to: target, similarity: 1.0),
+          );
+          topicNodes.add(target);
+        }
       }
     }
   }
-
   return (userEdges: userEdges, topicNodes: topicNodes);
 }
