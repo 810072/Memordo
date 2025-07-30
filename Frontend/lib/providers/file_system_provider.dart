@@ -1,24 +1,35 @@
 // Frontend/lib/providers/file_system_provider.dart
+import 'dart:async'; // StreamSubscription, Timer를 위해 추가
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../model/file_system_entry.dart';
-import 'package:file_picker/file_picker.dart';
 
 class FileSystemProvider extends ChangeNotifier {
   List<FileSystemEntry> _fileSystemEntries = [];
   bool _isLoading = false;
   String? _lastSavedDirectoryPath; // 마지막으로 저장된 폴더 경로
 
-  // MeetingScreen으로 전달할 선택된 파일 (SideBar에서 파일 탭 시)
   FileSystemEntry? _selectedFileForMeetingScreen;
+
+  // ✨ 실시간 업데이트를 위한 변수 추가
+  StreamSubscription<FileSystemEvent>? _directoryWatcher;
+  Timer? _debounce;
 
   List<FileSystemEntry> get fileSystemEntries => _fileSystemEntries;
   bool get isLoading => _isLoading;
   String? get lastSavedDirectoryPath => _lastSavedDirectoryPath;
   FileSystemEntry? get selectedFileForMeetingScreen =>
       _selectedFileForMeetingScreen;
+
+  // ✨ Provider가 소멸될 때 watcher와 timer를 안전하게 정리합니다.
+  @override
+  void dispose() {
+    _directoryWatcher?.cancel();
+    _debounce?.cancel();
+    super.dispose();
+  }
 
   // MeetingScreen이 로드할 파일을 설정하는 메서드
   void setSelectedFileForMeetingScreen(FileSystemEntry? entry) {
@@ -34,12 +45,17 @@ class FileSystemProvider extends ChangeNotifier {
       notifyListeners();
       return;
     }
-    _isLoading = true;
-    _fileSystemEntries = [];
-    notifyListeners();
+
+    // 로딩 상태를 즉시 반영
+    if (!_isLoading) {
+      _isLoading = true;
+      notifyListeners();
+    }
 
     try {
       final notesDirPath = await getOrCreateNoteFolderPath();
+      _watchDirectory(notesDirPath); // ✨ 디렉토리 감시 시작/확인
+
       final rootDirectory = Directory(notesDirPath);
       if (await rootDirectory.exists()) {
         final List<FileSystemEntry> entries = [];
@@ -53,6 +69,35 @@ class FileSystemProvider extends ChangeNotifier {
     } finally {
       _isLoading = false;
       notifyListeners();
+    }
+  }
+
+  // ✨ [추가] 디렉토리 변경 사항을 실시간으로 감시하는 함수
+  void _watchDirectory(String path) {
+    if (kIsWeb || _directoryWatcher != null) return; // 이미 감시중이면 중복 실행 방지
+
+    try {
+      final directory = Directory(path);
+      _directoryWatcher = directory
+          .watch(recursive: true)
+          .listen(
+            (FileSystemEvent event) {
+              // 짧은 시간 내에 여러 이벤트가 발생할 경우, 마지막 이벤트 후 500ms 뒤에 한 번만 실행 (디바운싱)
+              if (_debounce?.isActive ?? false) _debounce!.cancel();
+              _debounce = Timer(const Duration(milliseconds: 500), () {
+                debugPrint('📁 파일 시스템 변경 감지: ${event.path}');
+                scanForFileSystem(); // 변경 감지 시 파일 목록 자동 새로고침
+              });
+            },
+            onError: (error) {
+              debugPrint('디렉토리 감시 오류: $error');
+              _directoryWatcher?.cancel();
+              _directoryWatcher = null; // 오류 발생 시 감시자 초기화
+            },
+          );
+      debugPrint('👀 디렉토리 실시간 감시 시작: $path');
+    } catch (e) {
+      debugPrint('디렉토리 감시 설정 실패: $e');
     }
   }
 
@@ -130,7 +175,7 @@ class FileSystemProvider extends ChangeNotifier {
 
       await newDirectory.create(recursive: false);
       _showSnackBar(context, '폴더 생성 완료: $folderName ✅');
-      await scanForFileSystem();
+      // scanForFileSystem()은 watcher에 의해 자동으로 호출되므로 여기서 직접 호출할 필요가 없습니다.
       return true;
     } catch (e) {
       _showSnackBar(context, '폴더 생성 중 오류 발생: $e ❌', isError: true);
@@ -159,7 +204,7 @@ class FileSystemProvider extends ChangeNotifier {
         await File(entry.path).rename(newPath);
       }
       _showSnackBar(context, '이름 변경 완료: ${entry.name} -> $newName ✅');
-      await scanForFileSystem();
+      // scanForFileSystem()은 watcher에 의해 자동으로 호출됩니다.
       return true;
     } catch (e) {
       _showSnackBar(context, '이름 변경 중 오류 발생: $e ❌', isError: true);
@@ -197,7 +242,7 @@ class FileSystemProvider extends ChangeNotifier {
         await File(entry.path).delete();
       }
       _showSnackBar(context, '삭제 완료: ${entry.name} ✅');
-      await scanForFileSystem();
+      // scanForFileSystem()은 watcher에 의해 자동으로 호출됩니다.
       return true;
     } catch (e) {
       _showSnackBar(context, '삭제 중 오류 발생: $e ❌', isError: true);
