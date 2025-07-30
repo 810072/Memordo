@@ -184,35 +184,38 @@ class RightSidebarContent extends StatelessWidget {
                 left: effectivePaddingLeft + totalLeftFixedSpaceForFile,
                 right: 8.0,
               ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.description_outlined,
-                    size: 16,
-                    color: fileIconColor,
-                  ),
-                  const SizedBox(width: 4), // 파일 아이콘과 이름 사이의 간격
-                  Expanded(
-                    child: Text(
-                      p.basenameWithoutExtension(entry.name),
-                      style: TextStyle(
-                        color: defaultTextColor,
-                        fontSize: 12,
-                        fontWeight: FontWeight.normal,
-                        fontFamily: 'Work Sans',
-                      ),
-                      overflow: TextOverflow.ellipsis,
+              // ✨ [수정] Row를 ClipRect로 감싸서 넘치는 부분을 잘라냅니다.
+              child: ClipRect(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.description_outlined,
+                      size: 16,
+                      color: fileIconColor,
                     ),
-                  ),
-                  _buildEntryActions(
-                    context,
-                    entry,
-                    onRenameEntry,
-                    onDeleteEntry,
-                    itemHeight,
-                  ),
-                ],
+                    const SizedBox(width: 4), // 파일 아이콘과 이름 사이의 간격
+                    Expanded(
+                      child: Text(
+                        p.basenameWithoutExtension(entry.name),
+                        style: TextStyle(
+                          color: defaultTextColor,
+                          fontSize: 12,
+                          fontWeight: FontWeight.normal,
+                          fontFamily: 'Work Sans',
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    _buildEntryActions(
+                      context,
+                      entry,
+                      onRenameEntry,
+                      onDeleteEntry,
+                      itemHeight,
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

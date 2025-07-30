@@ -53,7 +53,7 @@ class _MainLayoutState extends State<MainLayout> {
       jsonEncode({'arg1': 'value1', 'arg2': 'value2'}),
     );
     window
-      ..setFrame(const Offset(100, 100) & const Size(400, 600)) // 창 크기 및 위치 설정
+      ..setFrame(const Offset(100, 100) & const Size(560, 960)) // 창 크기 및 위치 설정
       ..center()
       ..setTitle('Memordo 챗봇') // 창 제목 설정
       ..show();
@@ -135,7 +135,6 @@ class _MainLayoutState extends State<MainLayout> {
             tooltip: '챗봇 열기',
           ),
           const SizedBox(width: 4), // 버튼 사이 간격 추가
-
           // =================================================
           if (showRightPanelButton)
             IconButton(

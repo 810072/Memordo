@@ -65,17 +65,26 @@ class _LoginPageState extends State<LoginPage> {
         final googleAccessToken = data['googleAccessToken'];
         final googleRefreshToken = data['googleRefreshToken'];
 
-        await Future.wait([
-          if (accessToken != null) setStoredAccessToken(accessToken),
-          if (refreshToken != null) setStoredRefreshToken(refreshToken),
-          if (googleAccessToken != null)
-            setStoredGoogleAccessToken(googleAccessToken),
-          if (googleRefreshToken != null)
-            setStoredGoogleRefreshToken(googleRefreshToken),
-        ]);
+        // 순차적으로 토큰 저장
+        if (accessToken != null) await setStoredAccessToken(accessToken);
+        if (refreshToken != null) await setStoredRefreshToken(refreshToken);
+        if (googleAccessToken != null)
+          await setStoredGoogleAccessToken(googleAccessToken);
+        if (googleRefreshToken != null)
+          await setStoredGoogleRefreshToken(googleRefreshToken);
 
-        print('✅ 일반 로그인 성공 및 토큰 저장 완료');
-        if (mounted) Navigator.pushReplacementNamed(context, '/main');
+        print('✅ 일반 로그인 성공 및 토큰 저장 시도 완료.');
+
+        // 가장 중요한 액세스 토큰이 저장되었는지 확인
+        final savedToken = await getStoredAccessToken();
+        if (savedToken != null && savedToken.isNotEmpty) {
+          print('✅ 토큰 저장 확인 완료. 메인 화면으로 이동합니다.');
+          if (mounted) Navigator.pushReplacementNamed(context, '/main');
+        } else {
+          print('❌ 토큰 저장 실패! 로그인 페이지에 머무릅니다.');
+          _showSnackBar('로그인에 성공했으나 토큰 저장에 실패했습니다. 다시 시도해주세요.', isError: true);
+          if (mounted) setState(() => _isLoading = false);
+        }
       } else {
         final responseBody = jsonDecode(response.body);
         final message = responseBody['message'] ?? '이메일 또는 비밀번호를 확인해주세요.';
@@ -83,13 +92,12 @@ class _LoginPageState extends State<LoginPage> {
           '로그인 실패: $message (${response.statusCode})',
           isError: true,
         );
-        print('로그인 실패: ${response.statusCode}, ${response.body}');
+        if (mounted) setState(() => _isLoading = false); // 실패 시 로딩 상태 해제
       }
     } catch (e) {
       print('로그인 오류: $e');
       _showSnackBar('로그인 중 오류가 발생했습니다: $e', isError: true);
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false); // 오류 시 로딩 상태 해제
     }
   }
 
@@ -160,16 +168,26 @@ class _LoginPageState extends State<LoginPage> {
         final googleAccessToken = data['googleAccessToken'];
         final googleRefreshToken = data['googleRefreshToken'];
 
-        await Future.wait([
-          if (accessToken != null) setStoredAccessToken(accessToken),
-          if (refreshToken != null) setStoredRefreshToken(refreshToken),
-          if (googleAccessToken != null)
-            setStoredGoogleAccessToken(googleAccessToken),
-          if (googleRefreshToken != null)
-            setStoredGoogleRefreshToken(googleRefreshToken),
-        ]);
-        print('✅ Google 로그인 성공 및 토큰 저장 완료');
-        if (mounted) Navigator.pushReplacementNamed(context, '/main');
+        // 순차적으로 토큰 저장
+        if (accessToken != null) await setStoredAccessToken(accessToken);
+        if (refreshToken != null) await setStoredRefreshToken(refreshToken);
+        if (googleAccessToken != null)
+          await setStoredGoogleAccessToken(googleAccessToken);
+        if (googleRefreshToken != null)
+          await setStoredGoogleRefreshToken(googleRefreshToken);
+
+        print('✅ Google 로그인 성공 및 토큰 저장 시도 완료.');
+
+        // 가장 중요한 액세스 토큰이 저장되었는지 확인
+        final savedToken = await getStoredAccessToken();
+        if (savedToken != null && savedToken.isNotEmpty) {
+          print('✅ 토큰 저장 확인 완료. 메인 화면으로 이동합니다.');
+          if (mounted) Navigator.pushReplacementNamed(context, '/main');
+        } else {
+          print('❌ 토큰 저장 실패! 로그인 페이지에 머무릅니다.');
+          _showSnackBar('로그인에 성공했으나 토큰 저장에 실패했습니다. 다시 시도해주세요.', isError: true);
+          if (mounted) setState(() => _isGoogleLoading = false);
+        }
       } else {
         final responseBody = jsonDecode(response.body);
         final message = responseBody['message'] ?? '서버 인증에 실패했습니다.';
@@ -177,15 +195,12 @@ class _LoginPageState extends State<LoginPage> {
           'Google 로그인 실패: $message (${response.statusCode})',
           isError: true,
         );
-        print(
-          '❌ Google 로그인 서버 인증 실패: ${response.statusCode}, ${response.body}',
-        );
+        if (mounted) setState(() => _isGoogleLoading = false); // 실패 시 로딩 상태 해제
       }
     } catch (e) {
       print('⚠️ Google 로그인 중 오류 발생: $e');
       _showSnackBar('Google 로그인 중 오류가 발생했습니다: ${e.toString()}', isError: true);
-    } finally {
-      if (mounted) setState(() => _isGoogleLoading = false);
+      if (mounted) setState(() => _isGoogleLoading = false); // 오류 시 로딩 상태 해제
     }
   }
 

@@ -93,7 +93,7 @@ class LeftSidebarContent extends StatelessWidget {
             _sideBarItem(
               context,
               Icons.settings_outlined,
-              'Settings',
+              '설정',
               PageType.settings,
               () => onPageSelected(PageType.settings),
             ),
