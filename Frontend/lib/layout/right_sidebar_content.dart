@@ -75,7 +75,6 @@ class _RightSidebarContentState extends State<RightSidebarContent>
       children: [
         Container(
           height: 40,
-          // ✨ [수정] Colors.white 대신 테마의 cardColor를 사용
           color: Theme.of(context).cardColor,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.start,
@@ -115,7 +114,8 @@ class _RightSidebarContentState extends State<RightSidebarContent>
             ],
           ),
         ),
-        const Divider(height: 1, thickness: 1),
+        // ✨ [수정] 구분선 색상을 테마에서 가져옵니다.
+        Divider(height: 1, thickness: 1, color: Theme.of(context).dividerColor),
         Expanded(
           child: TabBarView(
             controller: _tabController,

@@ -21,14 +21,20 @@ class _SettingsPageState extends State<SettingsPage> {
       color: scaffoldBgColor,
       child: Column(
         children: [
-          // ✨ [수정] AppBar를 PreferredSize로 감싸서 높이를 조절합니다.
           PreferredSize(
-            preferredSize: const Size.fromHeight(45.0), // 새 높이 설정
+            preferredSize: const Size.fromHeight(45.0),
             child: AppBar(
               title: const Text('Settings'),
               backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
               foregroundColor: Theme.of(context).appBarTheme.foregroundColor,
-              elevation: Theme.of(context).appBarTheme.elevation,
+              // ✨ [수정] elevation을 0으로 하고, shape를 사용하여 하단에 선을 추가합니다.
+              elevation: 0,
+              shape: Border(
+                bottom: BorderSide(
+                  color: Theme.of(context).dividerColor,
+                  width: 1,
+                ),
+              ),
               automaticallyImplyLeading: false,
             ),
           ),

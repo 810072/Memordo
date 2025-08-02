@@ -46,17 +46,16 @@ class ThemeProvider with ChangeNotifier {
   // 라이트 테마 정의
   final ThemeData _lightTheme = ThemeData(
     brightness: Brightness.light,
-    primaryColor: const Color(0xFF3d98f4), // 앱의 주요 색상
-    scaffoldBackgroundColor: Colors.white, // 메모 영역은 흰색으로 유지
-    // ✨ [수정] 앱바 배경색을 흰색으로 변경
+    primaryColor: const Color(0xFF3d98f4),
+    scaffoldBackgroundColor: Colors.white,
     appBarTheme: const AppBarTheme(
       backgroundColor: Colors.white,
-      foregroundColor: Color(0xFF1E293B), // 앱바 전경색 (아이콘, 텍스트)
-      elevation: 1.0,
-      shadowColor: Colors.black12,
+      foregroundColor: Color(0xFF1E293B),
+      elevation: 0,
     ),
-    // 사이드바 배경색은 이전의 연한 회색으로 유지
     cardColor: const Color(0xFFF8F9FA),
+    // ✨ [수정] 구분선 색상을 더 연한 회색으로 변경합니다.
+    dividerColor: const Color(0xFFEAECEE),
     textTheme: TextTheme(
       bodyMedium: TextStyle(color: Colors.grey.shade800),
       titleMedium: TextStyle(color: Colors.grey.shade700),
@@ -72,20 +71,21 @@ class ThemeProvider with ChangeNotifier {
   final ThemeData _darkTheme = ThemeData(
     brightness: Brightness.dark,
     primaryColor: Colors.deepPurple.shade300,
-    scaffoldBackgroundColor: const Color(0xFF12182B),
+    scaffoldBackgroundColor: const Color(0xFF121212), // 더 진한 검정
     appBarTheme: AppBarTheme(
-      backgroundColor: const Color(0xFF1E273B),
+      backgroundColor: const Color(0xFF1E1E1E), // 어두운 회색
       foregroundColor: Colors.white,
-      elevation: 1.0,
+      elevation: 0,
     ),
-    cardColor: const Color(0xFF1E273B),
+    cardColor: const Color(0xFF1E1E1E),
+    dividerColor: Colors.grey.shade800, // 다크모드용 구분선 색상
     textTheme: TextTheme(
-      bodyMedium: const TextStyle(color: Colors.white),
-      titleMedium: const TextStyle(color: Colors.white),
+      bodyMedium: const TextStyle(color: Colors.white70),
+      titleMedium: const TextStyle(color: Colors.white70),
       bodyLarge: const TextStyle(color: Colors.white),
     ),
     listTileTheme: const ListTileThemeData(
-      iconColor: Colors.white,
+      iconColor: Colors.white70,
       textColor: Colors.white,
     ),
   );

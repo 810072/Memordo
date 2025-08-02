@@ -1,6 +1,6 @@
 // lib/features/meeting_screen.dart
 
-import 'dart:io'; // ✨ [수정] 'dart.io' -> 'dart:io'로 오타를 수정했습니다.
+import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -10,7 +10,6 @@ import 'package:file_picker/file_picker.dart';
 
 import '../widgets/obsidian_markdown_controller.dart';
 import '../layout/bottom_section_controller.dart';
-import '../widgets/ai_summary_widget.dart';
 import '../utils/ai_service.dart';
 import '../utils/web_helper.dart' as web_helper;
 import '../model/file_system_entry.dart';
@@ -79,7 +78,6 @@ class _MeetingScreenState extends State<MeetingScreen> {
   late final ObsidianMarkdownController _controller;
   final FocusNode _focusNode = FocusNode();
 
-  String _saveStatus = '';
   String? _currentEditingFilePath;
   String _currentEditingFileName = '새 메모';
 
@@ -230,11 +228,11 @@ class _MeetingScreenState extends State<MeetingScreen> {
         child: Column(
           children: [
             _buildNewHeader(),
-            const Divider(height: 1, thickness: 1),
             Expanded(
               child: Padding(
+                // ✨ [수정] 좌우 여백을 20으로 조정합니다.
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 24.0,
+                  horizontal: 20.0,
                   vertical: 8.0,
                 ),
                 child: _buildMarkdownEditor(),
@@ -248,8 +246,9 @@ class _MeetingScreenState extends State<MeetingScreen> {
 
   Widget _buildNewHeader() {
     return Container(
-      height: 40,
-      padding: const EdgeInsets.symmetric(horizontal: 24.0),
+      height: 45,
+      // ✨ [수정] 좌우 여백을 조정하여 정렬을 맞춥니다.
+      padding: const EdgeInsets.only(left: 20.0, right: 8.0),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
@@ -320,6 +319,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
                     case 'load':
                       _loadMarkdownFromFilePicker();
                       break;
+
                     case 'summarize':
                       _summarizeContent();
                       break;
@@ -437,7 +437,6 @@ class _MeetingScreenState extends State<MeetingScreen> {
       _controller.clear();
       _currentEditingFilePath = null;
       _currentEditingFileName = '새 메모';
-      _saveStatus = '';
       _titleController.text = '새 메모';
     });
     context.read<BottomSectionController>().setActiveTab(0);
@@ -455,7 +454,6 @@ class _MeetingScreenState extends State<MeetingScreen> {
     if (kIsWeb) {
       final fileName = '$_currentEditingFileName.md';
       web_helper.downloadMarkdownWeb(content, fileName);
-      _updateSaveStatus("파일 다운로드 완료: $fileName ✅");
       return;
     }
     String? path = _currentEditingFilePath;
@@ -567,8 +565,6 @@ class _MeetingScreenState extends State<MeetingScreen> {
     context.read<BottomSectionController>().setActiveTab(0);
     context.read<BottomSectionController>().clearSummary();
   }
-
-  void _updateSaveStatus(String status) => setState(() => _saveStatus = status);
 
   void _showSnackBar(String message, {bool isError = false}) {
     if (!mounted) return;

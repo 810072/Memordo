@@ -103,12 +103,14 @@ class _MainLayoutState extends State<MainLayout> {
     final bool showRightPanelButton = _showRightSidebar;
 
     return Scaffold(
-      // ✨ [수정] AppBar를 PreferredSize로 감싸서 높이를 조절합니다.
       appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(45.0), // 새 높이 설정
+        preferredSize: const Size.fromHeight(45.0),
         child: AppBar(
-          elevation: 1.0,
-          shadowColor: Colors.black12,
+          // ✨ [수정] elevation을 0으로 하고, shape를 사용하여 하단에 선을 추가합니다.
+          elevation: 0,
+          shape: Border(
+            bottom: BorderSide(color: Theme.of(context).dividerColor, width: 1),
+          ),
           titleSpacing: 0,
           leading: IconButton(
             icon: const Icon(Icons.menu, color: Color(0xFF475569)),
@@ -168,7 +170,10 @@ class _MainLayoutState extends State<MainLayout> {
             width: _isLeftExpanded ? 192 : 52,
             decoration: BoxDecoration(
               color: Theme.of(context).cardColor,
-              border: Border(right: BorderSide(color: Colors.grey.shade200)),
+              // ✨ [수정] 구분선 색상을 테마에서 가져옵니다.
+              border: Border(
+                right: BorderSide(color: Theme.of(context).dividerColor),
+              ),
             ),
             child: LeftSidebarContent(
               isExpanded: _isLeftExpanded,
@@ -280,17 +285,7 @@ class _ResizableRightSidebarState extends State<ResizableRightSidebar> {
   @override
   Widget build(BuildContext context) {
     final sidebarContent = Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            spreadRadius: 1,
-            blurRadius: 5,
-            offset: const Offset(0, 1),
-          ),
-        ],
-      ),
+      decoration: BoxDecoration(color: Theme.of(context).cardColor),
       child: ClipRect(child: widget.child),
     );
 
@@ -324,10 +319,11 @@ class _ResizableRightSidebarState extends State<ResizableRightSidebar> {
                 alignment: Alignment.center,
                 child: Container(
                   width: 1,
+                  // ✨ [수정] 구분선 색상을 테마에서 가져옵니다.
                   color:
                       _isResizing
                           ? Theme.of(context).primaryColor
-                          : Colors.grey.shade300,
+                          : Theme.of(context).dividerColor,
                 ),
               ),
             ),

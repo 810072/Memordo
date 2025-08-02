@@ -433,12 +433,14 @@ class _HistoryPageState extends State<HistoryPage> {
     return Column(
       children: [
         Container(
-          // ✨ [수정] height를 45로 변경
           height: 45,
           padding: const EdgeInsets.symmetric(horizontal: 24),
           decoration: BoxDecoration(
             color: Theme.of(context).appBarTheme.backgroundColor,
-            border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+            // ✨ [수정] 구분선 색상을 테마에서 가져옵니다.
+            border: Border(
+              bottom: BorderSide(color: Theme.of(context).dividerColor),
+            ),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
