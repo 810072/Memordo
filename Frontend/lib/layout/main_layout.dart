@@ -34,7 +34,7 @@ class MainLayout extends StatefulWidget {
 }
 
 class _MainLayoutState extends State<MainLayout> {
-  bool _isLeftExpanded = true;
+  bool _isLeftExpanded = false;
   bool _isRightExpanded = true;
 
   late final List<Widget> _pages;
