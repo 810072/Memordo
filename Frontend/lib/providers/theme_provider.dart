@@ -44,48 +44,49 @@ class ThemeProvider with ChangeNotifier {
   }
 
   // 라이트 테마 정의
-  ThemeData _lightTheme = ThemeData(
+  final ThemeData _lightTheme = ThemeData(
     brightness: Brightness.light,
     primaryColor: const Color(0xFF3d98f4), // 앱의 주요 색상
-    scaffoldBackgroundColor: const Color(0xFFF1F5F9), // 스캐폴드 배경색
+    scaffoldBackgroundColor: Colors.white, // 메모 영역은 흰색으로 유지
+    // ✨ [수정] 앱바 배경색을 흰색으로 변경
     appBarTheme: const AppBarTheme(
-      backgroundColor: Colors.white, // 앱바 배경색
+      backgroundColor: Colors.white,
       foregroundColor: Color(0xFF1E293B), // 앱바 전경색 (아이콘, 텍스트)
-      elevation: 1.0, // 앱바 그림자
+      elevation: 1.0,
+      shadowColor: Colors.black12,
     ),
-    cardColor: Colors.white, // 카드 위젯 배경색
+    // 사이드바 배경색은 이전의 연한 회색으로 유지
+    cardColor: const Color(0xFFF8F9FA),
     textTheme: TextTheme(
-      bodyMedium: TextStyle(color: Colors.grey.shade800), // 본문 텍스트 색상
-      titleMedium: TextStyle(color: Colors.grey.shade700), // 제목 텍스트 색상
-      bodyLarge: TextStyle(color: Colors.grey.shade800), // 큰 본문 텍스트 색상
+      bodyMedium: TextStyle(color: Colors.grey.shade800),
+      titleMedium: TextStyle(color: Colors.grey.shade700),
+      bodyLarge: TextStyle(color: Colors.grey.shade800),
     ),
     listTileTheme: const ListTileThemeData(
-      iconColor: Colors.black54, // 리스트 타일 아이콘 색상
-      textColor: Colors.black87, // 리스트 타일 텍스트 색상
+      iconColor: Colors.black54,
+      textColor: Colors.black87,
     ),
-    // 다른 라이트 테마 속성들을 여기에 추가할 수 있습니다.
   );
 
   // 다크 테마 정의
-  ThemeData _darkTheme = ThemeData(
+  final ThemeData _darkTheme = ThemeData(
     brightness: Brightness.dark,
-    primaryColor: Colors.deepPurple.shade300, // 앱의 주요 색상 (다크 모드용)
-    scaffoldBackgroundColor: const Color(0xFF12182B), // 스캐폴드 배경색을 더 진하게
+    primaryColor: Colors.deepPurple.shade300,
+    scaffoldBackgroundColor: const Color(0xFF12182B),
     appBarTheme: AppBarTheme(
-      backgroundColor: const Color(0xFF1E273B), // 앱바 배경색을 더 진하게
-      foregroundColor: Colors.white, // 앱바 전경색을 흰색으로
+      backgroundColor: const Color(0xFF1E273B),
+      foregroundColor: Colors.white,
       elevation: 1.0,
     ),
-    cardColor: const Color(0xFF1E273B), // 카드 위젯 배경색을 앱바와 동일하게 더 진하게
+    cardColor: const Color(0xFF1E273B),
     textTheme: TextTheme(
-      bodyMedium: const TextStyle(color: Colors.white), // 본문 텍스트 색상을 흰색으로
-      titleMedium: const TextStyle(color: Colors.white), // 제목 텍스트 색상을 흰색으로
-      bodyLarge: const TextStyle(color: Colors.white), // 큰 본문 텍스트 색상을 흰색으로
+      bodyMedium: const TextStyle(color: Colors.white),
+      titleMedium: const TextStyle(color: Colors.white),
+      bodyLarge: const TextStyle(color: Colors.white),
     ),
     listTileTheme: const ListTileThemeData(
-      iconColor: Colors.white, // 리스트 타일 아이콘 색상을 흰색으로
-      textColor: Colors.white, // 리스트 타일 텍스트 색상을 흰색으로
+      iconColor: Colors.white,
+      textColor: Colors.white,
     ),
-    // 다른 다크 테마 속성들을 여기에 추가할 수 있습니다.
   );
 }

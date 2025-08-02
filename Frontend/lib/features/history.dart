@@ -1,6 +1,4 @@
 // Frontend/lib/features/history.dart
-// 기존 코드에서 MainLayout 부분 제거 및 Scaffold 제거 후 콘텐츠만 반환하도록 수정
-
 import 'dart:convert';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -9,13 +7,11 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:provider/provider.dart';
 import 'dart:io';
 
-// import '../layout/main_layout.dart'; // MainLayout 임포트 제거
 import '../widgets/ai_summary_widget.dart';
 import '../utils/ai_service.dart';
 import '../services/auth_token.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../auth/login_page.dart';
-import 'page_type.dart';
 import '../layout/bottom_section_controller.dart';
 import '../features/meeting_screen.dart';
 
@@ -44,20 +40,14 @@ class _HistoryPageState extends State<HistoryPage> {
     final googleAccessToken = await getStoredGoogleAccessToken();
     final googleRefreshToken = await getStoredGoogleRefreshToken();
 
-    print("!!!!!!!! accessToken : $accessToken");
-    print("!!!!!!!! googleAccessToken : $googleAccessToken");
-
     if (accessToken == null || accessToken.isEmpty) {
-      print('❗ accessToken 없음 → refresh 시도');
       try {
         await refreshAccessTokenIfNeeded();
         final newToken = await getStoredAccessToken();
         if (newToken == null || newToken.isEmpty) {
           throw Exception('accessToken 재발급 실패');
         }
-        print('✅ accessToken 재발급 성공');
       } catch (e) {
-        print('❌ accessToken 재발급 실패: $e');
         if (!mounted) return;
         Navigator.pushReplacement(
           context,
@@ -68,9 +58,7 @@ class _HistoryPageState extends State<HistoryPage> {
     }
 
     if (googleAccessToken == null || googleAccessToken.isEmpty) {
-      print('❗ Google accessToken 없음');
       if (googleRefreshToken == null || googleRefreshToken.isEmpty) {
-        print('❌ Google refreshToken 없음 → 로그인 필요');
         await _signInWithGoogle();
         return;
       }
@@ -82,15 +70,12 @@ class _HistoryPageState extends State<HistoryPage> {
         if (refreshed == null || refreshed.isEmpty) {
           throw Exception('Google accessToken 재발급 실패');
         }
-        print('✅ Google accessToken 재발급 성공');
       } catch (e) {
-        print('❌ Google accessToken 갱신 실패: $e');
         await _signInWithGoogle();
         return;
       }
     }
     if (!mounted) return;
-    print('✅ 모든 토큰 정상 → 방문 기록 로드 시도');
     _loadVisitHistory();
   }
 
@@ -108,7 +93,6 @@ class _HistoryPageState extends State<HistoryPage> {
   Future<void> _loadVisitHistory() async {
     if (!mounted) return;
     setState(() => _status = '방문 기록 불러오는 중...');
-    print("_loadVisitHistory !!!!!!!");
     final googleAccessToken = await getValidGoogleAccessToken();
 
     if (!mounted) return;
@@ -139,7 +123,6 @@ class _HistoryPageState extends State<HistoryPage> {
 
     if (res.statusCode != 200) {
       setState(() => _status = '파일 목록 조회 실패 (${res.statusCode})');
-      print(res.body);
       return;
     }
 
@@ -183,11 +166,9 @@ class _HistoryPageState extends State<HistoryPage> {
       if (files.isNotEmpty) {
         return files[0]['id'] as String;
       } else {
-        print('폴더 "$folderName"를 찾을 수 없습니다.');
         return null;
       }
     } else {
-      print('폴더 ID 조회 실패 (상태: ${res.statusCode}): ${res.body}');
       return null;
     }
   }
@@ -215,7 +196,6 @@ class _HistoryPageState extends State<HistoryPage> {
           try {
             return jsonDecode(line);
           } catch (e) {
-            print('JSONL 파싱 실패: $line');
             return {};
           }
         })
@@ -223,18 +203,11 @@ class _HistoryPageState extends State<HistoryPage> {
         .toList();
   }
 
-  void _navigateToLogin() {
-    if (!mounted) return;
-    Navigator.pushReplacementNamed(context, '/login');
-  }
-
   Future<void> _signInWithGoogle() async {
     final clientId = dotenv.env['GOOGLE_CLIENT_ID_WEB'];
     final redirectUri = dotenv.env['REDIRECT_URI'];
 
     if (clientId == null || redirectUri == null) {
-      print('❌ Google Client ID 또는 Redirect URI가 .env 파일에 설정되지 않았습니다.');
-      if (!mounted) return;
       _showSnackBar('Google 로그인 설정 오류');
       return;
     }
@@ -261,11 +234,8 @@ class _HistoryPageState extends State<HistoryPage> {
 
       if (code == null || code.isEmpty) {
         _showSnackBar('Google 로그인 실패: code가 비어 있습니다.');
-        print('❌ 받은 code가 null 또는 빈 값입니다.');
         return;
       }
-
-      print('✅ 받은 Google 인증 code: $code');
 
       final response = await http.post(
         Uri.parse('$baseUrl$apiPrefix/google-login'),
@@ -289,16 +259,12 @@ class _HistoryPageState extends State<HistoryPage> {
         if (googleRefreshToken != null)
           await setStoredGoogleRefreshToken(googleRefreshToken);
 
-        print('✅ 모든 토큰 저장 완료, 메인 화면으로 이동 또는 방문 기록 다시 로드');
         _checkTokensThenLoad();
       } else {
-        print('❌ 서버 인증 실패: ${response.statusCode}, ${response.body}');
         _showSnackBar('Google 로그인 실패: ${response.statusCode}');
       }
     } catch (e) {
       if (!mounted) return;
-      print('에러 코드 : $e');
-      print('⚠️ Google 로그인 오류: $e');
       _showSnackBar('Google 로그인 중 오류 발생: $e');
     }
   }
@@ -314,7 +280,6 @@ class _HistoryPageState extends State<HistoryPage> {
     final Uri redirectUri = Uri.parse(redirectUriString);
     final int port = redirectUri.port;
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, port);
-    print('✅ 서버가 인증 코드를 기다리는 중입니다. (http://${server.address.host}:$port)');
 
     try {
       final HttpRequest request = await server.first.timeout(
@@ -329,19 +294,16 @@ class _HistoryPageState extends State<HistoryPage> {
         ..headers.contentType = ContentType.html;
 
       if (error != null) {
-        print('❌ Google 로그인 오류 (OAuth): $error');
         request.response.write('''
             <html><head><title>로그인 오류</title></head>
             <body><h2>❌ 로그인 중 오류가 발생했습니다.</h2><p>오류: $error</p><p>이 창을 닫고 앱으로 돌아가세요.</p></body></html>
             ''');
       } else if (code != null) {
-        print('✅ 인증 코드 수신 완료: $code');
         request.response.write('''
             <html><head><title>로그인 완료</title></head>
             <body><h2>✅ 로그인 처리가 완료되었습니다.</h2><p>이 창을 닫고 앱으로 돌아가세요.</p></body></html>
             ''');
       } else {
-        print('❌ 인증 코드가 전달되지 않았습니다.');
         request.response.write('''
             <html><head><title>로그인 실패</title></head>
             <body><h2>❌ 로그인에 실패했습니다 (코드를 받지 못함).</h2><p>이 창을 닫고 앱으로 돌아가세요.</p></body></html>
@@ -350,7 +312,6 @@ class _HistoryPageState extends State<HistoryPage> {
       await request.response.close();
       return code;
     } catch (e) {
-      print('❌ _waitForCode 오류 또는 타임아웃: $e');
       return null;
     } finally {
       await server.close();
@@ -396,7 +357,6 @@ class _HistoryPageState extends State<HistoryPage> {
         if (summary == null ||
             summary.contains("오류") ||
             summary.contains("실패")) {
-          print('❌ 요약 실패 또는 오류: $summary');
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(summary ?? 'URL 요약에 실패했습니다.'),
@@ -471,14 +431,13 @@ class _HistoryPageState extends State<HistoryPage> {
     final bottomController = Provider.of<BottomSectionController>(context);
 
     return Column(
-      // Scaffold 대신 Column 반환
       children: [
         Container(
-          // HistoryPage 전용 AppBar
-          height: 50,
+          // ✨ [수정] height를 45로 변경
+          height: 45,
           padding: const EdgeInsets.symmetric(horizontal: 24),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: Theme.of(context).appBarTheme.backgroundColor,
             border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
           ),
           child: Row(

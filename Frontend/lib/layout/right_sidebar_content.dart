@@ -75,11 +75,11 @@ class _RightSidebarContentState extends State<RightSidebarContent>
       children: [
         Container(
           height: 40,
-          color: Colors.white,
+          // ✨ [수정] Colors.white 대신 테마의 cardColor를 사용
+          color: Theme.of(context).cardColor,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.start,
             children: [
-              // ✨ [수정] TabBar를 Flexible로 감싸서 RenderFlex overflow 오류를 해결합니다.
               Flexible(
                 child: TabBar(
                   controller: _tabController,

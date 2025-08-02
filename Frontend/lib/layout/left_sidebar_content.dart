@@ -1,15 +1,8 @@
 // Frontend/lib/layout/left_sidebar_content.dart
 import 'package:flutter/material.dart';
-import '../features/meeting_screen.dart';
-import '../features/calendar_page.dart';
-import '../features/graph_page.dart';
-import '../features/history.dart';
-import '../features/search_page.dart'; // ✨ 추가
-import '../auth/login_page.dart';
 import '../features/page_type.dart';
-import '../features/settings_page.dart';
-import 'package:provider/provider.dart';
 import '../providers/token_status_provider.dart';
+import 'package:provider/provider.dart';
 
 class LeftSidebarContent extends StatelessWidget {
   final bool isExpanded;
@@ -26,7 +19,7 @@ class LeftSidebarContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white,
+      color: Colors.transparent,
       child: Container(
         padding: EdgeInsets.symmetric(
           vertical: 10.0,
@@ -85,9 +78,8 @@ class LeftSidebarContent extends StatelessWidget {
               context,
               Icons.search_outlined,
               '검색',
-              PageType.search, // ✨ 변경: PageType.search
-              () => onPageSelected(PageType.search), // ✨ 변경: SearchPage로 이동
-              // tooltipMessage: '검색 기능은 추후 추가 예정입니다.', // 툴팁 메시지 제거
+              PageType.search,
+              () => onPageSelected(PageType.search),
             ),
             const Spacer(),
             _sideBarItem(
@@ -134,10 +126,12 @@ class LeftSidebarContent extends StatelessWidget {
     final Color textColor =
         isCurrentPage && !alwaysEnabled ? activeColor : inactiveColor;
     final Color iconColor = isEnabled ? textColor : Colors.grey.shade400;
+
+    // ✨ [수정] 활성화된 아이템의 배경색을 scaffoldBackgroundColor(흰색)로 변경
     final Color bgColor =
         isCurrentPage && !alwaysEnabled
-            ? const Color(0xFFF1F5F9)
-            : Colors.white;
+            ? Theme.of(context).scaffoldBackgroundColor
+            : Colors.transparent; // 비활성 아이템은 배경색 없음
 
     final String resolvedTooltip = tooltipMessage ?? text;
 
@@ -155,7 +149,8 @@ class LeftSidebarContent extends StatelessWidget {
           child: InkWell(
             onTap: isEnabled ? onPressed : null,
             borderRadius: BorderRadius.circular(8.0),
-            hoverColor: const Color(0xFFE2E8F0),
+            // ✨ [수정] hoverColor를 좀 더 연하게 조정
+            hoverColor: Colors.black.withOpacity(0.04),
             child: Padding(
               padding: EdgeInsets.symmetric(
                 vertical: 12.0,

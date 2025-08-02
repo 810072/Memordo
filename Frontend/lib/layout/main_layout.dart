@@ -37,10 +37,6 @@ class _MainLayoutState extends State<MainLayout> {
   bool _isLeftExpanded = true;
   bool _isRightExpanded = true;
 
-  // ✨ [제거] 너비 조절 관련 상태 변수를 ResizableRightSidebar 위젯으로 이동시켰습니다.
-  // double _rightSidebarWidth = 200.0;
-  // bool _isResizing = false;
-
   late final List<Widget> _pages;
 
   @override
@@ -72,7 +68,7 @@ class _MainLayoutState extends State<MainLayout> {
   Widget _getPageWidget(PageType pageType) {
     switch (pageType) {
       case PageType.home:
-        return MeetingScreen();
+        return const MeetingScreen();
       case PageType.history:
         return const HistoryPage();
       case PageType.calendar:
@@ -107,60 +103,62 @@ class _MainLayoutState extends State<MainLayout> {
     final bool showRightPanelButton = _showRightSidebar;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF1F5F9),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 1.0,
-        shadowColor: Colors.black12,
-        titleSpacing: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.menu, color: Color(0xFF475569)),
-          onPressed: _toggleLeftPanel,
-          tooltip: 'Toggle Sidebar',
-        ),
-        title: const Row(
-          children: [
-            Icon(Icons.note_alt_rounded, color: Color(0xFF3d98f4)),
-            SizedBox(width: 8),
-            Text(
-              'Memordo',
-              style: TextStyle(
-                color: Color(0xFF1E293B),
-                fontWeight: FontWeight.w600,
-                fontSize: 20,
-                fontFamily: 'Work Sans',
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(
-              Icons.smart_toy_outlined,
-              color: Color(0xFF475569),
-            ),
-            onPressed: _openChatbotWindow,
-            tooltip: '챗봇 열기',
+      // ✨ [수정] AppBar를 PreferredSize로 감싸서 높이를 조절합니다.
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(45.0), // 새 높이 설정
+        child: AppBar(
+          elevation: 1.0,
+          shadowColor: Colors.black12,
+          titleSpacing: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.menu, color: Color(0xFF475569)),
+            onPressed: _toggleLeftPanel,
+            tooltip: 'Toggle Sidebar',
           ),
-          const SizedBox(width: 4),
-          if (showRightPanelButton)
+          title: const Row(
+            children: [
+              Icon(Icons.note_alt_rounded, color: Color(0xFF3d98f4)),
+              SizedBox(width: 8),
+              Text(
+                'Memordo',
+                style: TextStyle(
+                  color: Color(0xFF1E293B),
+                  fontWeight: FontWeight.w600,
+                  fontSize: 20,
+                  fontFamily: 'Work Sans',
+                ),
+              ),
+            ],
+          ),
+          actions: [
             IconButton(
               icon: const Icon(
-                Icons.menu_open_outlined,
+                Icons.smart_toy_outlined,
                 color: Color(0xFF475569),
               ),
-              onPressed: _toggleRightPanel,
-              tooltip: 'Toggle Memos',
+              onPressed: _openChatbotWindow,
+              tooltip: '챗봇 열기',
             ),
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: CircleAvatar(
-              backgroundColor: Colors.grey.shade300,
-              child: Icon(Icons.person_outline, color: Colors.grey.shade700),
+            const SizedBox(width: 4),
+            if (showRightPanelButton)
+              IconButton(
+                icon: const Icon(
+                  Icons.menu_open_outlined,
+                  color: Color(0xFF475569),
+                ),
+                onPressed: _toggleRightPanel,
+                tooltip: 'Toggle Memos',
+              ),
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: CircleAvatar(
+                backgroundColor: Colors.grey.shade300,
+                child: Icon(Icons.person_outline, color: Colors.grey.shade700),
+              ),
             ),
-          ),
-          const SizedBox(width: 10),
-        ],
+            const SizedBox(width: 10),
+          ],
+        ),
       ),
       body: Row(
         children: [
@@ -169,7 +167,7 @@ class _MainLayoutState extends State<MainLayout> {
             curve: Curves.easeInOut,
             width: _isLeftExpanded ? 192 : 52,
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Theme.of(context).cardColor,
               border: Border(right: BorderSide(color: Colors.grey.shade200)),
             ),
             child: LeftSidebarContent(
@@ -184,7 +182,6 @@ class _MainLayoutState extends State<MainLayout> {
               children: _pages,
             ),
           ),
-          // ✨ [수정] 오른쪽 사이드바 로직을 ResizableRightSidebar 위젯으로 대체하여 성능을 개선합니다.
           if (_showRightSidebar)
             ResizableRightSidebar(
               isVisible: _isRightExpanded,
@@ -262,7 +259,6 @@ class _MainLayoutState extends State<MainLayout> {
   }
 }
 
-// ✨ [추가] 사이드바 너비 조절 로직을 캡슐화한 새로운 위젯
 class ResizableRightSidebar extends StatefulWidget {
   final Widget child;
   final bool isVisible;
@@ -283,10 +279,9 @@ class _ResizableRightSidebarState extends State<ResizableRightSidebar> {
 
   @override
   Widget build(BuildContext context) {
-    // 사이드바의 실제 내용물
     final sidebarContent = Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
@@ -299,7 +294,6 @@ class _ResizableRightSidebarState extends State<ResizableRightSidebar> {
       child: ClipRect(child: widget.child),
     );
 
-    // 너비 조절 중일 때와 아닐 때를 구분하여 다른 컨테이너를 반환
     final resizableContainer =
         _isResizing
             ? Container(width: _width, child: sidebarContent)
@@ -312,7 +306,6 @@ class _ResizableRightSidebarState extends State<ResizableRightSidebar> {
 
     return Row(
       children: [
-        // 사이드바가 보일 때만 조절 핸들 표시
         if (widget.isVisible)
           GestureDetector(
             onHorizontalDragStart: (_) => setState(() => _isResizing = true),

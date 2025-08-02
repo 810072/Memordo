@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
-// import '../layout/main_layout.dart'; // MainLayout 임포트 제거
 import 'page_type.dart'; // PageType 임포트는 유지
 
 class CalendarPage extends StatefulWidget {
@@ -67,18 +66,16 @@ class _CalendarPageState extends State<CalendarPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      // Scaffold 대신 Column 반환
-      children: [_buildTopBar(), _buildCalendarWithMemo()],
-    );
+    return Column(children: [_buildTopBar(), _buildCalendarWithMemo()]);
   }
 
   Widget _buildTopBar() {
     return Container(
-      height: 50,
+      // ✨ [수정] height를 45로 변경
+      height: 45,
       padding: const EdgeInsets.symmetric(horizontal: 24),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).appBarTheme.backgroundColor,
         border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
       ),
       child: Row(
