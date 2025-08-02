@@ -385,7 +385,18 @@ class _MeetingScreenState extends State<MeetingScreen> {
       expands: true,
       textAlignVertical: TextAlignVertical.top,
       decoration: const InputDecoration.collapsed(
-        hintText: "# 마크다운으로 메모를 시작하세요...\n\n**굵은 텍스트**",
+        hintText:
+            "# 제목1\n" // hintText 변경
+            "## 제목2\n"
+            "### 제목3\n\n"
+            "- 목록을 만들 수 있습니다.\n"
+            "  - Tab을 눌러 들여쓰기\n"
+            "> 인용문을 작성하세요.\n\n"
+            "**굵게** (Ctrl+B)\n"
+            "*기울임* (Ctrl+I)\n"
+            "~~취소선~~\n"
+            "`인라인 코드`\n"
+            "[링크](https://www.google.com)",
         hintStyle: TextStyle(
           color: Color(0xFFbdc3c7),
           fontSize: 15,
