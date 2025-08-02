@@ -3,17 +3,72 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // SingleActivator, LogicalKeyboardKey 사용을 위해 추가
 import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 
-import '../widgets/obsidian_markdown_controller.dart'; // 수정: 분리된 컨트롤러 import
+import '../widgets/obsidian_markdown_controller.dart'; // 수정된 컨트롤러 import
 import '../layout/bottom_section_controller.dart';
 import '../widgets/ai_summary_widget.dart';
 import '../utils/ai_service.dart';
 import '../utils/web_helper.dart' as web_helper;
 import '../model/file_system_entry.dart';
 import '../providers/file_system_provider.dart';
+
+// --- 단축키를 위한 Intent 및 Action 클래스들 ---
+class ToggleBoldIntent extends Intent {}
+
+class ToggleItalicIntent extends Intent {}
+
+class IndentIntent extends Intent {}
+
+class OutdentIntent extends Intent {}
+
+class ToggleBoldAction extends Action<ToggleBoldIntent> {
+  final ObsidianMarkdownController controller;
+  ToggleBoldAction(this.controller);
+
+  @override
+  Object? invoke(ToggleBoldIntent intent) {
+    controller.toggleInlineSyntax('**', '**');
+    return null;
+  }
+}
+
+class ToggleItalicAction extends Action<ToggleItalicIntent> {
+  final ObsidianMarkdownController controller;
+  ToggleItalicAction(this.controller);
+
+  @override
+  Object? invoke(ToggleItalicIntent intent) {
+    controller.toggleInlineSyntax('*', '*');
+    return null;
+  }
+}
+
+class IndentAction extends Action<IndentIntent> {
+  final ObsidianMarkdownController controller;
+  IndentAction(this.controller);
+
+  @override
+  Object? invoke(IndentIntent intent) {
+    controller.indentList(true);
+    return null;
+  }
+}
+
+class OutdentAction extends Action<OutdentIntent> {
+  final ObsidianMarkdownController controller;
+  OutdentAction(this.controller);
+
+  @override
+  Object? invoke(OutdentIntent intent) {
+    controller.indentList(false);
+    return null;
+  }
+}
+// --- Intent 및 Action 클래스 정의 끝 ---
 
 class MeetingScreen extends StatefulWidget {
   final String? initialText;
@@ -41,7 +96,6 @@ class _MeetingScreenState extends State<MeetingScreen> {
 
   void _initializeController() {
     final Map<String, TextStyle> markdownStyles = {
-      // (기존 스타일 맵 정의)
       'h1': const TextStyle(
         fontSize: 32,
         fontWeight: FontWeight.bold,
@@ -68,6 +122,10 @@ class _MeetingScreenState extends State<MeetingScreen> {
         fontStyle: FontStyle.italic,
         color: Color(0xFF2a2a2a),
       ),
+      'strikethrough': const TextStyle(
+        decoration: TextDecoration.lineThrough,
+        color: Color(0xFF6a6a6a),
+      ),
       'code': const TextStyle(
         fontFamily: 'monospace',
         backgroundColor: Color(0xFFF5F5F5),
@@ -78,10 +136,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
         color: Color(0xFF3498db),
         decoration: TextDecoration.underline,
       ),
-      'list': const TextStyle(
-        fontWeight: FontWeight.bold,
-        color: Color(0xFF3498db),
-      ),
+      'list': const TextStyle(fontSize: 16, height: 1.6),
       'quote': const TextStyle(
         color: Color(0xFF7f8c8d),
         fontStyle: FontStyle.italic,
@@ -127,7 +182,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
     if (selectedEntry != null &&
         selectedEntry.path != _currentEditingFilePath) {
       _loadMemoFromFileSystemEntry(selectedEntry);
-      fileProvider.setSelectedFileForMeetingScreen(null); // Reset after loading
+      fileProvider.setSelectedFileForMeetingScreen(null);
     }
   }
 
@@ -142,33 +197,55 @@ class _MeetingScreenState extends State<MeetingScreen> {
     super.dispose();
   }
 
-  // --- UI Building Methods ---
-
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(24.0),
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _buildHeader(),
-            const SizedBox(height: 20),
-            _buildMarkdownEditor(),
-            const SizedBox(height: 24),
-            _buildActionButtons(),
-            const SizedBox(height: 20),
-            if (context.watch<BottomSectionController>().isVisible)
-              const AiSummaryWidget(),
-            const SizedBox(height: 20),
-            Text(
-              _saveStatus,
-              style: TextStyle(
-                fontSize: 13,
-                color: Theme.of(context).hintColor,
-              ),
+    // Shortcuts와 Actions를 build 메서드 내에서 정의합니다.
+    final Map<ShortcutActivator, Intent> shortcuts = {
+      const SingleActivator(LogicalKeyboardKey.keyB, control: true):
+          ToggleBoldIntent(),
+      const SingleActivator(LogicalKeyboardKey.keyI, control: true):
+          ToggleItalicIntent(),
+      const SingleActivator(LogicalKeyboardKey.tab): IndentIntent(),
+      const SingleActivator(LogicalKeyboardKey.tab, shift: true):
+          OutdentIntent(),
+    };
+
+    final Map<Type, Action<Intent>> actions = {
+      ToggleBoldIntent: ToggleBoldAction(_controller),
+      ToggleItalicIntent: ToggleItalicAction(_controller),
+      IndentIntent: IndentAction(_controller),
+      OutdentIntent: OutdentAction(_controller),
+    };
+
+    return Shortcuts(
+      shortcuts: shortcuts,
+      child: Actions(
+        actions: actions,
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildHeader(),
+                const SizedBox(height: 20),
+                _buildMarkdownEditor(),
+                const SizedBox(height: 24),
+                _buildActionButtons(),
+                const SizedBox(height: 20),
+                if (context.watch<BottomSectionController>().isVisible)
+                  const AiSummaryWidget(),
+                const SizedBox(height: 20),
+                Text(
+                  _saveStatus,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Theme.of(context).hintColor,
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -236,10 +313,10 @@ class _MeetingScreenState extends State<MeetingScreen> {
           maxLines: null,
           expands: true,
           textAlignVertical: TextAlignVertical.top,
-          decoration: InputDecoration.collapsed(
+          decoration: const InputDecoration.collapsed(
             hintText: "# Start typing your markdown...\n\n**Bold text**",
             hintStyle: TextStyle(
-              color: const Color(0xFFbdc3c7),
+              color: Color(0xFFbdc3c7),
               fontSize: 15,
               height: 1.6,
             ),
@@ -318,7 +395,6 @@ class _MeetingScreenState extends State<MeetingScreen> {
   }
 
   // --- Logic Methods ---
-
   void _startNewMemo() {
     setState(() {
       _controller.clear();
@@ -332,7 +408,11 @@ class _MeetingScreenState extends State<MeetingScreen> {
 
   Future<void> _createNewFolder() async {
     final fileProvider = context.read<FileSystemProvider>();
-    String? folderName = await _showTextInputDialog('새 폴더 생성', '폴더 이름을 입력하세요.');
+    String? folderName = await _showTextInputDialog(
+      context,
+      '새 폴더 생성',
+      '폴더 이름을 입력하세요.',
+    );
     if (folderName != null && folderName.isNotEmpty) {
       await fileProvider.createNewFolder(context, folderName);
     }
@@ -347,7 +427,6 @@ class _MeetingScreenState extends State<MeetingScreen> {
 
     final fileProvider = context.read<FileSystemProvider>();
 
-    // Web saving
     if (kIsWeb) {
       final fileName = 'memo_${DateTime.now().toIso8601String()}.md';
       web_helper.downloadMarkdownWeb(content, fileName);
@@ -355,7 +434,6 @@ class _MeetingScreenState extends State<MeetingScreen> {
       return;
     }
 
-    // Desktop saving
     String? path = _currentEditingFilePath;
     if (path == null) {
       path = await FilePicker.platform.saveFile(
@@ -401,7 +479,9 @@ class _MeetingScreenState extends State<MeetingScreen> {
     String? filePath;
 
     if (kIsWeb) {
-      content = String.fromCharCodes(result.files.single.bytes!);
+      final fileBytes = result.files.single.bytes;
+      if (fileBytes == null) return;
+      content = String.fromCharCodes(fileBytes);
       fileName = result.files.single.name;
     } else {
       filePath = result.files.single.path!;
@@ -411,7 +491,6 @@ class _MeetingScreenState extends State<MeetingScreen> {
         p.dirname(filePath),
       );
     }
-
     _updateEditorContent(content, fileName, filePath);
   }
 
@@ -459,7 +538,6 @@ class _MeetingScreenState extends State<MeetingScreen> {
   }
 
   // --- Helper Methods ---
-
   void _updateEditorContent(String content, String fileName, String? filePath) {
     setState(() {
       _controller.text = content;
@@ -474,6 +552,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
   }
 
   void _showSnackBar(String message, {bool isError = false}) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
@@ -492,7 +571,11 @@ class _MeetingScreenState extends State<MeetingScreen> {
     return folderPath;
   }
 
-  Future<String?> _showTextInputDialog(String title, String hint) async {
+  Future<String?> _showTextInputDialog(
+    BuildContext context,
+    String title,
+    String hint,
+  ) async {
     final controller = TextEditingController();
     return showDialog<String>(
       context: context,

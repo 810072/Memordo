@@ -2,57 +2,209 @@
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-// Helper classes for matching markdown syntax
-class _LineMatch {
-  final RegExpMatch match;
-  final String type;
-  _LineMatch(this.match, this.type);
-  int get start => match.start;
-  int get end => match.end;
-}
-
-class _InlineMatch {
-  final RegExpMatch match;
-  final String type;
-  _InlineMatch(this.match, this.type);
-  int get start => match.start;
-  int get end => match.end;
-}
-
-class _StyleMatch {
-  final RegExpMatch match;
-  final String type;
-  final bool isLineStyle;
-  _StyleMatch(this.match, this.type, this.isLineStyle);
-  int get start => match.start;
-  int get end => match.end;
-}
-
+/// A TextEditingController that applies markdown-like styling to the text in real-time.
+///
+/// This controller uses a listener-based approach to handle smart editing features
+/// like list continuation and provides methods for programmatic styling changes,
+/// ensuring high performance and cursor stability.
 class ObsidianMarkdownController extends TextEditingController {
   final Map<String, TextStyle> _styleMap;
+  TextEditingValue _previousValue = const TextEditingValue();
+  bool _isProgrammaticChange = false;
 
-  // Pre-compiled regex for performance
-  static final RegExp _headerRegex = RegExp(
-    r'^(#{1,6})\s+(.*)$',
-    multiLine: true,
-  );
-  static final RegExp _boldRegex = RegExp(r'\*\*(.*?)\*\*');
-  static final RegExp _italicRegex = RegExp(r'(?<!\*)\*(?!\*)([^*]+?)\*(?!\*)');
-  static final RegExp _codeRegex = RegExp(r'`([^`]+)`');
-  static final RegExp _linkRegex = RegExp(r'\[([^\]]+)\]\(([^)]+)\)');
-  static final RegExp _listRegex = RegExp(
+  // Regex for styling and smart editing features.
+  static final Map<String, RegExp> _stylingRegexMap = {
+    'header': RegExp(r'^(#{1,6})\s+.*', multiLine: true),
+    'list': RegExp(r'^(\s*[-*+•]|\s*\d+\.)\s+.*', multiLine: true),
+    'quote': RegExp(r'^>\s+.*', multiLine: true),
+    'link': RegExp(r'\[(.*?)\]\((.*?)\)', dotAll: true),
+    'code': RegExp(r'`(.*?)`', dotAll: true),
+    'bold': RegExp(r'\*\*(.*?)\*\*', dotAll: true),
+    'strikethrough': RegExp(r'~~(.*?)~~', dotAll: true),
+    'italic': RegExp(r'(?<![*\w])\*(?!\*)(.*?[^\s*])\*(?![*\w])', dotAll: true),
+  };
+  static final RegExp _listContinuationRegex = RegExp(
     r'^(\s*)([-*+]|\d+\.)\s+(.*)$',
-    multiLine: true,
   );
-  static final RegExp _quoteRegex = RegExp(r'^>\s+(.*)$', multiLine: true);
 
   ObsidianMarkdownController({
     String? text,
     required Map<String, TextStyle> styleMap,
   }) : _styleMap = styleMap,
-       super(text: text);
+       super(text: text) {
+    _previousValue = value;
+    addListener(_mainListener);
+  }
+
+  @override
+  void dispose() {
+    removeListener(_mainListener);
+    super.dispose();
+  }
+
+  /// Main listener to detect text changes and dispatch handlers.
+  void _mainListener() {
+    if (_isProgrammaticChange) {
+      _isProgrammaticChange = false;
+      _previousValue = value;
+      return;
+    }
+
+    if (value.text == _previousValue.text &&
+        value.selection == _previousValue.selection) {
+      return;
+    }
+
+    // Handle Enter key press for list continuation
+    if (text.length > _previousValue.text.length &&
+        text.substring(_previousValue.selection.start, selection.start) ==
+            '\n') {
+      _handleEnterKey();
+    }
+
+    _previousValue = value;
+  }
+
+  /// Handles automatic list continuation when Enter is pressed.
+  void _handleEnterKey() {
+    final currentLineIndex = selection.baseOffset - 1;
+    if (currentLineIndex < 0) return;
+
+    final startOfLine = text.lastIndexOf('\n', currentLineIndex) + 1;
+    final currentLine = text.substring(startOfLine, currentLineIndex + 1);
+    final match = _listContinuationRegex.firstMatch(currentLine);
+
+    if (match != null) {
+      final indent = match.group(1) ?? '';
+      final marker = match.group(2) ?? '';
+      final content = match.group(3) ?? '';
+
+      // If the list item content is empty, terminate the list.
+      if (content.trim().isEmpty) {
+        _runProgrammaticChange(() {
+          final textBefore = text.substring(0, startOfLine);
+          final textAfter = text.substring(selection.end);
+          this.text = textBefore + textAfter; // Remove the list item line
+          selection = TextSelection.fromPosition(
+            TextPosition(offset: startOfLine),
+          );
+        });
+        return;
+      }
+
+      String newMarker;
+      if (int.tryParse(marker.replaceAll('.', '')) != null) {
+        final number = int.parse(marker.replaceAll('.', ''));
+        newMarker = '${number + 1}.';
+      } else {
+        newMarker = marker;
+      }
+
+      final textToInsert = '\n$indent$newMarker ';
+
+      _runProgrammaticChange(() {
+        final newText =
+            text.substring(0, selection.start) +
+            textToInsert.substring(1) + // Insert text without extra newline
+            text.substring(selection.end);
+        final newOffset = selection.start + textToInsert.length - 1;
+
+        value = TextEditingValue(
+          text: newText,
+          selection: TextSelection.fromPosition(
+            TextPosition(offset: newOffset),
+          ),
+        );
+      });
+    }
+  }
+
+  /// Runs a programmatic text change and prevents listener loops.
+  void _runProgrammaticChange(VoidCallback action) {
+    _isProgrammaticChange = true;
+    action();
+  }
+
+  /// Toggles inline markdown syntax for the current selection.
+  void toggleInlineSyntax(String prefix, String suffix) {
+    _runProgrammaticChange(() {
+      final currentSelection = selection;
+      final selectedText = currentSelection.textInside(text);
+      final textBefore = currentSelection.textBefore(text);
+      final textAfter = currentSelection.textAfter(text);
+
+      final startsWith = selectedText.startsWith(prefix);
+      final endsWith = selectedText.endsWith(suffix);
+
+      String newText;
+      int newStart = currentSelection.start;
+      int newEnd;
+
+      if (startsWith && endsWith) {
+        // Remove syntax
+        newText = selectedText.substring(
+          prefix.length,
+          selectedText.length - suffix.length,
+        );
+        newEnd = newStart + newText.length;
+      } else {
+        // Add syntax
+        newText = '$prefix$selectedText$suffix';
+        newEnd = newStart + newText.length;
+      }
+
+      value = value.copyWith(
+        text: textBefore + newText + textAfter,
+        selection: TextSelection(baseOffset: newStart, extentOffset: newEnd),
+        composing: TextRange.empty,
+      );
+    });
+  }
+
+  /// Adjusts the indentation level of a list item.
+  void indentList(bool isIndent) {
+    _runProgrammaticChange(() {
+      final currentSelection = selection;
+      final startOfLine =
+          text.lastIndexOf('\n', currentSelection.start - 1) + 1;
+      final endOfLine = text.indexOf('\n', startOfLine);
+      final lineEnd = endOfLine == -1 ? text.length : endOfLine;
+      final currentLine = text.substring(startOfLine, lineEnd);
+
+      final match = _listContinuationRegex.firstMatch(currentLine);
+      if (match == null && !isIndent) return; // Can't outdent non-list item
+
+      String newText;
+      int offsetChange;
+
+      if (isIndent) {
+        newText = '  ' + currentLine;
+        offsetChange = 2;
+      } else {
+        if (currentLine.startsWith('  ')) {
+          newText = currentLine.substring(2);
+          offsetChange = -2;
+        } else if (currentLine.startsWith(' ')) {
+          newText = currentLine.substring(1);
+          offsetChange = -1;
+        } else {
+          return; // No indentation to remove
+        }
+      }
+
+      value = value.copyWith(
+        text: text.replaceRange(startOfLine, lineEnd, newText),
+        selection: currentSelection.copyWith(
+          baseOffset: currentSelection.baseOffset + offsetChange,
+          extentOffset: currentSelection.extentOffset + offsetChange,
+        ),
+        composing: TextRange.empty,
+      );
+    });
+  }
 
   @override
   TextSpan buildTextSpan({
@@ -60,34 +212,54 @@ class ObsidianMarkdownController extends TextEditingController {
     TextStyle? style,
     required bool withComposing,
   }) {
-    final String textValue = text;
-    if (textValue.isEmpty) {
-      return TextSpan(text: '', style: style);
+    final defaultStyle = style ?? const TextStyle();
+    if (text.isEmpty) {
+      return TextSpan(text: '', style: defaultStyle);
     }
-    return _buildStyledTextSpan(textValue, style ?? const TextStyle(), context);
-  }
 
-  TextSpan _buildStyledTextSpan(
-    String text,
-    TextStyle defaultStyle,
-    BuildContext context,
-  ) {
+    final List<_Match> allMatches = [];
+
+    _stylingRegexMap.forEach((type, regex) {
+      for (final match in regex.allMatches(text)) {
+        allMatches.add(_Match(match, type));
+      }
+    });
+
+    allMatches.sort((a, b) {
+      if (a.match.start < b.match.start) return -1;
+      if (a.match.start > b.match.start) return 1;
+      if (a.match.end > b.match.end) return -1;
+      if (a.match.end < b.match.end) return 1;
+      return 0;
+    });
+
+    final List<_Match> filteredMatches = [];
+    int lastEnd = -1;
+    for (final currentMatch in allMatches) {
+      if (currentMatch.match.start >= lastEnd) {
+        filteredMatches.add(currentMatch);
+        lastEnd = currentMatch.match.end;
+      }
+    }
+
+    if (filteredMatches.isEmpty) {
+      return TextSpan(text: text, style: defaultStyle);
+    }
+
     final List<TextSpan> spans = [];
     int currentIndex = 0;
 
-    final List<_StyleMatch> allMatches = _collectAndFilterMatches(text);
-
-    for (final _StyleMatch match in allMatches) {
-      if (match.start > currentIndex) {
+    for (final item in filteredMatches) {
+      if (item.match.start > currentIndex) {
         spans.add(
           TextSpan(
-            text: text.substring(currentIndex, match.start),
+            text: text.substring(currentIndex, item.match.start),
             style: defaultStyle,
           ),
         );
       }
-      spans.add(_createStyledSpan(match, defaultStyle, context));
-      currentIndex = match.end;
+      spans.add(_createStyledSpan(item.match, item.type, defaultStyle));
+      currentIndex = item.match.end;
     }
 
     if (currentIndex < text.length) {
@@ -96,192 +268,47 @@ class ObsidianMarkdownController extends TextEditingController {
       );
     }
 
-    return spans.isEmpty
-        ? TextSpan(text: text, style: defaultStyle)
-        : TextSpan(children: spans);
-  }
-
-  List<_StyleMatch> _collectAndFilterMatches(String text) {
-    final lineMatches = [
-      ..._headerRegex.allMatches(text).map((m) => _LineMatch(m, 'header')),
-      ..._listRegex.allMatches(text).map((m) => _LineMatch(m, 'list')),
-      ..._quoteRegex.allMatches(text).map((m) => _LineMatch(m, 'quote')),
-    ];
-
-    final inlineMatches = [
-      ..._boldRegex.allMatches(text).map((m) => _InlineMatch(m, 'bold')),
-      ..._italicRegex.allMatches(text).map((m) => _InlineMatch(m, 'italic')),
-      ..._codeRegex.allMatches(text).map((m) => _InlineMatch(m, 'code')),
-      ..._linkRegex.allMatches(text).map((m) => _InlineMatch(m, 'link')),
-    ];
-
-    final allMatches = [
-      ...lineMatches.map((m) => _StyleMatch(m.match, m.type, true)),
-      ...inlineMatches.map((m) => _StyleMatch(m.match, m.type, false)),
-    ];
-
-    allMatches.sort((a, b) => a.start.compareTo(b.start));
-
-    // Filter out overlapping matches
-    final List<_StyleMatch> filteredMatches = [];
-    for (final current in allMatches) {
-      bool hasOverlap = filteredMatches.any(
-        (existing) =>
-            (current.start < existing.end && current.end > existing.start),
-      );
-      if (!hasOverlap) {
-        filteredMatches.add(current);
-      }
-    }
-    return filteredMatches;
+    return TextSpan(children: spans, style: defaultStyle);
   }
 
   TextSpan _createStyledSpan(
-    _StyleMatch match,
+    RegExpMatch match,
+    String type,
     TextStyle defaultStyle,
-    BuildContext context,
   ) {
-    // ... (기존 _createLineStyledSpan, _createInlineStyledSpan 메서드 내용은 여기에 통합 또는 그대로 유지)
-    // 이 예제에서는 간결함을 위해 세부 구현은 생략합니다. 기존 코드를 그대로 복사해오시면 됩니다.
-    if (match.isLineStyle) {
-      return _createLineStyledSpan(match, defaultStyle);
+    TextStyle style;
+    if (type == 'header') {
+      final headerLevel = match.group(1)!.length;
+      style = _styleMap['h$headerLevel'] ?? _styleMap['h3'] ?? defaultStyle;
     } else {
-      return _createInlineStyledSpan(match, defaultStyle, context);
+      style = _styleMap[type] ?? defaultStyle;
     }
-  }
 
-  TextSpan _createLineStyledSpan(_StyleMatch match, TextStyle defaultStyle) {
-    switch (match.type) {
-      case 'header':
-        final headerLevel = match.match.group(1)!.length;
-        final headerPrefix = match.match.group(1)!;
-        final headerContent = match.match.group(2) ?? '';
-        final style =
-            _styleMap['h$headerLevel'] ?? _styleMap['h3'] ?? defaultStyle;
-        return TextSpan(
-          children: [
-            TextSpan(
-              text: '$headerPrefix ',
-              style: style.copyWith(color: Colors.grey.withOpacity(0.6)),
-            ),
-            TextSpan(text: headerContent, style: style),
-          ],
-        );
-
-      case 'list':
-        final indent = match.match.group(1) ?? '';
-        final bullet = match.match.group(2) ?? '';
-        final content = match.match.group(3) ?? '';
-        return TextSpan(
-          children: [
-            TextSpan(text: indent, style: defaultStyle),
-            TextSpan(
-              text: '$bullet ',
-              style: (_styleMap['list'] ?? defaultStyle).copyWith(
-                color: const Color(0xFF3498db),
-              ),
-            ),
-            TextSpan(text: content, style: defaultStyle),
-          ],
-        );
-
-      case 'quote':
-        final content = match.match.group(1) ?? '';
-        return TextSpan(
-          children: [
-            TextSpan(
-              text: '> ',
-              style: (_styleMap['quote'] ?? defaultStyle).copyWith(
-                color: Colors.grey,
-              ),
-            ),
-            TextSpan(text: content, style: _styleMap['quote'] ?? defaultStyle),
-          ],
-        );
-
-      default:
-        return TextSpan(text: match.match.group(0)!, style: defaultStyle);
+    if (type == 'link') {
+      final linkText = match.group(1) ?? '';
+      final url = match.group(2) ?? '';
+      return TextSpan(
+        text: linkText,
+        style: style,
+        recognizer:
+            TapGestureRecognizer()
+              ..onTap = () async {
+                final uri = Uri.tryParse(url);
+                if (uri != null && await canLaunchUrl(uri)) {
+                  await launchUrl(uri);
+                }
+              },
+      );
     }
+
+    return TextSpan(text: match.group(0)!, style: style);
   }
+}
 
-  TextSpan _createInlineStyledSpan(
-    _StyleMatch match,
-    TextStyle defaultStyle,
-    BuildContext context,
-  ) {
-    switch (match.type) {
-      case 'bold':
-        return TextSpan(
-          children: [
-            TextSpan(
-              text: '**',
-              style: defaultStyle.copyWith(color: Colors.grey.withOpacity(0.6)),
-            ),
-            TextSpan(
-              text: match.match.group(1)!,
-              style: _styleMap['bold'] ?? defaultStyle,
-            ),
-            TextSpan(
-              text: '**',
-              style: defaultStyle.copyWith(color: Colors.grey.withOpacity(0.6)),
-            ),
-          ],
-        );
+// Helper class to hold match data
+class _Match {
+  final RegExpMatch match;
+  final String type;
 
-      case 'italic':
-        return TextSpan(
-          children: [
-            TextSpan(
-              text: '*',
-              style: defaultStyle.copyWith(color: Colors.grey.withOpacity(0.6)),
-            ),
-            TextSpan(
-              text: match.match.group(1)!,
-              style: _styleMap['italic'] ?? defaultStyle,
-            ),
-            TextSpan(
-              text: '*',
-              style: defaultStyle.copyWith(color: Colors.grey.withOpacity(0.6)),
-            ),
-          ],
-        );
-
-      case 'code':
-        return TextSpan(
-          children: [
-            TextSpan(
-              text: '`',
-              style: defaultStyle.copyWith(color: Colors.grey.withOpacity(0.6)),
-            ),
-            TextSpan(
-              text: match.match.group(1)!,
-              style: _styleMap['code'] ?? defaultStyle,
-            ),
-            TextSpan(
-              text: '`',
-              style: defaultStyle.copyWith(color: Colors.grey.withOpacity(0.6)),
-            ),
-          ],
-        );
-
-      case 'link':
-        final linkText = match.match.group(1)!;
-        final url = match.match.group(2)!;
-        return TextSpan(
-          text: linkText,
-          style: _styleMap['link'] ?? defaultStyle,
-          recognizer:
-              TapGestureRecognizer()
-                ..onTap = () async {
-                  final uri = Uri.tryParse(url);
-                  if (uri != null && await canLaunchUrl(uri)) {
-                    await launchUrl(uri);
-                  }
-                },
-        );
-
-      default:
-        return TextSpan(text: match.match.group(0)!, style: defaultStyle);
-    }
-  }
+  _Match(this.match, this.type);
 }

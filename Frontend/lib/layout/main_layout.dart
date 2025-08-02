@@ -155,13 +155,13 @@ class _MainLayoutState extends State<MainLayout> {
           const SizedBox(width: 10),
         ],
       ),
-      // body 부분은 기존과 동일
       body: Row(
         children: [
           AnimatedContainer(
             duration: const Duration(milliseconds: 250),
             curve: Curves.easeInOut,
-            width: _isLeftExpanded ? 240 : 65,
+            // ✨ 왼쪽 사이드바 크기 수정 (기존: 240 -> 192, 65 -> 52)
+            width: _isLeftExpanded ? 192 : 52,
             decoration: BoxDecoration(
               color: Colors.white,
               border: Border(right: BorderSide(color: Colors.grey.shade200)),
@@ -187,7 +187,8 @@ class _MainLayoutState extends State<MainLayout> {
                 return AnimatedContainer(
                   duration: const Duration(milliseconds: 250),
                   curve: Curves.easeInOut,
-                  width: _isRightExpanded ? 250 : 0,
+                  // ✨ 오른쪽 사이드바 크기 수정 (기존: 250 -> 200)
+                  width: _isRightExpanded ? 200 : 0,
                   decoration: BoxDecoration(
                     color: Colors.white,
                     border: Border(

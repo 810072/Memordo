@@ -3,8 +3,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
-import 'dart:convert'; // jsonDecode를 위해 추가
-import 'package:desktop_multi_window/desktop_multi_window.dart'; // 패키지 임포트
+import 'dart:convert';
+import 'package:desktop_multi_window/desktop_multi_window.dart';
+import 'package:window_manager/window_manager.dart'; // ✨ window_manager 패키지 임포트
 
 // 기존 임포트
 import 'auth/login_page.dart';
@@ -19,7 +20,7 @@ import 'features/page_type.dart';
 import 'providers/file_system_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/token_status_provider.dart';
-import 'features/chatbot_page.dart'; // 챗봇 페이지 임포트
+import 'features/chatbot_page.dart';
 
 Future<void> main(List<String> args) async {
   // 새 창(챗봇)으로 실행될 경우의 로직
@@ -31,12 +32,27 @@ Future<void> main(List<String> args) async {
             : jsonDecode(args[2]) as Map<String, dynamic>;
 
     await dotenv.load(fileName: 'assets/.env');
-    // 챗봇 창을 위한 앱 실행
     runApp(ChatbotPage(key: Key('chatbot_window_$windowId')));
   }
-  // 기존 메인 앱 실행 로직
+  // ✨ 기존 메인 앱 실행 로직 수정
   else {
     WidgetsFlutterBinding.ensureInitialized();
+    // window_manager를 초기화합니다.
+    await windowManager.ensureInitialized();
+
+    // 창이 표시될 준비가 되면, 크기와 위치를 설정합니다.
+    WindowOptions windowOptions = const WindowOptions(
+      size: Size(1280, 1000), // 원하는 창의 너비와 높이
+      center: true, // 창을 화면 중앙에 위치시킴
+      minimumSize: Size(800, 600), // 창의 최소 크기 설정
+      title: 'Memordo', // 창 제목 설정
+    );
+
+    windowManager.waitUntilReadyToShow(windowOptions, () async {
+      await windowManager.show();
+      await windowManager.focus();
+    });
+
     await dotenv.load(fileName: 'assets/.env');
 
     runApp(
