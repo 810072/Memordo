@@ -5,7 +5,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
 import 'dart:convert';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
-import 'package:window_manager/window_manager.dart'; // ✨ window_manager 패키지 임포트
+import 'package:window_manager/window_manager.dart';
 
 // 기존 임포트
 import 'auth/login_page.dart';
@@ -21,9 +21,10 @@ import 'providers/file_system_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/token_status_provider.dart';
 import 'features/chatbot_page.dart';
+import 'providers/note_provider.dart';
+import 'providers/scratchpad_provider.dart'; // ✨ [추가] ScratchpadProvider 임포트
 
 Future<void> main(List<String> args) async {
-  // 새 창(챗봇)으로 실행될 경우의 로직
   if (args.firstOrNull == 'multi_window') {
     final windowId = int.parse(args[1]);
     final arguments =
@@ -33,19 +34,15 @@ Future<void> main(List<String> args) async {
 
     await dotenv.load(fileName: 'assets/.env');
     runApp(ChatbotPage(key: Key('chatbot_window_$windowId')));
-  }
-  // ✨ 기존 메인 앱 실행 로직 수정
-  else {
+  } else {
     WidgetsFlutterBinding.ensureInitialized();
-    // window_manager를 초기화합니다.
     await windowManager.ensureInitialized();
 
-    // 창이 표시될 준비가 되면, 크기와 위치를 설정합니다.
     WindowOptions windowOptions = const WindowOptions(
-      size: Size(1280, 1000), // 원하는 창의 너비와 높이
-      center: true, // 창을 화면 중앙에 위치시킴
-      minimumSize: Size(800, 600), // 창의 최소 크기 설정
-      title: 'Memordo', // 창 제목 설정
+      size: Size(1280, 1000),
+      center: true,
+      minimumSize: Size(800, 600),
+      title: 'Memordo',
     );
 
     windowManager.waitUntilReadyToShow(windowOptions, () async {
@@ -65,14 +62,15 @@ Future<void> main(List<String> args) async {
           ChangeNotifierProvider(create: (context) => FileSystemProvider()),
           ChangeNotifierProvider(create: (context) => ThemeProvider()),
           ChangeNotifierProvider(create: (context) => TokenStatusProvider()),
+          ChangeNotifierProvider(create: (context) => NoteProvider()),
+          // ✨ [추가] 앱 전역에서 ScratchpadProvider를 사용할 수 있도록 등록합니다.
+          ChangeNotifierProvider(create: (context) => ScratchpadProvider()),
         ],
         child: const MyApp(),
       ),
     );
   }
 }
-
-// ============== 여기부터 아래 코드는 기존과 동일합니다 ==============
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});

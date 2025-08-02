@@ -6,6 +6,8 @@ import '../model/file_system_entry.dart';
 import '../widgets/expandable_folder_tile.dart';
 import '../layout/bottom_section_controller.dart';
 import '../widgets/ai_summary_widget.dart';
+import '../widgets/note_outline_view.dart';
+import '../widgets/scratchpad_view.dart';
 
 class RightSidebarContent extends StatefulWidget {
   final bool isLoading;
@@ -39,7 +41,7 @@ class _RightSidebarContentState extends State<RightSidebarContent>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _bottomSectionController = Provider.of<BottomSectionController>(
@@ -77,27 +79,38 @@ class _RightSidebarContentState extends State<RightSidebarContent>
           child: Row(
             mainAxisAlignment: MainAxisAlignment.start,
             children: [
-              TabBar(
-                controller: _tabController,
-                isScrollable: true,
-                labelColor: Theme.of(context).primaryColor,
-                unselectedLabelColor: Colors.grey.shade600,
-                indicatorColor: Theme.of(context).primaryColor,
-                indicatorWeight: 2.5,
-                tabAlignment: TabAlignment.start,
-                onTap: (index) {
-                  bottomCtrl.setActiveTab(index);
-                },
-                tabs: const [
-                  Tab(
-                    icon: Icon(Icons.folder_outlined, size: 20),
-                    iconMargin: EdgeInsets.zero,
-                  ),
-                  Tab(
-                    icon: Icon(Icons.auto_awesome_outlined, size: 20),
-                    iconMargin: EdgeInsets.zero,
-                  ),
-                ],
+              // ✨ [수정] TabBar를 Flexible로 감싸서 RenderFlex overflow 오류를 해결합니다.
+              Flexible(
+                child: TabBar(
+                  controller: _tabController,
+                  isScrollable: true,
+                  labelColor: Theme.of(context).primaryColor,
+                  unselectedLabelColor: Colors.grey.shade600,
+                  indicatorColor: Theme.of(context).primaryColor,
+                  indicatorWeight: 2.5,
+                  tabAlignment: TabAlignment.start,
+                  onTap: (index) {
+                    bottomCtrl.setActiveTab(index);
+                  },
+                  tabs: const [
+                    Tab(
+                      icon: Icon(Icons.folder_outlined, size: 20),
+                      iconMargin: EdgeInsets.zero,
+                    ),
+                    Tab(
+                      icon: Icon(Icons.format_list_bulleted, size: 20),
+                      iconMargin: EdgeInsets.zero,
+                    ),
+                    Tab(
+                      icon: Icon(Icons.auto_awesome_outlined, size: 20),
+                      iconMargin: EdgeInsets.zero,
+                    ),
+                    Tab(
+                      icon: Icon(Icons.edit_note, size: 20),
+                      iconMargin: EdgeInsets.zero,
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -109,10 +122,12 @@ class _RightSidebarContentState extends State<RightSidebarContent>
             physics: const NeverScrollableScrollPhysics(),
             children: [
               _buildFileListView(),
+              const NoteOutlineView(),
               Padding(
                 padding: const EdgeInsets.all(12.0),
                 child: AiSummaryWidget(),
               ),
+              const ScratchpadView(),
             ],
           ),
         ),
@@ -155,7 +170,6 @@ class _RightSidebarContentState extends State<RightSidebarContent>
             ],
           ),
         ),
-        // ✨ [수정] "저장된 메모"와 파일 목록 사이의 불필요한 여백을 제거했습니다.
         if (widget.isLoading)
           const Expanded(child: Center(child: CircularProgressIndicator()))
         else if (widget.fileSystemEntries.isEmpty)

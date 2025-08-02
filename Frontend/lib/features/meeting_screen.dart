@@ -1,6 +1,6 @@
 // lib/features/meeting_screen.dart
 
-import 'dart:io';
+import 'dart:io'; // ✨ [수정] 'dart.io' -> 'dart:io'로 오타를 수정했습니다.
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -15,8 +15,9 @@ import '../utils/ai_service.dart';
 import '../utils/web_helper.dart' as web_helper;
 import '../model/file_system_entry.dart';
 import '../providers/file_system_provider.dart';
+import '../providers/note_provider.dart';
 
-// --- 단축키 Intent 및 Action 클래스 (기존과 동일) ---
+// 단축키 Intent 및 Action 클래스
 class ToggleBoldIntent extends Intent {}
 
 class ToggleItalicIntent extends Intent {}
@@ -64,7 +65,6 @@ class OutdentAction extends Action<OutdentIntent> {
     return null;
   }
 }
-// --- Intent 및 Action 클래스 정의 끝 ---
 
 class MeetingScreen extends StatefulWidget {
   final String? initialText;
@@ -170,6 +170,11 @@ class _MeetingScreenState extends State<MeetingScreen> {
         listen: false,
       );
       bottomController.clearSummary();
+
+      Provider.of<NoteProvider>(
+        context,
+        listen: false,
+      ).register(_controller, _focusNode);
     });
   }
 
@@ -242,7 +247,6 @@ class _MeetingScreenState extends State<MeetingScreen> {
   }
 
   Widget _buildNewHeader() {
-    // ✨ [수정] 헤더를 고정 높이 40px의 Container로 감싸서 정렬을 맞춥니다.
     return Container(
       height: 40,
       padding: const EdgeInsets.symmetric(horizontal: 24.0),
@@ -391,14 +395,11 @@ class _MeetingScreenState extends State<MeetingScreen> {
     );
   }
 
-  // --- 로직 메서드 ---
-
   Future<void> _renameCurrentFile(String newName) async {
     if (newName.isEmpty || newName == _currentEditingFileName) {
       _titleController.text = _currentEditingFileName;
       return;
     }
-
     if (_currentEditingFilePath == null) {
       setState(() {
         _currentEditingFileName = newName;
@@ -406,20 +407,17 @@ class _MeetingScreenState extends State<MeetingScreen> {
       });
       return;
     }
-
     final fileProvider = context.read<FileSystemProvider>();
     final entry = FileSystemEntry(
       name: p.basename(_currentEditingFilePath!),
       path: _currentEditingFilePath!,
       isDirectory: false,
     );
-
     final success = await fileProvider.renameEntry(
       context,
       entry,
       newName + '.md',
     );
-
     if (success) {
       setState(() {
         _currentEditingFileName = newName;
@@ -453,16 +451,13 @@ class _MeetingScreenState extends State<MeetingScreen> {
       _showSnackBar("저장할 내용이 없습니다.", isError: true);
       return;
     }
-
     final fileProvider = context.read<FileSystemProvider>();
-
     if (kIsWeb) {
       final fileName = '$_currentEditingFileName.md';
       web_helper.downloadMarkdownWeb(content, fileName);
       _updateSaveStatus("파일 다운로드 완료: $fileName ✅");
       return;
     }
-
     String? path = _currentEditingFilePath;
     if (path == null) {
       path = await FilePicker.platform.saveFile(
@@ -474,7 +469,6 @@ class _MeetingScreenState extends State<MeetingScreen> {
         allowedExtensions: ['md'],
       );
     }
-
     if (path != null) {
       try {
         await File(path).writeAsString(content);
@@ -503,11 +497,9 @@ class _MeetingScreenState extends State<MeetingScreen> {
       _showSnackBar("파일 불러오기가 취소되었습니다.");
       return;
     }
-
     String content;
     String fileName;
     String? filePath;
-
     if (kIsWeb) {
       final fileBytes = result.files.single.bytes;
       if (fileBytes == null) return;
@@ -546,13 +538,10 @@ class _MeetingScreenState extends State<MeetingScreen> {
       _showSnackBar('요약할 내용이 너무 짧습니다 (최소 50자 필요).', isError: true);
       return;
     }
-
     final bottomController = context.read<BottomSectionController>();
-
     bottomController.setIsLoading(true);
     bottomController.updateSummary('AI가 텍스트를 요약 중입니다...');
-    bottomController.setActiveTab(1);
-
+    bottomController.setActiveTab(2); // AI 요약 탭으로 이동
     try {
       final summary = await callBackendTask(
         taskType: "summarize",
@@ -567,7 +556,6 @@ class _MeetingScreenState extends State<MeetingScreen> {
     }
   }
 
-  // --- Helper Methods ---
   void _updateEditorContent(String content, String fileName, String? filePath) {
     setState(() {
       _controller.text = content;
@@ -580,9 +568,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
     context.read<BottomSectionController>().clearSummary();
   }
 
-  void _updateSaveStatus(String status) {
-    setState(() => _saveStatus = status);
-  }
+  void _updateSaveStatus(String status) => setState(() => _saveStatus = status);
 
   void _showSnackBar(String message, {bool isError = false}) {
     if (!mounted) return;
