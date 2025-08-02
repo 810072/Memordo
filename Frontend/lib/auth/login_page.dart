@@ -3,11 +3,12 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-// import 'package:flutter/services.dart'; // RawKeyboardListener를 사용하지 않으므로 제거 가능
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/auth_token.dart';
+import '../providers/token_status_provider.dart';
 
 import 'email_check_page.dart';
 import 'find_id_page.dart';
@@ -21,7 +22,6 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  // final FocusNode _focusNode = FocusNode(); // 더 이상 필요 없으므로 제거
   bool _isLoading = false;
   bool _isGoogleLoading = false;
 
@@ -32,7 +32,6 @@ class _LoginPageState extends State<LoginPage> {
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
-    // _focusNode.dispose(); // 더 이상 필요 없으므로 제거
     super.dispose();
   }
 
@@ -62,28 +61,18 @@ class _LoginPageState extends State<LoginPage> {
         final data = jsonDecode(response.body);
         final accessToken = data['accessToken'];
         final refreshToken = data['refreshToken'];
-        final googleAccessToken = data['googleAccessToken'];
-        final googleRefreshToken = data['googleRefreshToken'];
 
-        // 순차적으로 토큰 저장
         if (accessToken != null) await setStoredAccessToken(accessToken);
         if (refreshToken != null) await setStoredRefreshToken(refreshToken);
-        if (googleAccessToken != null)
-          await setStoredGoogleAccessToken(googleAccessToken);
-        if (googleRefreshToken != null)
-          await setStoredGoogleRefreshToken(googleRefreshToken);
 
-        print('✅ 일반 로그인 성공 및 토큰 저장 시도 완료.');
+        await setStoredUserEmail(email);
 
-        // 가장 중요한 액세스 토큰이 저장되었는지 확인
-        final savedToken = await getStoredAccessToken();
-        if (savedToken != null && savedToken.isNotEmpty) {
-          print('✅ 토큰 저장 확인 완료. 메인 화면으로 이동합니다.');
-          if (mounted) Navigator.pushReplacementNamed(context, '/main');
-        } else {
-          print('❌ 토큰 저장 실패! 로그인 페이지에 머무릅니다.');
-          _showSnackBar('로그인에 성공했으나 토큰 저장에 실패했습니다. 다시 시도해주세요.', isError: true);
-          if (mounted) setState(() => _isLoading = false);
+        print('✅ 일반 로그인 성공 및 토큰/이메일 저장 완료.');
+
+        if (mounted) {
+          // ✨ [수정] LoginPage에서는 상태 갱신 호출을 제거하고, pop만 실행합니다.
+          // 상태 갱신은 이 페이지를 호출한 main_layout.dart의 .then() 콜백에서 처리합니다.
+          Navigator.pop(context, true);
         }
       } else {
         final responseBody = jsonDecode(response.body);
@@ -92,12 +81,12 @@ class _LoginPageState extends State<LoginPage> {
           '로그인 실패: $message (${response.statusCode})',
           isError: true,
         );
-        if (mounted) setState(() => _isLoading = false); // 실패 시 로딩 상태 해제
+        if (mounted) setState(() => _isLoading = false);
       }
     } catch (e) {
       print('로그인 오류: $e');
       _showSnackBar('로그인 중 오류가 발생했습니다: $e', isError: true);
-      if (mounted) setState(() => _isLoading = false); // 오류 시 로딩 상태 해제
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -167,26 +156,21 @@ class _LoginPageState extends State<LoginPage> {
         final refreshToken = data['refreshToken'];
         final googleAccessToken = data['googleAccessToken'];
         final googleRefreshToken = data['googleRefreshToken'];
+        final userEmail = data['email'];
 
-        // 순차적으로 토큰 저장
         if (accessToken != null) await setStoredAccessToken(accessToken);
         if (refreshToken != null) await setStoredRefreshToken(refreshToken);
         if (googleAccessToken != null)
           await setStoredGoogleAccessToken(googleAccessToken);
         if (googleRefreshToken != null)
           await setStoredGoogleRefreshToken(googleRefreshToken);
+        if (userEmail != null) await setStoredUserEmail(userEmail);
 
-        print('✅ Google 로그인 성공 및 토큰 저장 시도 완료.');
+        print('✅ Google 로그인 성공 및 토큰/이메일 저장 완료.');
 
-        // 가장 중요한 액세스 토큰이 저장되었는지 확인
-        final savedToken = await getStoredAccessToken();
-        if (savedToken != null && savedToken.isNotEmpty) {
-          print('✅ 토큰 저장 확인 완료. 메인 화면으로 이동합니다.');
-          if (mounted) Navigator.pushReplacementNamed(context, '/main');
-        } else {
-          print('❌ 토큰 저장 실패! 로그인 페이지에 머무릅니다.');
-          _showSnackBar('로그인에 성공했으나 토큰 저장에 실패했습니다. 다시 시도해주세요.', isError: true);
-          if (mounted) setState(() => _isGoogleLoading = false);
+        if (mounted) {
+          // ✨ [수정] LoginPage에서는 상태 갱신 호출을 제거하고, pop만 실행합니다.
+          Navigator.pop(context, true);
         }
       } else {
         final responseBody = jsonDecode(response.body);
@@ -195,12 +179,12 @@ class _LoginPageState extends State<LoginPage> {
           'Google 로그인 실패: $message (${response.statusCode})',
           isError: true,
         );
-        if (mounted) setState(() => _isGoogleLoading = false); // 실패 시 로딩 상태 해제
+        if (mounted) setState(() => _isGoogleLoading = false);
       }
     } catch (e) {
       print('⚠️ Google 로그인 중 오류 발생: $e');
       _showSnackBar('Google 로그인 중 오류가 발생했습니다: ${e.toString()}', isError: true);
-      if (mounted) setState(() => _isGoogleLoading = false); // 오류 시 로딩 상태 해제
+      if (mounted) setState(() => _isGoogleLoading = false);
     }
   }
 
@@ -298,7 +282,6 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[100],
-      // RawKeyboardListener를 제거하고 Center만 남김
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
@@ -344,7 +327,6 @@ class _LoginPageState extends State<LoginPage> {
                     labelText: 'Password',
                     icon: Icons.lock_outline,
                     obscureText: true,
-                    // ======== onSubmitted 속성 추가 ========
                     onSubmitted: (_) {
                       if (!_isLoading && !_isGoogleLoading) {
                         _login(context);
@@ -406,7 +388,6 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  // --- 공통 위젯 빌더 수정 ---
   Widget _buildTextField({
     required TextEditingController controller,
     required String labelText,
@@ -414,14 +395,14 @@ class _LoginPageState extends State<LoginPage> {
     bool obscureText = false,
     TextInputType? keyboardType,
     bool enabled = true,
-    void Function(String)? onSubmitted, // onSubmitted 콜백을 파라미터로 받도록 추가
+    void Function(String)? onSubmitted,
   }) {
     return TextField(
       controller: controller,
       obscureText: obscureText,
       keyboardType: keyboardType,
       enabled: enabled,
-      onSubmitted: onSubmitted, // 전달받은 콜백을 연결
+      onSubmitted: onSubmitted,
       decoration: InputDecoration(
         labelText: labelText,
         prefixIcon: Icon(icon, color: Colors.grey[600]),
@@ -441,7 +422,6 @@ class _LoginPageState extends State<LoginPage> {
           horizontal: 12.0,
         ),
       ),
-      // 사용자가 다음 필드로 쉽게 이동하거나 입력을 완료할 수 있도록 설정
       textInputAction:
           onSubmitted != null ? TextInputAction.done : TextInputAction.next,
     );

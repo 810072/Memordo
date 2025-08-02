@@ -88,7 +88,8 @@ class MyApp extends StatelessWidget {
               themeProvider.themeMode == AppThemeMode.dark
                   ? ThemeMode.dark
                   : ThemeMode.light,
-          initialRoute: '/login',
+          // ✨ [수정] 앱 시작 경로를 '/main'으로 변경
+          initialRoute: '/main',
           routes: {
             '/login': (context) => LoginPage(),
             '/signup': (context) => SignUpPage(),

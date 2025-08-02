@@ -3,9 +3,11 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import '../auth/login_page.dart'; // LoginPage 임포트
 
 final _storage = FlutterSecureStorage();
 
+// --- Access Token ---
 Future<void> setStoredAccessToken(String token) async {
   await _storage.write(key: 'access_token', value: token);
 }
@@ -14,6 +16,7 @@ Future<String?> getStoredAccessToken() async {
   return await _storage.read(key: 'access_token');
 }
 
+// --- Refresh Token ---
 Future<void> setStoredRefreshToken(String token) async {
   await _storage.write(key: 'refresh_token', value: token);
 }
@@ -22,34 +25,47 @@ Future<String?> getStoredRefreshToken() async {
   return await _storage.read(key: 'refresh_token');
 }
 
+// --- Google Access Token ---
 Future<void> setStoredGoogleAccessToken(String token) async {
   await _storage.write(key: 'google_access_token', value: token);
-}
-
-Future<void> setStoredGoogleRefreshToken(String token) async {
-  await _storage.write(key: 'google_refresh_token', value: token);
 }
 
 Future<String?> getStoredGoogleAccessToken() async {
   return await _storage.read(key: 'google_access_token');
 }
 
+// --- Google Refresh Token ---
+Future<void> setStoredGoogleRefreshToken(String token) async {
+  await _storage.write(key: 'google_refresh_token', value: token);
+}
+
 Future<String?> getStoredGoogleRefreshToken() async {
   return await _storage.read(key: 'google_refresh_token');
 }
 
+// --- Google Token Expiry ---
 Future<String?> getStoredGoogleTokenExpiry() async {
   return await _storage.read(key: 'google_token_expiry');
 }
 
+// ✨ [추가] User Email
+Future<void> setStoredUserEmail(String email) async {
+  await _storage.write(key: 'user_email', value: email);
+}
+
+Future<String?> getStoredUserEmail() async {
+  return await _storage.read(key: 'user_email');
+}
+
+// --- Token Management ---
 Future<void> clearAllTokens() async {
   await _storage.delete(key: 'access_token');
   await _storage.delete(key: 'refresh_token');
   await _storage.delete(key: 'google_access_token');
   await _storage.delete(key: 'google_refresh_token');
   await _storage.delete(key: 'google_token_expiry');
-
-  print('🧹 모든 토큰 삭제 완료');
+  await _storage.delete(key: 'user_email'); // ✨ [추가] 이메일 정보 삭제
+  print('🧹 모든 토큰 및 사용자 정보 삭제 완료');
 }
 
 Future<void> refreshAccessTokenIfNeeded() async {
@@ -109,7 +125,9 @@ Future<http.Response> authorizedRequest(
       try {
         await refreshAccessTokenIfNeeded();
         token = await getStoredAccessToken();
-        headers['Authorization'] = 'Bearer $token';
+        if (token != null) {
+          headers['Authorization'] = 'Bearer $token';
+        }
         response = await _sendRequest(method, url, headers, body);
       } catch (e) {
         print('❌ refreshToken도 만료됨 → 로그아웃');
@@ -224,7 +242,9 @@ Future<void> logoutUser(BuildContext context) async {
   await clearAllTokens();
 
   if (context.mounted) {
-    Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+    // ✨ [수정] 로그아웃 시 로그인 페이지로 강제 이동하는 대신,
+    // 상태만 초기화하도록 변경. UI는 Provider가 자동으로 갱신.
+    // Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
   }
 }
 

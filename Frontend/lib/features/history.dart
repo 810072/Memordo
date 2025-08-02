@@ -9,6 +9,8 @@ import '../layout/bottom_section_controller.dart';
 import '../widgets/ai_summary_widget.dart';
 import '../features/meeting_screen.dart';
 import '../utils/ai_service.dart';
+import '../providers/token_status_provider.dart';
+import '../auth/login_page.dart';
 
 /// HistoryPage는 ViewModel을 제공하는 역할만 담당합니다.
 class HistoryPage extends StatelessWidget {
@@ -32,11 +34,21 @@ class HistoryView extends StatefulWidget {
 }
 
 class _HistoryViewState extends State<HistoryView> {
-  // UI 상태는 여전히 StatefulWidget에서 관리 (ViewModel에 속하지 않는 상태)
   final Set<String> _selectedTimestamps = {};
   bool _showSummary = false;
 
-  /// 선택된 항목을 AI로 요약하는 함수
+  @override
+  void initState() {
+    super.initState();
+    // ✨ [추가] 위젯이 빌드된 후, 로그인 상태를 확인하고 데이터를 로드합니다.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final tokenProvider = context.read<TokenStatusProvider>();
+      if (tokenProvider.isAuthenticated) {
+        context.read<HistoryViewModel>().loadVisitHistory();
+      }
+    });
+  }
+
   void _handleSummarizeAction() {
     final viewModel = context.read<HistoryViewModel>();
     final bottomController = context.read<BottomSectionController>();
@@ -98,7 +110,6 @@ class _HistoryViewState extends State<HistoryView> {
     }
   }
 
-  /// 요약된 내용으로 새 메모를 작성하는 함수
   void _createNewMemoWithSummary() {
     final bottomController = context.read<BottomSectionController>();
     final summary = bottomController.summaryText;
@@ -122,11 +133,11 @@ class _HistoryViewState extends State<HistoryView> {
 
   @override
   Widget build(BuildContext context) {
-    // context.watch를 통해 ViewModel의 상태 변화를 감지하고 UI를 다시 그립니다.
     final viewModel = context.watch<HistoryViewModel>();
     final bottomController = context.watch<BottomSectionController>();
+    // ✨ [추가] 로그인 상태를 확인하기 위해 TokenStatusProvider를 watch
+    final tokenProvider = context.watch<TokenStatusProvider>();
 
-    // 날짜별로 방문 기록 그룹화
     final Map<String, List<Map<String, dynamic>>> groupedByDate = {};
     for (var item in viewModel.visitHistory) {
       final timestamp = item['timestamp'] ?? item['visitTime']?.toString();
@@ -139,7 +150,6 @@ class _HistoryViewState extends State<HistoryView> {
 
     return Column(
       children: [
-        // 상단 바 (새로고침 버튼 포함)
         Container(
           height: 45,
           padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -161,9 +171,8 @@ class _HistoryViewState extends State<HistoryView> {
                   IconButton(
                     icon: const Icon(Icons.refresh, size: 22),
                     tooltip: '새로고침',
-                    // ViewModel의 함수를 직접 호출하여 데이터 로딩을 트리거합니다.
                     onPressed:
-                        viewModel.isLoading
+                        viewModel.isLoading || !tokenProvider.isAuthenticated
                             ? null
                             : () =>
                                 context
@@ -174,7 +183,10 @@ class _HistoryViewState extends State<HistoryView> {
                   ElevatedButton.icon(
                     icon: const Icon(Icons.summarize_outlined, size: 18),
                     label: const Text("선택 항목 요약"),
-                    onPressed: _handleSummarizeAction,
+                    onPressed:
+                        !tokenProvider.isAuthenticated
+                            ? null
+                            : _handleSummarizeAction,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF3d98f4),
                       foregroundColor: Colors.white,
@@ -185,7 +197,6 @@ class _HistoryViewState extends State<HistoryView> {
             ],
           ),
         ),
-        // 메인 콘텐츠
         Expanded(
           child: Row(
             children: [
@@ -206,9 +217,11 @@ class _HistoryViewState extends State<HistoryView> {
                       ),
                     ],
                   ),
-                  // ViewModel의 상태에 따라 UI 렌더링
+                  // ✨ [수정] 로그인 상태에 따라 다른 UI를 보여줌
                   child:
-                      viewModel.isLoading
+                      !tokenProvider.isAuthenticated
+                          ? _buildLoginPrompt(context)
+                          : viewModel.isLoading
                           ? Center(
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
@@ -259,8 +272,7 @@ class _HistoryViewState extends State<HistoryView> {
                           ),
                 ),
               ),
-              // AI 요약 위젯 (기존과 동일)
-              if (_showSummary)
+              if (_showSummary && tokenProvider.isAuthenticated)
                 Expanded(
                   flex: 1,
                   child: Column(
@@ -329,7 +341,51 @@ class _HistoryViewState extends State<HistoryView> {
     );
   }
 
-  /// 방문 기록 아이템 하나를 렌더링하는 위젯
+  // ✨ [추가] 비로그인 상태일 때 보여줄 UI 위젯
+  Widget _buildLoginPrompt(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.lock_outline, size: 60, color: Colors.grey.shade400),
+          const SizedBox(height: 20),
+          const Text(
+            '로그인이 필요한 기능입니다.',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '방문 기록을 동기화하고 AI 기능을 사용하려면 로그인해주세요.',
+            style: TextStyle(color: Colors.grey.shade600),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
+            icon: const Icon(Icons.login, size: 16),
+            label: const Text('로그인 페이지로 이동'),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => LoginPage()),
+              ).then((_) {
+                // 로그인 페이지에서 돌아왔을 때 상태 갱신 시도
+                final tokenProvider = context.read<TokenStatusProvider>();
+                if (tokenProvider.isAuthenticated) {
+                  context.read<HistoryViewModel>().loadVisitHistory();
+                }
+              });
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.deepPurple,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildHistoryItem(Map<String, dynamic> item) {
     final title =
         item['title']?.toString() ?? item['url']?.toString() ?? '제목 없음';

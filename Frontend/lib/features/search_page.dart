@@ -17,6 +17,7 @@ import '../auth/login_page.dart';
 import '../model/file_system_entry.dart';
 import '../providers/file_system_provider.dart';
 import '../services/auth_token.dart';
+import '../providers/token_status_provider.dart';
 
 enum SearchType { history, files, calendar }
 
@@ -63,11 +64,19 @@ class _SearchPageState extends State<SearchPage> {
   Future<void> _loadDataForSelectedType() async {
     setState(() {
       _isLoading = true;
+      _allItems = [];
       _filteredItems = [];
       _statusMessage = '데이터를 불러오는 중...';
     });
 
     try {
+      // ✨ [수정] 데이터 로드 전 로그인 상태 확인
+      final tokenProvider = context.read<TokenStatusProvider>();
+      if (_selectedType == SearchType.history &&
+          !tokenProvider.isAuthenticated) {
+        throw Exception('로그인 필요');
+      }
+
       switch (_selectedType) {
         case SearchType.history:
           _allItems = await _loadHistory();
@@ -81,16 +90,10 @@ class _SearchPageState extends State<SearchPage> {
       }
       _statusMessage = _allItems.isEmpty ? '표시할 내용이 없습니다.' : '';
     } catch (e) {
-      _statusMessage = '오류 발생: ${e.toString()}';
-      if (e.toString().contains('로그인 필요')) {
-        _showSnackBar('인증이 필요합니다. 로그인 페이지로 이동합니다.');
-        if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => LoginPage()),
-          );
-        }
-      }
+      _statusMessage =
+          e.toString().contains('로그인 필요')
+              ? '방문 기록을 보려면 구글 로그인이 필요합니다.'
+              : '오류 발생: ${e.toString()}';
     }
 
     setState(() {
@@ -106,7 +109,7 @@ class _SearchPageState extends State<SearchPage> {
 
     const folderName = 'memordo';
     final folderId = await _getFolderIdByName(folderName, googleAccessToken);
-    if (folderId == null) throw Exception('memordo 폴더를 찾을 수 없습니다.');
+    if (folderId == null) return []; // 폴더가 없으면 빈 리스트 반환
 
     final url = Uri.parse(
       'https://www.googleapis.com/drive/v3/files?q=%27$folderId%27+in+parents+and+name+contains+%27.jsonl%27&orderBy=createdTime+desc&pageSize=10',
@@ -198,16 +201,22 @@ class _SearchPageState extends State<SearchPage> {
               return false;
             }).toList();
       }
-      _statusMessage =
-          _filteredItems.isEmpty && lowerCaseQuery.isNotEmpty
-              ? '검색 결과가 없습니다.'
-              : '표시할 내용이 없습니다.';
+      if (_allItems.isEmpty && _statusMessage.contains('로그인')) {
+        // 로그인 필요 메시지는 유지
+      } else {
+        _statusMessage =
+            _filteredItems.isEmpty && lowerCaseQuery.isNotEmpty
+                ? '검색 결과가 없습니다.'
+                : '표시할 내용이 없습니다.';
+      }
     });
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tokenProvider = context.watch<TokenStatusProvider>();
+
     return Container(
       color: theme.scaffoldBackgroundColor,
       child: Column(
@@ -248,9 +257,12 @@ class _SearchPageState extends State<SearchPage> {
                           ],
                         ),
                       )
+                      : !tokenProvider.isAuthenticated &&
+                          _selectedType == SearchType.history
+                      ? _buildLoginPrompt(context)
                       : _filteredItems.isEmpty
                       ? Center(
-                        key: ValueKey(_selectedType),
+                        key: ValueKey('empty_${_selectedType}'),
                         child: Text(_statusMessage),
                       )
                       : _buildResultsList(),
@@ -354,6 +366,7 @@ class _SearchPageState extends State<SearchPage> {
     );
   }
 
+  // ✨ [수정] _buildResultsList에서 검색 타입에 따라 분기 처리
   Widget _buildResultsList() {
     if (_selectedType == SearchType.history) {
       return _buildGroupedHistoryList();
@@ -366,17 +379,13 @@ class _SearchPageState extends State<SearchPage> {
       itemBuilder: (context, index) {
         final item = _filteredItems[index];
         switch (_selectedType) {
-          case SearchType.history:
-            if (item is Map<String, dynamic>) return _buildHistoryItem(item);
-            break;
           case SearchType.files:
-            if (item is FileSystemEntry) return _buildFileItem(item);
-            break;
+            return _buildFileItem(item as FileSystemEntry);
           case SearchType.calendar:
-            if (item is Map<String, dynamic>) return _buildCalendarItem(item);
-            break;
+            return _buildCalendarItem(item as Map<String, dynamic>);
+          default:
+            return const SizedBox.shrink();
         }
-        return const SizedBox.shrink();
       },
     );
   }
@@ -384,14 +393,18 @@ class _SearchPageState extends State<SearchPage> {
   Widget _buildGroupedHistoryList() {
     final Map<String, List<dynamic>> groupedByDate = {};
     for (var item in _filteredItems) {
-      final timestamp = item['timestamp'] ?? item['visitTime']?.toString();
-      if (timestamp == null || timestamp.length < 10) continue;
-      final date = timestamp.substring(0, 10);
-      groupedByDate.putIfAbsent(date, () => []).add(item);
+      // ✨ [수정] item이 Map인지 확인하는 방어 코드 추가
+      if (item is Map<String, dynamic>) {
+        final timestamp = item['timestamp'] ?? item['visitTime']?.toString();
+        if (timestamp == null || timestamp.length < 10) continue;
+        final date = timestamp.substring(0, 10);
+        groupedByDate.putIfAbsent(date, () => []).add(item);
+      }
     }
     final sortedDates = groupedByDate.keys.toList();
 
     return ListView.builder(
+      key: const ValueKey(SearchType.history),
       padding: const EdgeInsets.all(16.0),
       itemCount: sortedDates.length,
       itemBuilder: (context, index) {
@@ -459,7 +472,6 @@ class _SearchPageState extends State<SearchPage> {
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
-                    // ✨ [수정] URL을 RichText로 변경하여 하이퍼링크 스타일 적용
                     RichText(
                       text: TextSpan(
                         text: url,
@@ -504,13 +516,13 @@ class _SearchPageState extends State<SearchPage> {
     );
     final notesDir = fileProvider.lastSavedDirectoryPath ?? '';
     final relativePath =
-        notesDir.isNotEmpty
+        notesDir.isNotEmpty && p.isWithin(notesDir, item.path)
             ? p.relative(item.path, from: p.dirname(notesDir))
             : item.path;
 
     return InkWell(
       onTap: () {
-        /* 파일 열기 로직 추가 */
+        // TODO: 파일 열기 로직 구현
       },
       borderRadius: BorderRadius.circular(12),
       child: Container(
@@ -557,7 +569,7 @@ class _SearchPageState extends State<SearchPage> {
 
     return InkWell(
       onTap: () {
-        /* 캘린더 해당 날짜로 이동 로직 추가 */
+        // TODO: 캘린더 해당 날짜로 이동 로직 구현
       },
       borderRadius: BorderRadius.circular(12),
       child: Container(
@@ -601,6 +613,43 @@ class _SearchPageState extends State<SearchPage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildLoginPrompt(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.lock_outline, size: 60, color: Colors.grey.shade400),
+          const SizedBox(height: 20),
+          const Text(
+            '로그인이 필요한 기능입니다.',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '방문 기록을 보려면 로그인해주세요.',
+            style: TextStyle(color: Colors.grey.shade600),
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
+            icon: const Icon(Icons.login, size: 16),
+            label: const Text('로그인 페이지로 이동'),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => LoginPage()),
+              ).then((_) => _loadDataForSelectedType());
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.deepPurple,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            ),
+          ),
+        ],
       ),
     );
   }

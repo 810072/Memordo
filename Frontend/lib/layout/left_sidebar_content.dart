@@ -22,30 +22,13 @@ class LeftSidebarContent extends StatelessWidget {
       color: Colors.transparent,
       child: Container(
         padding: EdgeInsets.symmetric(
-          vertical: 10.0,
+          vertical: 0.0,
           horizontal: isExpanded ? 3.0 : 5.0,
         ),
         child: Column(
           crossAxisAlignment:
               isExpanded ? CrossAxisAlignment.start : CrossAxisAlignment.center,
           children: [
-            if (isExpanded)
-              Padding(
-                padding: const EdgeInsets.only(
-                  left: 16.0,
-                  bottom: 20.0,
-                  top: 4.0,
-                ),
-                child: Text(
-                  'Features',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.grey.shade700,
-                    fontFamily: 'Work Sans',
-                  ),
-                ),
-              ),
             _sideBarItem(
               context,
               Icons.description_outlined,
@@ -89,20 +72,20 @@ class LeftSidebarContent extends StatelessWidget {
               PageType.settings,
               () => onPageSelected(PageType.settings),
             ),
-            _sideBarItem(
-              context,
-              Icons.logout_outlined,
-              '로그아웃',
-              PageType.home,
-              () async {
-                await Provider.of<TokenStatusProvider>(
-                  context,
-                  listen: false,
-                ).forceLogout(context);
-              },
-              alwaysEnabled: true,
-            ),
-            const SizedBox(height: 10),
+            // _sideBarItem(
+            //   context,
+            //   Icons.logout_outlined,
+            //   '로그아웃',
+            //   PageType.home,
+            //   () async {
+            //     await Provider.of<TokenStatusProvider>(
+            //       context,
+            //       listen: false,
+            //     ).forceLogout(context);
+            //   },
+            //   alwaysEnabled: true,
+            // ), 사용자 프로필 기능추가로인한 로그아웃 기능 주석 처리
+            // const SizedBox(height: 5),
           ],
         ),
       ),

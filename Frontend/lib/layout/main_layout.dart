@@ -18,6 +18,8 @@ import '../features/search_page.dart';
 import '../providers/file_system_provider.dart';
 import '../providers/token_status_provider.dart';
 import '../layout/bottom_section_controller.dart';
+import '../auth/login_page.dart';
+import '../services/auth_token.dart';
 
 class MainLayout extends StatefulWidget {
   final PageType activePage;
@@ -106,7 +108,6 @@ class _MainLayoutState extends State<MainLayout> {
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(45.0),
         child: AppBar(
-          // ✨ [수정] elevation을 0으로 하고, shape를 사용하여 하단에 선을 추가합니다.
           elevation: 0,
           shape: Border(
             bottom: BorderSide(color: Theme.of(context).dividerColor, width: 1),
@@ -151,13 +152,7 @@ class _MainLayoutState extends State<MainLayout> {
                 onPressed: _toggleRightPanel,
                 tooltip: 'Toggle Memos',
               ),
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: CircleAvatar(
-                backgroundColor: Colors.grey.shade300,
-                child: Icon(Icons.person_outline, color: Colors.grey.shade700),
-              ),
-            ),
+            _buildUserProfileIcon(context),
             const SizedBox(width: 10),
           ],
         ),
@@ -170,7 +165,6 @@ class _MainLayoutState extends State<MainLayout> {
             width: _isLeftExpanded ? 192 : 52,
             decoration: BoxDecoration(
               color: Theme.of(context).cardColor,
-              // ✨ [수정] 구분선 색상을 테마에서 가져옵니다.
               border: Border(
                 right: BorderSide(color: Theme.of(context).dividerColor),
               ),
@@ -229,6 +223,147 @@ class _MainLayoutState extends State<MainLayout> {
         ],
       ),
     );
+  }
+
+  Widget _buildUserProfileIcon(BuildContext context) {
+    return Consumer<TokenStatusProvider>(
+      builder: (context, tokenProvider, child) {
+        return PopupMenuButton<String>(
+          tooltip: '사용자 프로필',
+          offset: const Offset(0, 45),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12.0),
+          ),
+          elevation: 8.0,
+          color: Theme.of(context).cardColor,
+          itemBuilder: (BuildContext context) {
+            return _buildUserProfileMenuItems(context, tokenProvider);
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: CircleAvatar(
+              backgroundColor:
+                  tokenProvider.isAuthenticated
+                      ? Colors.deepPurple.shade100
+                      : Colors.grey.shade300,
+              child: Icon(
+                Icons.person_outline,
+                color:
+                    tokenProvider.isAuthenticated
+                        ? Colors.deepPurple.shade700
+                        : Colors.grey.shade700,
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  List<PopupMenuEntry<String>> _buildUserProfileMenuItems(
+    BuildContext context,
+    TokenStatusProvider provider,
+  ) {
+    if (provider.isAuthenticated) {
+      return [
+        PopupMenuItem(
+          enabled: false,
+          child: Container(
+            // ✨ [수정] 너비를 200으로 조정
+            width: 200,
+            padding: const EdgeInsets.symmetric(
+              vertical: 8.0,
+              horizontal: 16.0,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                CircleAvatar(
+                  radius: 24,
+                  backgroundColor: Colors.deepPurple.shade100,
+                  child: Icon(
+                    Icons.person,
+                    size: 28,
+                    color: Colors.deepPurple.shade700,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  provider.userEmail ?? '이메일 정보 없음',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        ),
+        const PopupMenuDivider(),
+        PopupMenuItem(
+          value: 'logout',
+          onTap: () async {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              provider.forceLogout(context);
+            });
+          },
+          child: const ListTile(
+            leading: Icon(Icons.logout),
+            title: Text('로그아웃'),
+          ),
+        ),
+      ];
+    } else {
+      return [
+        PopupMenuItem(
+          enabled: false,
+          child: SizedBox(
+            // ✨ [수정] 너비를 200으로 조정
+            width: 200,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Guest',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '로그인이 필요합니다.',
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+                ),
+                const SizedBox(height: 12),
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.login, size: 16),
+                  label: const Text('로그인/회원가입'),
+                  onPressed: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => LoginPage()),
+                    ).then((_) {
+                      Provider.of<TokenStatusProvider>(
+                        context,
+                        listen: false,
+                      ).loadStatus(context);
+                    });
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.deepPurple,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8.0),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ];
+    }
   }
 
   Future<String?> _showTextInputDialog(
@@ -319,7 +454,6 @@ class _ResizableRightSidebarState extends State<ResizableRightSidebar> {
                 alignment: Alignment.center,
                 child: Container(
                   width: 1,
-                  // ✨ [수정] 구분선 색상을 테마에서 가져옵니다.
                   color:
                       _isResizing
                           ? Theme.of(context).primaryColor
