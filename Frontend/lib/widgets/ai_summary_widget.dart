@@ -10,60 +10,50 @@ class AiSummaryWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<BottomSectionController>(
       builder: (context, controller, child) {
-        return Container(
-          margin: const EdgeInsets.only(top: 24.0),
-          child: Column(
+        // 로딩 중일 때 UI
+        if (controller.isLoading) {
+          return const Center(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(strokeWidth: 2.5),
+                SizedBox(width: 16),
+                Text("AI가 요약 중입니다..."),
+              ],
+            ),
+          );
+        }
+
+        // ✨ [수정] 챗봇 스타일로 디자인을 변경합니다.
+        return SingleChildScrollView(
+          child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'AI Summary',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey.shade700,
+              // AI 아이콘
+              Padding(
+                padding: const EdgeInsets.only(top: 2.0),
+                child: Icon(
+                  Icons.auto_awesome, // Gemini를 상징하는 아이콘
+                  color: Colors.deepPurple.shade300,
+                  size: 20,
                 ),
               ),
-              const SizedBox(height: 8),
-              Container(
-                width: double.infinity,
-                constraints: const BoxConstraints(minHeight: 150),
-                padding: const EdgeInsets.all(16.0),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC), // bg-slate-50
-                  borderRadius: BorderRadius.circular(12.0), // rounded-xl
-                  border: Border.all(
-                    color: Colors.grey.shade300!,
-                  ), // border-slate-300
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Colors.black12,
-                      blurRadius: 3,
-                      offset: Offset(0, 1),
-                    ),
-                  ],
+              const SizedBox(width: 12),
+              // 요약 텍스트
+              Expanded(
+                child: SelectableText(
+                  controller.summaryText.isEmpty
+                      ? '내용 요약 AI' // 더 자연스러운 안내 문구
+                      : controller.summaryText,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color:
+                        controller.summaryText.isEmpty
+                            ? Colors.grey.shade600
+                            : Colors.grey.shade800,
+                    height: 1.6, // 줄 간격을 조절하여 가독성 향상
+                  ),
                 ),
-                child:
-                    controller.isLoading
-                        ? Center(
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              CircularProgressIndicator(strokeWidth: 2.5),
-                              SizedBox(width: 16),
-                              Text("AI가 요약 중입니다..."),
-                            ],
-                          ),
-                        )
-                        : SelectableText(
-                          controller.summaryText.isEmpty
-                              ? 'AI-generated summary will appear here...'
-                              : controller.summaryText,
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey.shade600,
-                            height: 1.5,
-                          ),
-                        ),
               ),
             ],
           ),

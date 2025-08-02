@@ -1,10 +1,13 @@
 // lib/layout/right_sidebar_content.dart
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
+import 'package:provider/provider.dart';
 import '../model/file_system_entry.dart';
 import '../widgets/expandable_folder_tile.dart';
+import '../layout/bottom_section_controller.dart';
+import '../widgets/ai_summary_widget.dart';
 
-class RightSidebarContent extends StatelessWidget {
+class RightSidebarContent extends StatefulWidget {
   final bool isLoading;
   final List<FileSystemEntry> fileSystemEntries;
   final Function(FileSystemEntry) onEntryTap;
@@ -25,84 +28,175 @@ class RightSidebarContent extends StatelessWidget {
   }) : super(key: key);
 
   @override
+  State<RightSidebarContent> createState() => _RightSidebarContentState();
+}
+
+class _RightSidebarContentState extends State<RightSidebarContent>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  late BottomSectionController _bottomSectionController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _bottomSectionController = Provider.of<BottomSectionController>(
+        context,
+        listen: false,
+      );
+      _bottomSectionController.addListener(_onControllerUpdate);
+      _tabController.index = _bottomSectionController.activeRightSidebarTab;
+    });
+  }
+
+  void _onControllerUpdate() {
+    if (_tabController.index !=
+        _bottomSectionController.activeRightSidebarTab) {
+      _tabController.animateTo(_bottomSectionController.activeRightSidebarTab);
+    }
+  }
+
+  @override
+  void dispose() {
+    _bottomSectionController.removeListener(_onControllerUpdate);
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 250,
-      padding: const EdgeInsets.symmetric(horizontal: 0.0, vertical: 8.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Text(
-                    "저장된 메모",
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.grey.shade700,
-                      fontFamily: 'Work Sans',
-                    ),
-                    overflow: TextOverflow.ellipsis,
+    final bottomCtrl = Provider.of<BottomSectionController>(context);
+
+    return Column(
+      children: [
+        Container(
+          height: 40,
+          color: Colors.white,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.start,
+            children: [
+              TabBar(
+                controller: _tabController,
+                isScrollable: true,
+                labelColor: Theme.of(context).primaryColor,
+                unselectedLabelColor: Colors.grey.shade600,
+                indicatorColor: Theme.of(context).primaryColor,
+                indicatorWeight: 2.5,
+                tabAlignment: TabAlignment.start,
+                onTap: (index) {
+                  bottomCtrl.setActiveTab(index);
+                },
+                tabs: const [
+                  Tab(
+                    icon: Icon(Icons.folder_outlined, size: 20),
+                    iconMargin: EdgeInsets.zero,
+                  ),
+                  Tab(
+                    icon: Icon(Icons.auto_awesome_outlined, size: 20),
+                    iconMargin: EdgeInsets.zero,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1, thickness: 1),
+        Expanded(
+          child: TabBarView(
+            controller: _tabController,
+            physics: const NeverScrollableScrollPhysics(),
+            children: [
+              _buildFileListView(),
+              Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: AiSummaryWidget(),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFileListView() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(10.0, 8.0, 10.0, 0.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  "저장된 메모",
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.grey.shade700,
+                    fontFamily: 'Work Sans',
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              IconButton(
+                icon: Icon(
+                  Icons.refresh,
+                  size: 14,
+                  color: Colors.grey.shade600,
+                ),
+                tooltip: "새로고침",
+                onPressed: widget.isLoading ? null : widget.onRefresh,
+                padding: EdgeInsets.zero,
+                constraints: BoxConstraints.tight(const Size(28, 28)),
+              ),
+            ],
+          ),
+        ),
+        // ✨ [수정] "저장된 메모"와 파일 목록 사이의 불필요한 여백을 제거했습니다.
+        if (widget.isLoading)
+          const Expanded(child: Center(child: CircularProgressIndicator()))
+        else if (widget.fileSystemEntries.isEmpty)
+          Expanded(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Text(
+                  "저장된 메모가 없습니다.\n'.md 파일로 저장' 기능을 사용해보세요.",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Theme.of(context).hintColor,
+                    fontSize: 11,
                   ),
                 ),
-                IconButton(
-                  icon: Icon(
-                    Icons.refresh,
-                    size: 14,
-                    color: Colors.grey.shade600,
-                  ),
-                  tooltip: "새로고침",
-                  onPressed: isLoading ? null : onRefresh,
-                  padding: EdgeInsets.zero,
-                  constraints: BoxConstraints.tight(const Size(28, 28)),
-                ),
-              ],
+              ),
+            ),
+          )
+        else
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 4.0,
+                vertical: 4.0,
+              ),
+              itemCount: widget.fileSystemEntries.length,
+              itemBuilder: (context, index) {
+                final entry = widget.fileSystemEntries[index];
+                return _buildFileSystemEntry(
+                  context,
+                  entry,
+                  widget.onEntryTap,
+                  widget.onRenameEntry,
+                  widget.onDeleteEntry,
+                  0,
+                  widget.sidebarIsExpanded,
+                );
+              },
             ),
           ),
-          const SizedBox(height: 5),
-          const SizedBox(height: 5),
-          if (isLoading)
-            const Expanded(child: Center(child: CircularProgressIndicator()))
-          else if (fileSystemEntries.isEmpty)
-            Expanded(
-              child: Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Text(
-                    "저장된 메모가 없습니다.\n'.md 파일로 저장' 기능을 사용해보세요.",
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Theme.of(context).hintColor,
-                      fontSize: 11,
-                    ),
-                  ),
-                ),
-              ),
-            )
-          else
-            Expanded(
-              child: ListView.builder(
-                itemCount: fileSystemEntries.length,
-                itemBuilder: (context, index) {
-                  final entry = fileSystemEntries[index];
-                  return _buildFileSystemEntry(
-                    context,
-                    entry,
-                    onEntryTap,
-                    onRenameEntry,
-                    onDeleteEntry,
-                    0,
-                    sidebarIsExpanded,
-                  );
-                },
-              ),
-            ),
-        ],
-      ),
+      ],
     );
   }
 
@@ -116,24 +210,19 @@ class RightSidebarContent extends StatelessWidget {
     bool sidebarIsExpanded,
   ) {
     final double itemHeight = 24.0;
-    // sidebarIsExpanded 상태에 따라 들여쓰기 레벨당 간격만 조절합니다.
-    // 화살표 공간은 ExpandableFolderTile에서 직접 처리하므로 여기서는 제거합니다.
     final double indentPerLevel = sidebarIsExpanded ? 15.0 : 0.0;
     final double effectivePaddingLeft = (indentLevel * indentPerLevel);
 
     final Color defaultTextColor = Colors.grey.shade800;
     final Color fileIconColor = Colors.grey.shade500;
     final Color folderIconColor = Colors.blueGrey.shade600;
-    // final Color arrowColor = Colors.grey; // arrowColor는 이제 ExpandableFolderTile 내부에서 사용됩니다.
 
     if (entry.isDirectory) {
       return ExpandableFolderTile(
         key: PageStorageKey(entry.path),
         itemHeight: itemHeight,
-        arrowColor: Colors.grey, // ExpandableFolderTile로 arrowColor 전달
+        arrowColor: Colors.grey,
         folderIcon: Padding(
-          // 폴더 아이콘 앞에 들여쓰기 패딩만 적용합니다.
-          // ExpandableFolderTile이 화살표 공간을 자체적으로 제공하므로 여기서는 0.0을 사용
           padding: EdgeInsets.only(
             left: effectivePaddingLeft + (sidebarIsExpanded ? 0.0 : 0.0),
           ),
@@ -163,13 +252,8 @@ class RightSidebarContent extends StatelessWidget {
             }).toList(),
       );
     } else {
-      // 파일 항목은 ExpandableFolderTile을 사용하지 않으므로, 직접 패딩과 Row를 구성합니다.
-      // 화살표 아이콘 공간(20px) + 아이콘과 텍스트 사이의 간격(4px)만큼을 패딩으로 더합니다.
       final double totalLeftFixedSpaceForFile =
-          (sidebarIsExpanded
-              ? 20.0 + 4.0
-              : 0.0 +
-                  4.0); // 20px (arrow) + 4px (icon-text separation) when expanded
+          (sidebarIsExpanded ? 20.0 + 4.0 : 0.0 + 4.0);
       return Material(
         color: Colors.transparent,
         child: InkWell(
@@ -180,11 +264,9 @@ class RightSidebarContent extends StatelessWidget {
             height: itemHeight,
             child: Padding(
               padding: EdgeInsets.only(
-                // 들여쓰기 + 화살표 공간 + 폴더/파일 아이콘까지의 공간
                 left: effectivePaddingLeft + totalLeftFixedSpaceForFile,
                 right: 8.0,
               ),
-              // ✨ [수정] Row를 ClipRect로 감싸서 넘치는 부분을 잘라냅니다.
               child: ClipRect(
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
@@ -194,7 +276,7 @@ class RightSidebarContent extends StatelessWidget {
                       size: 16,
                       color: fileIconColor,
                     ),
-                    const SizedBox(width: 4), // 파일 아이콘과 이름 사이의 간격
+                    const SizedBox(width: 4),
                     Expanded(
                       child: Text(
                         p.basenameWithoutExtension(entry.name),

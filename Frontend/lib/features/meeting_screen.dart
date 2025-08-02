@@ -3,12 +3,12 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // SingleActivator, LogicalKeyboardKey 사용을 위해 추가
+import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 
-import '../widgets/obsidian_markdown_controller.dart'; // 수정된 컨트롤러 import
+import '../widgets/obsidian_markdown_controller.dart';
 import '../layout/bottom_section_controller.dart';
 import '../widgets/ai_summary_widget.dart';
 import '../utils/ai_service.dart';
@@ -16,7 +16,7 @@ import '../utils/web_helper.dart' as web_helper;
 import '../model/file_system_entry.dart';
 import '../providers/file_system_provider.dart';
 
-// --- 단축키를 위한 Intent 및 Action 클래스들 ---
+// --- 단축키 Intent 및 Action 클래스 (기존과 동일) ---
 class ToggleBoldIntent extends Intent {}
 
 class ToggleItalicIntent extends Intent {}
@@ -28,7 +28,6 @@ class OutdentIntent extends Intent {}
 class ToggleBoldAction extends Action<ToggleBoldIntent> {
   final ObsidianMarkdownController controller;
   ToggleBoldAction(this.controller);
-
   @override
   Object? invoke(ToggleBoldIntent intent) {
     controller.toggleInlineSyntax('**', '**');
@@ -39,7 +38,6 @@ class ToggleBoldAction extends Action<ToggleBoldIntent> {
 class ToggleItalicAction extends Action<ToggleItalicIntent> {
   final ObsidianMarkdownController controller;
   ToggleItalicAction(this.controller);
-
   @override
   Object? invoke(ToggleItalicIntent intent) {
     controller.toggleInlineSyntax('*', '*');
@@ -50,7 +48,6 @@ class ToggleItalicAction extends Action<ToggleItalicIntent> {
 class IndentAction extends Action<IndentIntent> {
   final ObsidianMarkdownController controller;
   IndentAction(this.controller);
-
   @override
   Object? invoke(IndentIntent intent) {
     controller.indentList(true);
@@ -61,7 +58,6 @@ class IndentAction extends Action<IndentIntent> {
 class OutdentAction extends Action<OutdentIntent> {
   final ObsidianMarkdownController controller;
   OutdentAction(this.controller);
-
   @override
   Object? invoke(OutdentIntent intent) {
     controller.indentList(false);
@@ -87,11 +83,16 @@ class _MeetingScreenState extends State<MeetingScreen> {
   String? _currentEditingFilePath;
   String _currentEditingFileName = '새 메모';
 
+  bool _isEditingTitle = false;
+  late final TextEditingController _titleController;
+  final FocusNode _titleFocusNode = FocusNode();
+
   @override
   void initState() {
     super.initState();
     _initializeController();
     _initializeState();
+    _titleController = TextEditingController(text: _currentEditingFileName);
   }
 
   void _initializeController() {
@@ -169,7 +170,6 @@ class _MeetingScreenState extends State<MeetingScreen> {
         listen: false,
       );
       bottomController.clearSummary();
-      if (!bottomController.isVisible) bottomController.toggleVisibility();
     });
   }
 
@@ -194,12 +194,13 @@ class _MeetingScreenState extends State<MeetingScreen> {
     ).removeListener(_onSelectedFileChanged);
     _controller.dispose();
     _focusNode.dispose();
+    _titleController.dispose();
+    _titleFocusNode.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // Shortcuts와 Actions를 build 메서드 내에서 정의합니다.
     final Map<ShortcutActivator, Intent> shortcuts = {
       const SingleActivator(LogicalKeyboardKey.keyB, control: true):
           ToggleBoldIntent(),
@@ -221,201 +222,229 @@ class _MeetingScreenState extends State<MeetingScreen> {
       shortcuts: shortcuts,
       child: Actions(
         actions: actions,
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _buildHeader(),
-                const SizedBox(height: 20),
-                _buildMarkdownEditor(),
-                const SizedBox(height: 24),
-                _buildActionButtons(),
-                const SizedBox(height: 20),
-                if (context.watch<BottomSectionController>().isVisible)
-                  const AiSummaryWidget(),
-                const SizedBox(height: 20),
-                Text(
-                  _saveStatus,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Theme.of(context).hintColor,
-                  ),
+        child: Column(
+          children: [
+            _buildNewHeader(),
+            const Divider(height: 1, thickness: 1),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24.0,
+                  vertical: 8.0,
                 ),
-              ],
+                child: _buildMarkdownEditor(),
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildHeader() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          _currentEditingFileName,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF2c3e50),
+  Widget _buildNewHeader() {
+    // ✨ [수정] 헤더를 고정 높이 40px의 Container로 감싸서 정렬을 맞춥니다.
+    return Container(
+      height: 40,
+      padding: const EdgeInsets.symmetric(horizontal: 24.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child:
+                _isEditingTitle
+                    ? TextField(
+                      controller: _titleController,
+                      focusNode: _titleFocusNode,
+                      autofocus: true,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      decoration: const InputDecoration(
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.only(bottom: 2),
+                      ),
+                      onSubmitted: (newName) {
+                        _renameCurrentFile(newName.trim());
+                        setState(() {
+                          _isEditingTitle = false;
+                        });
+                      },
+                      onTapOutside: (_) {
+                        _renameCurrentFile(_titleController.text.trim());
+                        setState(() {
+                          _isEditingTitle = false;
+                        });
+                      },
+                    )
+                    : InkWell(
+                      onTap: () {
+                        setState(() {
+                          _isEditingTitle = true;
+                        });
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          _titleFocusNode.requestFocus();
+                        });
+                      },
+                      borderRadius: BorderRadius.circular(8.0),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          _currentEditingFileName,
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
           ),
-        ),
-        Row(
-          children: [
-            _buildButton(
-              Icons.create_new_folder_outlined,
-              '새 폴더',
-              _createNewFolder,
-              const Color(0xFF2ecc71),
-            ),
-            const SizedBox(width: 12),
-            _buildButton(
-              Icons.add_box_outlined,
-              '새 메모',
-              _startNewMemo,
-              const Color(0xFF3498db),
-            ),
-          ],
-        ),
-      ],
+          Consumer<BottomSectionController>(
+            builder: (context, bottomController, child) {
+              return PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert),
+                tooltip: '더보기',
+                onSelected: (value) {
+                  switch (value) {
+                    case 'new_memo':
+                      _startNewMemo();
+                      break;
+                    case 'save':
+                      _saveMarkdown();
+                      break;
+                    case 'load':
+                      _loadMarkdownFromFilePicker();
+                      break;
+                    case 'summarize':
+                      _summarizeContent();
+                      break;
+                  }
+                },
+                itemBuilder:
+                    (BuildContext context) => <PopupMenuEntry<String>>[
+                      const PopupMenuItem<String>(
+                        value: 'new_memo',
+                        child: ListTile(
+                          leading: Icon(Icons.add_box_outlined),
+                          title: Text('새 메모'),
+                        ),
+                      ),
+                      const PopupMenuItem<String>(
+                        value: 'save',
+                        child: ListTile(
+                          leading: Icon(Icons.save_outlined),
+                          title: Text('저장'),
+                        ),
+                      ),
+                      const PopupMenuItem<String>(
+                        value: 'load',
+                        child: ListTile(
+                          leading: Icon(Icons.file_upload_outlined),
+                          title: Text('불러오기'),
+                        ),
+                      ),
+                      const PopupMenuDivider(),
+                      PopupMenuItem<String>(
+                        value: 'summarize',
+                        child: ListTile(
+                          leading: Icon(
+                            bottomController.isLoading
+                                ? Icons.hourglass_empty
+                                : Icons.auto_awesome_outlined,
+                          ),
+                          title: Text(
+                            bottomController.isLoading ? '요약 중...' : 'AI 요약 실행',
+                          ),
+                        ),
+                      ),
+                    ],
+              );
+            },
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildMarkdownEditor() {
-    return Container(
-      height: 500,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12.0),
-        border: Border.all(color: const Color(0xFFe1e8ed), width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
+    return TextField(
+      controller: _controller,
+      focusNode: _focusNode,
+      style: const TextStyle(
+        fontSize: 16,
+        color: Color(0xFF2c3e50),
+        height: 1.6,
+        fontFamily: 'system-ui',
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: TextField(
-          controller: _controller,
-          focusNode: _focusNode,
-          style: const TextStyle(
-            fontSize: 16,
-            color: Color(0xFF2c3e50),
-            height: 1.6,
-            fontFamily: 'system-ui',
-          ),
-          maxLines: null,
-          expands: true,
-          textAlignVertical: TextAlignVertical.top,
-          decoration: const InputDecoration.collapsed(
-            hintText: "# Start typing your markdown...\n\n**Bold text**",
-            hintStyle: TextStyle(
-              color: Color(0xFFbdc3c7),
-              fontSize: 15,
-              height: 1.6,
-            ),
-          ),
+      maxLines: null,
+      expands: true,
+      textAlignVertical: TextAlignVertical.top,
+      decoration: const InputDecoration.collapsed(
+        hintText: "# 마크다운으로 메모를 시작하세요...\n\n**굵은 텍스트**",
+        hintStyle: TextStyle(
+          color: Color(0xFFbdc3c7),
+          fontSize: 15,
+          height: 1.6,
         ),
       ),
     );
   }
 
-  Widget _buildActionButtons() {
-    final bottomController = context.watch<BottomSectionController>();
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Row(
-          children: [
-            _buildButton(
-              Icons.save_outlined,
-              _currentEditingFilePath != null ? '저장' : '다른 이름으로 저장',
-              _saveMarkdown,
-              const Color(0xFF27ae60),
-            ),
-            const SizedBox(width: 12),
-            _buildButton(
-              Icons.file_upload_outlined,
-              '불러오기',
-              _loadMarkdownFromFilePicker,
-              const Color(0xFF95a5a6),
-            ),
-          ],
-        ),
-        _buildButton(
-          Icons.auto_awesome_outlined,
-          bottomController.isLoading ? '요약 중...' : 'AI 요약',
-          bottomController.isLoading ? null : _summarizeContent,
-          const Color(0xFFf39c12),
-          isLoading: bottomController.isLoading,
-        ),
-      ],
+  // --- 로직 메서드 ---
+
+  Future<void> _renameCurrentFile(String newName) async {
+    if (newName.isEmpty || newName == _currentEditingFileName) {
+      _titleController.text = _currentEditingFileName;
+      return;
+    }
+
+    if (_currentEditingFilePath == null) {
+      setState(() {
+        _currentEditingFileName = newName;
+        _titleController.text = newName;
+      });
+      return;
+    }
+
+    final fileProvider = context.read<FileSystemProvider>();
+    final entry = FileSystemEntry(
+      name: p.basename(_currentEditingFilePath!),
+      path: _currentEditingFilePath!,
+      isDirectory: false,
     );
+
+    final success = await fileProvider.renameEntry(
+      context,
+      entry,
+      newName + '.md',
+    );
+
+    if (success) {
+      setState(() {
+        _currentEditingFileName = newName;
+        _currentEditingFilePath = p.join(
+          p.dirname(_currentEditingFilePath!),
+          newName + '.md',
+        );
+        _titleController.text = newName;
+      });
+    } else {
+      _titleController.text = _currentEditingFileName;
+    }
   }
 
-  Widget _buildButton(
-    IconData icon,
-    String label,
-    VoidCallback? onPressed,
-    Color color, {
-    bool isLoading = false,
-  }) {
-    return ElevatedButton.icon(
-      icon:
-          isLoading
-              ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                ),
-              )
-              : Icon(icon, size: 18),
-      label: Text(
-        label,
-        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-      ),
-      onPressed: onPressed,
-      style: ElevatedButton.styleFrom(
-        backgroundColor: color,
-        foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.0)),
-        elevation: 2.0,
-        shadowColor: color.withOpacity(0.3),
-      ),
-    );
-  }
-
-  // --- Logic Methods ---
   void _startNewMemo() {
     setState(() {
       _controller.clear();
       _currentEditingFilePath = null;
       _currentEditingFileName = '새 메모';
       _saveStatus = '';
+      _titleController.text = '새 메모';
     });
+    context.read<BottomSectionController>().setActiveTab(0);
     context.read<BottomSectionController>().clearSummary();
     _focusNode.requestFocus();
-  }
-
-  Future<void> _createNewFolder() async {
-    final fileProvider = context.read<FileSystemProvider>();
-    String? folderName = await _showTextInputDialog(
-      context,
-      '새 폴더 생성',
-      '폴더 이름을 입력하세요.',
-    );
-    if (folderName != null && folderName.isNotEmpty) {
-      await fileProvider.createNewFolder(context, folderName);
-    }
   }
 
   Future<void> _saveMarkdown() async {
@@ -428,7 +457,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
     final fileProvider = context.read<FileSystemProvider>();
 
     if (kIsWeb) {
-      final fileName = 'memo_${DateTime.now().toIso8601String()}.md';
+      final fileName = '$_currentEditingFileName.md';
       web_helper.downloadMarkdownWeb(content, fileName);
       _updateSaveStatus("파일 다운로드 완료: $fileName ✅");
       return;
@@ -438,7 +467,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
     if (path == null) {
       path = await FilePicker.platform.saveFile(
         dialogTitle: '노트 저장',
-        fileName: '새_메모.md',
+        fileName: '$_currentEditingFileName.md',
         initialDirectory:
             fileProvider.lastSavedDirectoryPath ??
             await _getNotesDirectoryPath(),
@@ -453,14 +482,15 @@ class _MeetingScreenState extends State<MeetingScreen> {
         setState(() {
           _currentEditingFilePath = path;
           _currentEditingFileName = p.basenameWithoutExtension(path!);
-          _updateSaveStatus("저장 완료: ${p.basename(path)} ✅");
+          _titleController.text = _currentEditingFileName;
         });
         fileProvider.scanForFileSystem();
+        _showSnackBar("저장 완료: ${p.basename(path)} ✅");
       } catch (e) {
         _showSnackBar("파일 저장 중 오류 발생: $e", isError: true);
       }
     } else {
-      _updateSaveStatus("저장이 취소되었습니다.");
+      _showSnackBar("저장이 취소되었습니다.");
     }
   }
 
@@ -470,7 +500,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
       allowedExtensions: ['md', 'txt'],
     );
     if (result == null) {
-      _updateSaveStatus("파일 불러오기가 취소되었습니다.");
+      _showSnackBar("파일 불러오기가 취소되었습니다.");
       return;
     }
 
@@ -518,10 +548,10 @@ class _MeetingScreenState extends State<MeetingScreen> {
     }
 
     final bottomController = context.read<BottomSectionController>();
-    if (!bottomController.isVisible) bottomController.toggleVisibility();
 
     bottomController.setIsLoading(true);
     bottomController.updateSummary('AI가 텍스트를 요약 중입니다...');
+    bottomController.setActiveTab(1);
 
     try {
       final summary = await callBackendTask(
@@ -543,8 +573,11 @@ class _MeetingScreenState extends State<MeetingScreen> {
       _controller.text = content;
       _currentEditingFilePath = filePath;
       _currentEditingFileName = fileName;
-      _updateSaveStatus("파일 불러오기 완료: $fileName ✅");
+      _titleController.text = fileName;
     });
+    _showSnackBar("파일 불러오기 완료: $fileName ✅");
+    context.read<BottomSectionController>().setActiveTab(0);
+    context.read<BottomSectionController>().clearSummary();
   }
 
   void _updateSaveStatus(String status) {
@@ -569,34 +602,5 @@ class _MeetingScreenState extends State<MeetingScreen> {
     final directory = Directory(folderPath);
     if (!await directory.exists()) await directory.create(recursive: true);
     return folderPath;
-  }
-
-  Future<String?> _showTextInputDialog(
-    BuildContext context,
-    String title,
-    String hint,
-  ) async {
-    final controller = TextEditingController();
-    return showDialog<String>(
-      context: context,
-      builder:
-          (context) => AlertDialog(
-            title: Text(title),
-            content: TextField(
-              controller: controller,
-              decoration: InputDecoration(hintText: hint),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('취소'),
-              ),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(context, controller.text),
-                child: const Text('확인'),
-              ),
-            ],
-          ),
-    );
   }
 }
