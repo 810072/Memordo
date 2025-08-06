@@ -25,34 +25,39 @@ class _ChatbotPageState extends State<ChatbotPage> {
   final List<ChatMessage> _messages = [];
   bool _isLoading = false;
 
+  // [수정 1] RAG 모드 활성화를 위한 상태 변수를 추가합니다.
+  bool _isRagMode = false;
+
   @override
   void initState() {
     super.initState();
-    // 초기 메시지 추가
     _messages.add(
       ChatMessage(text: '안녕하세요! Memordo 챗봇입니다. 무엇을 도와드릴까요?', isUser: false),
     );
   }
 
-  // 메시지 전송 및 AI 응답 처리 함수
+  // [수정 2] RAG 모드에 따라 다른 함수를 호출하도록 로직을 변경합니다.
   void _sendMessage() async {
     final text = _controller.text;
     if (text.isEmpty) return;
 
-    // 사용자의 메시지를 화면에 추가
     setState(() {
       _messages.add(ChatMessage(text: text, isUser: true));
-      _isLoading = true; // 로딩 시작
+      _isLoading = true;
     });
     _controller.clear();
     _scrollToBottom();
 
-    // AI 서비스 호출
-    final response = await callBackendTask(taskType: 'chat', text: text);
+    // RAG 모드 여부에 따라 분기
+    String? response;
+    if (_isRagMode) {
+      response = await callRagTask(query: text);
+    } else {
+      response = await callBackendTask(taskType: 'chat', text: text);
+    }
 
-    // AI의 응답을 화면에 추가
     setState(() {
-      _isLoading = false; // 로딩 종료
+      _isLoading = false;
       _messages.add(
         ChatMessage(text: response ?? "오류가 발생했습니다.", isUser: false),
       );
@@ -60,7 +65,6 @@ class _ChatbotPageState extends State<ChatbotPage> {
     _scrollToBottom();
   }
 
-  // 스크롤을 맨 아래로 이동시키는 함수
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
@@ -77,13 +81,12 @@ class _ChatbotPageState extends State<ChatbotPage> {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(fontFamily: 'Red Hat Display'), // 폰트 적용
+      theme: ThemeData(fontFamily: 'Red Hat Display'),
       home: Scaffold(
-        backgroundColor: const Color(0xFFF7F7F7), // 전체 배경색
+        backgroundColor: const Color(0xFFF7F7F7),
         body: Center(
           child: Container(
-            // 디자인의 .chat 컨테이너에 해당
-            width: 360, // 창 크기에 맞게 조정
+            width: 360,
             height: 740,
             decoration: BoxDecoration(
               color: Colors.white,
@@ -92,7 +95,6 @@ class _ChatbotPageState extends State<ChatbotPage> {
                 BoxShadow(
                   color: Colors.black.withOpacity(0.1),
                   blurRadius: 128,
-                  offset: const Offset(0, 0),
                 ),
                 BoxShadow(
                   color: Colors.black.withOpacity(0.5),
@@ -104,11 +106,8 @@ class _ChatbotPageState extends State<ChatbotPage> {
             ),
             child: Column(
               children: [
-                // 상단 연락처 바
                 _buildChatHeader(),
-                // 채팅 메시지 목록
                 Expanded(child: _buildMessagesArea()),
-                // 하단 텍스트 입력 필드
                 _buildInputField(),
               ],
             ),
@@ -118,7 +117,6 @@ class _ChatbotPageState extends State<ChatbotPage> {
     );
   }
 
-  // 상단 헤더 위젯
   Widget _buildChatHeader() {
     return Container(
       padding: const EdgeInsets.all(16.0),
@@ -149,7 +147,6 @@ class _ChatbotPageState extends State<ChatbotPage> {
     );
   }
 
-  // 메시지 영역 위젯
   Widget _buildMessagesArea() {
     return Container(
       padding: const EdgeInsets.all(16.0),
@@ -168,7 +165,6 @@ class _ChatbotPageState extends State<ChatbotPage> {
     );
   }
 
-  // 메시지 버블 위젯
   Widget _buildMessageBubble(ChatMessage message) {
     final isUser = message.isUser;
     return Align(
@@ -216,7 +212,6 @@ class _ChatbotPageState extends State<ChatbotPage> {
     );
   }
 
-  // 로딩(타이핑) 인디케이터 위젯
   Widget _buildTypingIndicator() {
     return Align(
       alignment: Alignment.centerLeft,
@@ -235,57 +230,84 @@ class _ChatbotPageState extends State<ChatbotPage> {
             BoxShadow(color: Colors.black.withOpacity(0.075), blurRadius: 32),
           ],
         ),
-        child: const TypingAnimation(), // 타이핑 애니메이션 위젯 사용
+        child: const TypingAnimation(),
       ),
     );
   }
 
-  // 텍스트 입력 필드 위젯
+  // [수정 3] RAG 스위치를 포함하도록 입력 필드 위젯 구조를 Column으로 변경합니다.
   Widget _buildInputField() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+      padding: const EdgeInsets.fromLTRB(16.0, 4.0, 16.0, 8.0),
       color: Colors.white,
       child: SafeArea(
-        child: Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            // ✨ [수정] 아이콘 버튼들 제거
-            Expanded(
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16.0,
-                  vertical: 4.0,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 16,
+            // 기존 입력 필드와 전송 버튼 Row
+            Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16.0,
+                      vertical: 4.0,
                     ),
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.2),
-                      blurRadius: 16,
-                      spreadRadius: -16,
-                      offset: const Offset(0, 16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 16,
+                        ),
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.2),
+                          blurRadius: 16,
+                          spreadRadius: -16,
+                          offset: const Offset(0, 16),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-                child: TextField(
-                  controller: _controller,
-                  onSubmitted: (_) => _sendMessage(),
-                  decoration: const InputDecoration(
-                    hintText: 'Type your message here!',
-                    hintStyle: TextStyle(color: Colors.grey),
-                    border: InputBorder.none,
+                    child: TextField(
+                      controller: _controller,
+                      onSubmitted: (_) => _sendMessage(),
+                      decoration: const InputDecoration(
+                        hintText: 'Type your message here!',
+                        hintStyle: TextStyle(color: Colors.grey),
+                        border: InputBorder.none,
+                      ),
+                    ),
                   ),
                 ),
-              ),
+                const SizedBox(width: 8),
+                IconButton(
+                  icon: const Icon(Icons.send, color: Color(0xFF3d98f4)),
+                  onPressed: _sendMessage,
+                ),
+              ],
             ),
-            const SizedBox(width: 8), // 텍스트 필드와 전송 버튼 사이 간격
-            IconButton(
-              icon: const Icon(Icons.send, color: Color(0xFF3d98f4)),
-              onPressed: _sendMessage,
+            // RAG 스위치 Row
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Text(
+                  '내 노트에서 검색',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                ),
+                const SizedBox(width: 4),
+                Switch(
+                  value: _isRagMode,
+                  onChanged: (value) {
+                    setState(() {
+                      _isRagMode = value;
+                    });
+                  },
+                  activeColor: const Color(0xFF3d98f4),
+                  inactiveThumbColor: Colors.grey.shade400,
+                  inactiveTrackColor: Colors.grey.shade200,
+                ),
+              ],
             ),
           ],
         ),
@@ -294,7 +316,6 @@ class _ChatbotPageState extends State<ChatbotPage> {
   }
 }
 
-// 타이핑 애니메이션을 위한 별도의 StatefulWidget
 class TypingAnimation extends StatefulWidget {
   const TypingAnimation({super.key});
 
@@ -333,7 +354,13 @@ class _TypingAnimationState extends State<TypingAnimation>
               curve: Interval(0.1 * i, 0.3 + 0.1 * i, curve: Curves.easeInOut),
             ),
           ),
-          child: const CircleAvatar(radius: 4, backgroundColor: Colors.grey),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2.0),
+            child: CircleAvatar(
+              radius: 4,
+              backgroundColor: Colors.grey.shade400,
+            ),
+          ),
         );
       }),
     );

@@ -1,16 +1,20 @@
+// Frontend/lib/features/graph_page.dart
+
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math';
+import 'dart:math'; // [수정] 벡터 계산을 위해 dart:math를 임포트합니다.
 import 'package:flutter/material.dart';
 import 'package:graphview/GraphView.dart';
 import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
-import './meeting_screen.dart'; // 사용자 정의 위젯
-import '../utils/ai_service.dart' as ai_service; // 사용자 정의 서비스
+// import 'package:vector_math/vector_math_64.dart' as vm; // [수정] 더 이상 필요 없으므로 제거합니다.
+
+import './meeting_screen.dart';
+import '../utils/ai_service.dart' as ai_service;
 import '../providers/token_status_provider.dart';
 import '../auth/login_page.dart';
 
-// 데이터 모델 클래스
+// --- 데이터 모델 클래스 (기존과 동일) ---
 class GraphNodeData {
   final String id;
   GraphNodeData({required this.id});
@@ -34,6 +38,7 @@ class GraphEdgeData {
   );
 }
 
+// --- GraphPage 위젯 ---
 class GraphPage extends StatefulWidget {
   const GraphPage({super.key});
 
@@ -53,12 +58,11 @@ class _GraphPageState extends State<GraphPage> {
   final double _canvasWidth = 4000;
   final double _canvasHeight = 4000;
 
-  List<GraphNodeData> _allNodesData = [];
   List<GraphEdgeData> _aiEdges = [];
   List<GraphEdgeData> _userEdges = [];
-  Set<String> _topicIds = {};
   final Map<String, Node> _nodeMap = {};
-  Set<String> _activeUserNodeIds = {};
+  // [수정] Linter 경고에 따라 final로 변경
+  final Set<String> _activeUserNodeIds = {};
 
   @override
   void initState() {
@@ -69,6 +73,193 @@ class _GraphPageState extends State<GraphPage> {
         _loadGraphFromEmbeddingsFile();
       }
     });
+  }
+
+  Future<void> _triggerEmbeddingProcess() async {
+    if (_isLoading) return;
+    setState(() {
+      _isLoading = true;
+      _statusMessage = '로컬 노트 파일 변경 사항 확인 중...';
+    });
+
+    try {
+      final notesDir = await _getNotesDirectory();
+      final embeddingsFile = File(p.join(notesDir, 'embeddings.json'));
+
+      Map<String, dynamic> cacheData = {};
+      Map<String, dynamic> cachedEmbeddings = {};
+      if (await embeddingsFile.exists()) {
+        try {
+          cacheData = jsonDecode(await embeddingsFile.readAsString());
+          cachedEmbeddings = cacheData['embeddings'] ?? {};
+        } catch (e) {
+          print("embeddings.json 파싱 오류: $e");
+        }
+      }
+
+      setState(() => _statusMessage = '로컬 파일 스캔 중...');
+      final localFiles = await _getAllMarkdownFiles(Directory(notesDir));
+      if (localFiles.isEmpty) {
+        _showSnackBar('노트 폴더에 분석할 .md 파일이 없습니다.');
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      List<Map<String, String>> filesToEmbed = [];
+      for (var file in localFiles) {
+        final fileName = p.relative(file.path, from: notesDir);
+        final fileLastModified = (await file.lastModified()).toIso8601String();
+        final cachedItem = cachedEmbeddings[fileName];
+
+        if (cachedItem == null ||
+            cachedItem['last_modified'] != fileLastModified) {
+          filesToEmbed.add({
+            'fileName': fileName,
+            'content': await file.readAsString(),
+            'last_modified': fileLastModified,
+          });
+        }
+      }
+
+      if (filesToEmbed.isNotEmpty) {
+        setState(
+          () =>
+              _statusMessage = 'AI 서버에 ${filesToEmbed.length}개 파일 임베딩 요청 중...',
+        );
+
+        final newEmbeddingsData = await ai_service.getEmbeddingsForFiles(
+          filesToEmbed,
+        );
+
+        if (newEmbeddingsData != null) {
+          for (var item in filesToEmbed) {
+            final fileName = item['fileName']!;
+            if (newEmbeddingsData.containsKey(fileName)) {
+              cachedEmbeddings[fileName] = {
+                "vector": newEmbeddingsData[fileName],
+                "last_modified": item['last_modified'],
+              };
+            }
+          }
+        }
+      } else {
+        setState(() => _statusMessage = '변경 사항 없음. 기존 데이터로 그래프를 구성합니다.');
+      }
+
+      final allFileNames =
+          localFiles.map((f) => p.relative(f.path, from: notesDir)).toList();
+
+      final finalEmbeddings = Map<String, List<double>>.fromEntries(
+        allFileNames
+            .map((name) {
+              final vectorData = cachedEmbeddings[name]?['vector'];
+              final vectorAsList =
+                  vectorData is List ? List.from(vectorData) : <num>[];
+              return MapEntry(
+                name,
+                vectorAsList.map((e) => (e as num).toDouble()).toList(),
+              );
+            })
+            .where((entry) => entry.value.isNotEmpty),
+      );
+
+      final calculatedEdges = _calculateSimilarityAndEdges(finalEmbeddings);
+
+      List<Map<String, String>> notesData = [];
+      for (var file in localFiles) {
+        notesData.add({
+          'fileName': p.relative(file.path, from: notesDir),
+          'content': await file.readAsString(),
+        });
+      }
+      final userDefinedResult = await _extractUserDefinedEdgesAndTopics(
+        notesData,
+      );
+
+      final finalData = {
+        "nodes": finalEmbeddings.keys.map((id) => {"id": id}).toList(),
+        "edges":
+            calculatedEdges
+                .map(
+                  (e) => {
+                    "from": e.from,
+                    "to": e.to,
+                    "similarity": e.similarity,
+                  },
+                )
+                .toList(),
+        "userEdges":
+            userDefinedResult.userEdges
+                .map(
+                  (e) => {
+                    "from": e.from,
+                    "to": e.to,
+                    "similarity": e.similarity,
+                  },
+                )
+                .toList(),
+        "userTopics": userDefinedResult.topicNodes.toList(),
+        "embeddings": cachedEmbeddings,
+      };
+
+      await embeddingsFile.writeAsString(jsonEncode(finalData));
+      _showSnackBar('그래프 생성 완료');
+      _buildGraphFromData(finalData);
+    } catch (e) {
+      _showSnackBar('오류 발생: ${e.toString()}');
+      _statusMessage = '오류가 발생했습니다.';
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  // [수정] vector_math 대신 dart:math를 사용하는 코사인 유사도 계산 함수
+  List<GraphEdgeData> _calculateSimilarityAndEdges(
+    Map<String, List<double>> embeddings,
+  ) {
+    setState(() => _statusMessage = '문서 간 유사도 계산 중...');
+    final edges = <GraphEdgeData>[];
+    final fileNames = embeddings.keys.toList();
+
+    double dotProduct(List<double> v1, List<double> v2) {
+      double result = 0.0;
+      for (int i = 0; i < v1.length; i++) {
+        result += v1[i] * v2[i];
+      }
+      return result;
+    }
+
+    double magnitude(List<double> v) {
+      double result = 0.0;
+      for (int i = 0; i < v.length; i++) {
+        result += v[i] * v[i];
+      }
+      return sqrt(result);
+    }
+
+    for (int i = 0; i < fileNames.length; i++) {
+      for (int j = i + 1; j < fileNames.length; j++) {
+        final fileA = fileNames[i];
+        final fileB = fileNames[j];
+
+        final vectorA = embeddings[fileA]!;
+        final vectorB = embeddings[fileB]!;
+
+        final magA = magnitude(vectorA);
+        final magB = magnitude(vectorB);
+
+        if (magA == 0.0 || magB == 0.0) continue;
+
+        final similarity = dotProduct(vectorA, vectorB) / (magA * magB);
+
+        if (similarity > _similarityThreshold) {
+          edges.add(
+            GraphEdgeData(from: fileA, to: fileB, similarity: similarity),
+          );
+        }
+      }
+    }
+    return edges;
   }
 
   void _setAlgorithm() {
@@ -110,8 +301,9 @@ class _GraphPageState extends State<GraphPage> {
     graph.edges.clear();
     _nodeMap.clear();
 
-    _topicIds = (data['userTopics'] as List? ?? []).whereType<String>().toSet();
-    _allNodesData =
+    final topicIds =
+        (data['userTopics'] as List? ?? []).whereType<String>().toSet();
+    final allNodesData =
         (data['nodes'] as List? ?? [])
             .map((nodeJson) => GraphNodeData.fromJson(nodeJson))
             .toList();
@@ -130,10 +322,10 @@ class _GraphPageState extends State<GraphPage> {
       _activeUserNodeIds.add(edge.to);
     }
 
-    for (var nodeData in _allNodesData) {
+    for (var nodeData in allNodesData) {
       _nodeMap[nodeData.id] = Node.Id(nodeData.id);
     }
-    for (var topic in _topicIds) {
+    for (var topic in topicIds) {
       if (!_nodeMap.containsKey(topic)) {
         _nodeMap[topic] = Node.Id(topic);
       }
@@ -156,16 +348,11 @@ class _GraphPageState extends State<GraphPage> {
     }
 
     _setAlgorithm();
-
     for (var node in _nodeMap.values) {
       graph.addNode(node);
     }
-
     _updateEdges();
-
-    setState(() {
-      _isLoading = false;
-    });
+    setState(() => _isLoading = false);
   }
 
   Future<void> _loadGraphFromEmbeddingsFile() async {
@@ -176,10 +363,8 @@ class _GraphPageState extends State<GraphPage> {
     try {
       final notesDir = await _getNotesDirectory();
       final embeddingsFile = File(p.join(notesDir, 'embeddings.json'));
-
       if (await embeddingsFile.exists()) {
-        final jsonString = await embeddingsFile.readAsString();
-        final data = jsonDecode(jsonString);
+        final data = jsonDecode(await embeddingsFile.readAsString());
         _buildGraphFromData(data);
       } else {
         setState(() {
@@ -195,81 +380,9 @@ class _GraphPageState extends State<GraphPage> {
     }
   }
 
-  Future<void> _triggerEmbeddingProcess() async {
-    if (_isLoading) return;
-    setState(() {
-      _isLoading = true;
-      _statusMessage = '로컬 노트 파일을 읽는 중...';
-    });
-
-    try {
-      final notesDir = await _getNotesDirectory();
-      final directory = Directory(notesDir);
-      if (!await directory.exists()) {
-        _showSnackBar('노트 폴더를 찾을 수 없습니다: $notesDir');
-        setState(() => _isLoading = false);
-        return;
-      }
-      final files = await _getAllMarkdownFiles(directory);
-      if (files.isEmpty) {
-        _showSnackBar('노트 폴더에 분석할 .md 파일이 없습니다.');
-        setState(() => _isLoading = false);
-        return;
-      }
-
-      List<Map<String, String>> notesData = [];
-      for (var file in files) {
-        final fileName = p.relative(file.path, from: notesDir);
-        final content = await file.readAsString();
-        notesData.add({'fileName': fileName, 'content': content});
-      }
-
-      final result = await _extractUserDefinedEdgesAndTopics(notesData);
-      setState(() {
-        _statusMessage = 'AI 서버에 임베딩 요청 중... (${notesData.length}개 파일)';
-      });
-
-      final graphData = await ai_service.generateGraphData(notesData);
-      if (graphData != null && graphData['error'] == null) {
-        graphData['userEdges'] =
-            result.userEdges
-                .map(
-                  (e) => {
-                    'from': e.from,
-                    'to': e.to,
-                    'similarity': e.similarity,
-                  },
-                )
-                .toList();
-        graphData['userTopics'] = result.topicNodes.toList();
-
-        final jsonString = jsonEncode(graphData);
-        final embeddingsFile = File(p.join(notesDir, 'embeddings.json'));
-        await embeddingsFile.writeAsString(jsonString);
-
-        _showSnackBar('그래프 생성 완료');
-        _buildGraphFromData(graphData);
-      } else {
-        final errorMsg = graphData?['error'] ?? '알 수 없는 오류';
-        _showSnackBar('오류: $errorMsg');
-        _statusMessage = '그래프 생성에 실패했습니다.';
-      }
-    } catch (e) {
-      _showSnackBar('오류 발생: ${e.toString()}');
-      _statusMessage = '오류가 발생했습니다.';
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final tokenProvider = context.watch<TokenStatusProvider>();
-
     return Column(
       children: [
         AppBar(
@@ -340,12 +453,10 @@ class _GraphPageState extends State<GraphPage> {
                                 ..style = PaintingStyle.stroke,
                           builder: (Node node) {
                             final label = node.key!.value as String;
-
                             if (_showUserGraph &&
                                 !_activeUserNodeIds.contains(label)) {
                               return const SizedBox.shrink();
                             }
-
                             return _buildNodeWidget(label);
                           },
                         ),
@@ -383,6 +494,7 @@ class _GraphPageState extends State<GraphPage> {
                 context,
                 MaterialPageRoute(builder: (context) => LoginPage()),
               ).then((_) {
+                if (!mounted) return;
                 final tokenProvider = context.read<TokenStatusProvider>();
                 if (tokenProvider.isAuthenticated) {
                   _loadGraphFromEmbeddingsFile();
@@ -461,7 +573,6 @@ class _GraphPageState extends State<GraphPage> {
     final notesDir = await _getNotesDirectory();
     final fullPath = p.join(notesDir, filePath);
     final file = File(fullPath);
-
     if (await file.exists()) {
       final content = await file.readAsString();
       if (!mounted) return;
@@ -492,17 +603,14 @@ _extractUserDefinedEdgesAndTopics(List<Map<String, String>> notesData) async {
   final userEdges = <GraphEdgeData>[];
   final topicNodes = <String>{};
   final allNoteFileNames = notesData.map((e) => e['fileName']!).toSet();
-
   for (final note in notesData) {
     final fileName = note['fileName']!;
     final content = note['content']!;
     final matches = RegExp(r'<<([^<>]+)>>').allMatches(content);
-
     for (final match in matches) {
       final target = match.group(1)?.trim();
       if (target != null && target.isNotEmpty) {
         final targetMd = target.endsWith('.md') ? target : '$target.md';
-
         if (targetMd != fileName && allNoteFileNames.contains(targetMd)) {
           userEdges.add(
             GraphEdgeData(from: fileName, to: targetMd, similarity: 1.0),

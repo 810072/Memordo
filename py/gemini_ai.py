@@ -6,17 +6,14 @@ from dotenv import load_dotenv
 import google.generativeai as genai
 
 # --- 1. 초기 설정: API 키 및 모델 설정 ---
-# .env 파일에서 환경 변수를 로드합니다.
 load_dotenv()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 if not GEMINI_API_KEY:
     raise ValueError("GEMINI_API_KEY가 .env 파일에 설정되지 않았습니다.")
 
-# Gemini API를 설정합니다.
 genai.configure(api_key=GEMINI_API_KEY)
 
-# 사용할 기본 모델을 정의합니다.
 DEFAULT_GEMINI_MODEL = "gemini-1.5-flash"
 EMBEDDING_MODEL = "models/text-embedding-004"
 
@@ -24,18 +21,16 @@ EMBEDDING_MODEL = "models/text-embedding-004"
 
 def get_embedding_for_text(text: str, task_type: str = "retrieval_document") -> list[float] | None:
     """
-    [개선됨] Gemini API를 사용하여 텍스트를 임베딩 벡터로 변환합니다.
-    SBERT와 ChromaDB를 완전히 대체합니다.
+    하나의 텍스트를 임베딩 벡터로 변환합니다.
     """
     if not text or not isinstance(text, str) or not text.strip():
         print("[경고] 임베딩할 텍스트가 비어있습니다.")
         return None
     try:
-        # Gemini 임베딩 모델을 직접 호출합니다.
         result = genai.embed_content(
             model=EMBEDDING_MODEL,
             content=text,
-            task_type=task_type, # "retrieval_document", "similarity", "classification" 등
+            task_type=task_type,
             title="Memordo Document"
         )
         return result['embedding']
@@ -44,19 +39,35 @@ def get_embedding_for_text(text: str, task_type: str = "retrieval_document") -> 
         traceback.print_exc()
         return None
 
+# [수정] app.py에서 필요한 get_embeddings_batch 함수를 추가합니다.
+def get_embeddings_batch(texts: list[str], model_name: str = EMBEDDING_MODEL, task_type: str = "retrieval_document") -> list[list[float]]:
+    """
+    여러 텍스트를 한 번의 API 호출로 임베딩합니다. (효율성 증대)
+    """
+    try:
+        # texts 목록에서 비어있는 문자열을 API 오류 방지를 위해 공백 한 칸으로 대체
+        processed_texts = [text if text.strip() else " " for text in texts]
+        result = genai.embed_content(
+            model=model_name,
+            content=processed_texts,
+            task_type=task_type
+        )
+        return result['embedding']
+    except Exception as e:
+        print(f"배치 임베딩 중 오류 발생: {e}")
+        # 오류 발생 시, 각 텍스트에 대해 빈 리스트를 반환하여 일부라도 처리되도록 함
+        return [[] for _ in texts]
+
 def query_gemini(prompt: str, model_name: str = DEFAULT_GEMINI_MODEL) -> str:
     """
-    [유지] Gemini 생성 모델에 프롬프트를 보내고 텍스트 응답을 받습니다.
-    오류 처리와 로깅을 강화했습니다.
+    Gemini 생성 모델에 프롬프트를 보내고 텍스트 응답을 받습니다.
     """
     try:
         model = genai.GenerativeModel(model_name)
         response = model.generate_content(prompt)
         
-        # API 응답에 텍스트가 있는지 확인
         if response.parts:
             return response.text.strip()
-        # 차단되었거나 다른 이유로 응답이 없는 경우
         elif response.prompt_feedback and response.prompt_feedback.block_reason:
             error_msg = f"콘텐츠 생성 차단됨. 이유: {response.prompt_feedback.block_reason}"
             print(f"[오류] {error_msg}")
@@ -72,7 +83,6 @@ def query_gemini(prompt: str, model_name: str = DEFAULT_GEMINI_MODEL) -> str:
 
 # --- 3. 작업별 유틸리티 함수 ---
 
-# 작업별 프롬프트 템플릿 (한국어 기반으로 수정)
 task_prompts = {
     "summarize": "다음 텍스트를 핵심 내용 중심으로 세 문장으로 간결하게 요약해주세요:\n\n\"\"\"\n[TEXT]\n\"\"\"",
     "memo": "다음 내용을 바탕으로 핵심 아이디어와 결정 사항을 강조하는 글머리 기호(불렛 포인트) 형식으로 정리해주세요:\n\n\"\"\"\n[TEXT]\n\"\"\"",
@@ -94,7 +104,7 @@ task_prompts = {
 
 def execute_simple_task(task_type: str, text: str) -> str:
     """
-    [신규] 요약, 메모, 키워드 추출 등 간단한 작업을 수행합니다.
+    요약, 메모, 키워드 추출 등 간단한 작업을 수행합니다.
     """
     if task_type not in task_prompts:
         return f"Error: 지원하지 않는 작업 유형입니다: {task_type}"
@@ -103,7 +113,6 @@ def execute_simple_task(task_type: str, text: str) -> str:
     return query_gemini(prompt)
 
 # --- 메인 실행 블록 (테스트용) ---
-# 이 파일이 직접 실행될 때만 작동합니다. app.py에서 import할 때는 실행되지 않습니다.
 if __name__ == '__main__':
     print("--- gemini_ai.py 모듈 테스트 시작 ---")
 
@@ -139,4 +148,3 @@ if __name__ == '__main__':
     print(f"키워드 추출 결과:\n{keyword_result}")
 
     print("\n--- gemini_ai.py 모듈 테스트 종료 ---")
-
