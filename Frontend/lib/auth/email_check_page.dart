@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 
 import 'password_reset_page.dart';
+import '../widgets/common_ui.dart';
 
 class EmailCheckPage extends StatefulWidget {
   @override
@@ -17,7 +18,6 @@ class _EmailCheckPageState extends State<EmailCheckPage> {
   final String baseUrl = 'https://aidoctorgreen.com';
   final String apiPrefix = '/memo/api';
 
-  // 함수 이름을 _checkEmailAndProceedToPasswordReset 등으로 변경하여 명확성 향상 가능
   Future<void> _checkEmailAndProceed() async {
     final email = _emailController.text.trim();
     if (email.isEmpty || !RegExp(r'\S+@\S+\.\S+').hasMatch(email)) {
@@ -44,9 +44,7 @@ class _EmailCheckPageState extends State<EmailCheckPage> {
             '등록된 계정을 찾았습니다. 비밀번호 재설정 페이지로 이동합니다.',
             isError: false,
           );
-          await Future.delayed(
-            const Duration(milliseconds: 1500),
-          ); // SnackBar 확인 시간
+          await Future.delayed(const Duration(milliseconds: 1500));
           if (mounted) {
             Navigator.push(
               context,
@@ -56,7 +54,6 @@ class _EmailCheckPageState extends State<EmailCheckPage> {
             );
           }
         } else {
-          // isDuplicate가 false이거나 키가 없는 경우
           _showStyledSnackBar('해당 이메일로 등록된 계정을 찾을 수 없습니다.', isError: true);
         }
       } else {
@@ -144,7 +141,7 @@ class _EmailCheckPageState extends State<EmailCheckPage> {
                     ),
                   ),
                   const SizedBox(height: 32),
-                  _buildTextField(
+                  buildTextField(
                     controller: _emailController,
                     labelText: '이메일 주소',
                     icon: Icons.email_outlined,
@@ -152,8 +149,7 @@ class _EmailCheckPageState extends State<EmailCheckPage> {
                     enabled: !_isLoading,
                   ),
                   const SizedBox(height: 24),
-                  _buildElevatedButton(
-                    // 버튼 텍스트를 '이메일 확인' 또는 '계속하기' 등으로 변경 고려
+                  buildElevatedButton(
                     text: '이메일 확인',
                     onPressed: _isLoading ? null : _checkEmailAndProceed,
                     isLoading: _isLoading,
@@ -166,79 +162,4 @@ class _EmailCheckPageState extends State<EmailCheckPage> {
       ),
     );
   }
-
-  // --- 공통 위젯 빌더 (다른 인증 페이지에서 복사 또는 별도 파일로 분리) ---
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String labelText,
-    required IconData icon,
-    bool obscureText = false,
-    TextInputType? keyboardType,
-    bool enabled = true,
-  }) {
-    return TextField(
-      controller: controller,
-      obscureText: obscureText,
-      keyboardType: keyboardType,
-      enabled: enabled,
-      decoration: InputDecoration(
-        labelText: labelText,
-        prefixIcon: Icon(icon, color: Colors.grey[600]),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8.0)),
-        focusedBorder: OutlineInputBorder(
-          borderSide: BorderSide(color: Colors.deepPurple, width: 2.0),
-          borderRadius: BorderRadius.circular(8.0),
-        ),
-        disabledBorder: OutlineInputBorder(
-          borderSide: BorderSide(color: Colors.grey.shade300),
-          borderRadius: BorderRadius.circular(8.0),
-        ),
-        filled: !enabled,
-        fillColor: Colors.grey.shade100,
-      ),
-    );
-  }
-
-  Widget _buildElevatedButton({
-    required String text,
-    required VoidCallback? onPressed,
-    bool isLoading = false,
-    Color bgColor = Colors.deepPurple,
-  }) {
-    return SizedBox(
-      width: double.infinity,
-      height: 50,
-      child: ElevatedButton(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: bgColor,
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8.0),
-          ),
-          elevation: 4,
-          disabledBackgroundColor: bgColor.withOpacity(0.5),
-        ),
-        onPressed: isLoading ? null : onPressed,
-        child:
-            isLoading
-                ? const SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(
-                    color: Colors.white,
-                    strokeWidth: 3,
-                  ),
-                )
-                : Text(
-                  text,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-      ),
-    );
-  }
-
-  // --- ---
 }

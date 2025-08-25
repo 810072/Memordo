@@ -2,10 +2,9 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'dart:convert'; // jsonEncode를 위해 추가
-import 'package:desktop_multi_window/desktop_multi_window.dart'; // 패키지 임포트
+import 'dart:convert';
+import 'package:desktop_multi_window/desktop_multi_window.dart';
 
-// 기존 임포트
 import 'left_sidebar_content.dart';
 import 'right_sidebar_content.dart';
 import '../features/page_type.dart';
@@ -38,13 +37,11 @@ class MainLayout extends StatefulWidget {
 class _MainLayoutState extends State<MainLayout> {
   bool _isLeftExpanded = false;
   bool _isRightExpanded = true;
-
   late final List<Widget> _pages;
 
   @override
   void initState() {
     super.initState();
-
     _pages =
         PageType.values.map((pageType) => _getPageWidget(pageType)).toList();
 
@@ -54,17 +51,6 @@ class _MainLayoutState extends State<MainLayout> {
         listen: false,
       ).loadStatus(context);
     });
-  }
-
-  void _openChatbotWindow() async {
-    final window = await DesktopMultiWindow.createWindow(
-      jsonEncode({'arg1': 'value1', 'arg2': 'value2'}),
-    );
-    window
-      ..setFrame(const Offset(100, 100) & const Size(560, 960))
-      ..center()
-      ..setTitle('Memordo 챗봇')
-      ..show();
   }
 
   Widget _getPageWidget(PageType pageType) {
@@ -84,6 +70,17 @@ class _MainLayoutState extends State<MainLayout> {
       default:
         return const Center(child: Text('알 수 없는 페이지'));
     }
+  }
+
+  void _openChatbotWindow() async {
+    final window = await DesktopMultiWindow.createWindow(
+      jsonEncode({'arg1': 'value1', 'arg2': 'value2'}),
+    );
+    window
+      ..setFrame(const Offset(100, 100) & const Size(560, 960))
+      ..center()
+      ..setTitle('Memordo 챗봇')
+      ..show();
   }
 
   bool get _showRightSidebar => widget.activePage == PageType.home;
@@ -118,14 +115,15 @@ class _MainLayoutState extends State<MainLayout> {
             onPressed: _toggleLeftPanel,
             tooltip: 'Toggle Sidebar',
           ),
-          title: const Row(
+          title: Row(
             children: [
-              Icon(Icons.note_alt_rounded, color: Color(0xFF3d98f4)),
-              SizedBox(width: 8),
+              const Icon(Icons.note_alt_rounded, color: Color(0xFF3d98f4)),
+              const SizedBox(width: 8),
               Text(
                 'Memordo',
                 style: TextStyle(
-                  color: Color(0xFF1E293B),
+                  // ✨ [수정] 하드코딩된 색상 대신 현재 테마의 AppBar 전경색을 사용합니다.
+                  color: Theme.of(context).appBarTheme.foregroundColor,
                   fontWeight: FontWeight.w600,
                   fontSize: 20,
                   fontFamily: 'Work Sans',
@@ -269,7 +267,6 @@ class _MainLayoutState extends State<MainLayout> {
         PopupMenuItem(
           enabled: false,
           child: Container(
-            // ✨ [수정] 너비를 200으로 조정
             width: 200,
             padding: const EdgeInsets.symmetric(
               vertical: 8.0,
@@ -304,10 +301,12 @@ class _MainLayoutState extends State<MainLayout> {
         const PopupMenuDivider(),
         PopupMenuItem(
           value: 'logout',
-          onTap: () async {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              provider.forceLogout(context);
-            });
+          onTap: () {
+            final tokenProvider = Provider.of<TokenStatusProvider>(
+              context,
+              listen: false,
+            );
+            tokenProvider.forceLogout(context);
           },
           child: const ListTile(
             leading: Icon(Icons.logout),
@@ -320,7 +319,6 @@ class _MainLayoutState extends State<MainLayout> {
         PopupMenuItem(
           enabled: false,
           child: SizedBox(
-            // ✨ [수정] 너비를 200으로 조정
             width: 200,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -339,15 +337,16 @@ class _MainLayoutState extends State<MainLayout> {
                   icon: const Icon(Icons.login, size: 16),
                   label: const Text('로그인/회원가입'),
                   onPressed: () {
+                    final tokenProvider = Provider.of<TokenStatusProvider>(
+                      context,
+                      listen: false,
+                    );
                     Navigator.pop(context);
                     Navigator.push(
                       context,
                       MaterialPageRoute(builder: (context) => LoginPage()),
                     ).then((_) {
-                      Provider.of<TokenStatusProvider>(
-                        context,
-                        listen: false,
-                      ).loadStatus(context);
+                      tokenProvider.loadStatus(context);
                     });
                   },
                   style: ElevatedButton.styleFrom(

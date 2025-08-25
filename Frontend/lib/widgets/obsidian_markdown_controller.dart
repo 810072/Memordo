@@ -11,15 +11,17 @@ import 'package:url_launcher/url_launcher.dart';
 /// like list continuation and provides methods for programmatic styling changes,
 /// ensuring high performance and cursor stability.
 class ObsidianMarkdownController extends TextEditingController {
-  final Map<String, TextStyle> _styleMap;
+  // ✨ [수정] _styleMap을 final이 아닌 일반 멤버 변수로 변경하여 업데이트가 가능하도록 합니다.
+  Map<String, TextStyle> _styleMap;
   TextEditingValue _previousValue = const TextEditingValue();
   bool _isProgrammaticChange = false;
 
   // Regex for styling and smart editing features.
+  // 헤더, 리스트, 인용구의 정규식을 수정하여 마커, 공백, 내용을 별도의 그룹으로 캡처하도록 변경했습니다.
   static final Map<String, RegExp> _stylingRegexMap = {
-    'header': RegExp(r'^(#{1,6})\s+.*', multiLine: true),
-    'list': RegExp(r'^(\s*[-*+•]|\s*\d+\.)\s+.*', multiLine: true),
-    'quote': RegExp(r'^>\s+.*', multiLine: true),
+    'header': RegExp(r'^(#{1,6})(\s+)(.*)', multiLine: true),
+    'list': RegExp(r'^(\s*[-*+•]|\s*\d+\.)(\s+)(.*)', multiLine: true),
+    'quote': RegExp(r'^(>)(\s+)(.*)', multiLine: true),
     'link': RegExp(r'\[(.*?)\]\((.*?)\)', dotAll: true),
     'code': RegExp(r'`(.*?)`', dotAll: true),
     'bold': RegExp(r'\*\*(.*?)\*\*', dotAll: true),
@@ -37,6 +39,17 @@ class ObsidianMarkdownController extends TextEditingController {
        super(text: text) {
     _previousValue = value;
     addListener(_mainListener);
+  }
+
+  // ✨ [추가] 외부에서 스타일 맵을 업데이트하고, UI 갱신을 트리거하는 메서드
+  void updateStyles(Map<String, TextStyle> newStyles) {
+    // 스타일이 실제로 변경되었는지 확인하여 불필요한 재빌드를 방지합니다. (선택적 최적화)
+    if (newStyles.toString() != _styleMap.toString()) {
+      _styleMap = newStyles;
+      // notifyListeners()를 호출하여 컨트롤러를 사용하는 TextField가
+      // buildTextSpan을 다시 호출하도록 강제합니다.
+      notifyListeners();
+    }
   }
 
   @override
@@ -271,6 +284,8 @@ class ObsidianMarkdownController extends TextEditingController {
     return TextSpan(children: spans, style: defaultStyle);
   }
 
+  /// This method now separates markdown syntax from content to apply different styles.
+  /// This preserves the original text length and structure, fixing cursor position issues.
   TextSpan _createStyledSpan(
     RegExpMatch match,
     String type,
@@ -284,24 +299,100 @@ class ObsidianMarkdownController extends TextEditingController {
       style = _styleMap[type] ?? defaultStyle;
     }
 
-    if (type == 'link') {
-      final linkText = match.group(1) ?? '';
-      final url = match.group(2) ?? '';
-      return TextSpan(
-        text: linkText,
-        style: style,
-        recognizer:
-            TapGestureRecognizer()
-              ..onTap = () async {
-                final uri = Uri.tryParse(url);
-                if (uri != null && await canLaunchUrl(uri)) {
-                  await launchUrl(uri);
-                }
-              },
-      );
-    }
+    // Style for markdown syntax characters (e.g., '#', '**')
+    final syntaxStyle = TextStyle(color: Colors.grey.shade400);
 
-    return TextSpan(text: match.group(0)!, style: style);
+    switch (type) {
+      case 'bold':
+        return TextSpan(
+          children: [
+            TextSpan(text: '**', style: syntaxStyle),
+            TextSpan(text: match.group(1) ?? '', style: style),
+            TextSpan(text: '**', style: syntaxStyle),
+          ],
+        );
+      case 'italic':
+        return TextSpan(
+          children: [
+            TextSpan(text: '*', style: syntaxStyle),
+            TextSpan(text: match.group(1) ?? '', style: style),
+            TextSpan(text: '*', style: syntaxStyle),
+          ],
+        );
+      case 'strikethrough':
+        return TextSpan(
+          children: [
+            TextSpan(text: '~~', style: syntaxStyle),
+            TextSpan(text: match.group(1) ?? '', style: style),
+            TextSpan(text: '~~', style: syntaxStyle),
+          ],
+        );
+      case 'code':
+        return TextSpan(
+          style: style, // Apply background color to the whole span
+          children: [
+            TextSpan(
+              text: '`',
+              style: syntaxStyle.copyWith(backgroundColor: Colors.transparent),
+            ),
+            TextSpan(text: match.group(1) ?? ''), // Inherits parent's style
+            TextSpan(
+              text: '`',
+              style: syntaxStyle.copyWith(backgroundColor: Colors.transparent),
+            ),
+          ],
+        );
+      case 'link':
+        final linkText = match.group(1) ?? '';
+        final url = match.group(2) ?? '';
+        return TextSpan(
+          children: [
+            TextSpan(text: '[', style: syntaxStyle),
+            TextSpan(
+              text: linkText,
+              style: style,
+              recognizer:
+                  TapGestureRecognizer()
+                    ..onTap = () async {
+                      final uri = Uri.tryParse(url);
+                      if (uri != null && await canLaunchUrl(uri)) {
+                        await launchUrl(uri);
+                      }
+                    },
+            ),
+            TextSpan(text: '](', style: syntaxStyle),
+            TextSpan(text: url, style: syntaxStyle),
+            TextSpan(text: ')', style: syntaxStyle),
+          ],
+        );
+
+      case 'header':
+      case 'list':
+      case 'quote':
+        final marker = match.group(1) ?? '';
+        final space = match.group(2) ?? '';
+        final content = match.group(3) ?? '';
+        return TextSpan(
+          style:
+              style, // Apply main style (font size, height) to the whole line
+          children: [
+            // 마커는 부모 스타일(크기)을 상속받되, 색상만 변경합니다.
+            TextSpan(
+              text: marker,
+              style: syntaxStyle.copyWith(
+                fontSize: style.fontSize,
+                height: style.height,
+              ),
+            ),
+            // 공백과 내용은 부모의 스타일을 그대로 상속받습니다.
+            TextSpan(text: space),
+            TextSpan(text: content),
+          ],
+        );
+      default:
+        // Fallback for any unhandled types
+        return TextSpan(text: match.group(0)!, style: defaultStyle);
+    }
   }
 }
 

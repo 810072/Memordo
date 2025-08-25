@@ -2,12 +2,11 @@
 
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math'; // [수정] 벡터 계산을 위해 dart:math를 임포트합니다.
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:graphview/GraphView.dart';
 import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
-// import 'package:vector_math/vector_math_64.dart' as vm; // [수정] 더 이상 필요 없으므로 제거합니다.
 
 import './meeting_screen.dart';
 import '../utils/ai_service.dart' as ai_service;
@@ -52,7 +51,7 @@ class _GraphPageState extends State<GraphPage> {
 
   bool _isLoading = false;
   bool _showUserGraph = false;
-  String _statusMessage = '그래프를 보려면 구글 로그인이 필요합니다.';
+  String _statusMessage = '그래프를 생성하려면 우측 상단의 버튼을 눌러주세요.';
 
   static const double _similarityThreshold = 0.8;
   final double _canvasWidth = 4000;
@@ -61,17 +60,14 @@ class _GraphPageState extends State<GraphPage> {
   List<GraphEdgeData> _aiEdges = [];
   List<GraphEdgeData> _userEdges = [];
   final Map<String, Node> _nodeMap = {};
-  // [수정] Linter 경고에 따라 final로 변경
   final Set<String> _activeUserNodeIds = {};
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final tokenProvider = context.read<TokenStatusProvider>();
-      if (tokenProvider.isAuthenticated) {
-        _loadGraphFromEmbeddingsFile();
-      }
+      // ✨ [수정] 로그인 여부와 관계없이 로컬에서 그래프 파일을 로드하려고 시도
+      _loadGraphFromEmbeddingsFile();
     });
   }
 
@@ -213,7 +209,6 @@ class _GraphPageState extends State<GraphPage> {
     }
   }
 
-  // [수정] vector_math 대신 dart:math를 사용하는 코사인 유사도 계산 함수
   List<GraphEdgeData> _calculateSimilarityAndEdges(
     Map<String, List<double>> embeddings,
   ) {
@@ -368,6 +363,7 @@ class _GraphPageState extends State<GraphPage> {
         _buildGraphFromData(data);
       } else {
         setState(() {
+          // ✨ [수정] 로그인 메시지 대신, 그래프 생성 방법을 안내
           _statusMessage = '임베딩 파일이 없습니다. 우측 상단 버튼을 눌러 생성해주세요.';
           _isLoading = false;
         });
@@ -382,28 +378,24 @@ class _GraphPageState extends State<GraphPage> {
 
   @override
   Widget build(BuildContext context) {
-    final tokenProvider = context.watch<TokenStatusProvider>();
     return Column(
       children: [
         AppBar(
           title: const Text('AI 노트 관계도'),
+          // ✨ [수정] 로그인 상태와 관계없이 버튼 항상 활성화
           actions: [
             IconButton(
               icon: const Icon(Icons.hub_rounded),
               tooltip: '임베딩 생성 및 새로고침',
-              onPressed:
-                  !tokenProvider.isAuthenticated
-                      ? null
-                      : _triggerEmbeddingProcess,
+              onPressed: _isLoading ? null : _triggerEmbeddingProcess,
             ),
             IconButton(
               icon: Icon(_showUserGraph ? Icons.person : Icons.smart_toy),
               tooltip: _showUserGraph ? '사용자 정의 링크 보기' : 'AI 추천 관계 보기',
               onPressed:
-                  !tokenProvider.isAuthenticated
+                  _isLoading || _nodeMap.isEmpty
                       ? null
                       : () {
-                        if (_isLoading || _nodeMap.isEmpty) return;
                         setState(() {
                           _showUserGraph = !_showUserGraph;
                           _updateEdges();
@@ -414,10 +406,9 @@ class _GraphPageState extends State<GraphPage> {
         ),
         Expanded(
           child: Center(
+            // ✨ [수정] 로그인 확인 로직 제거
             child:
-                !tokenProvider.isAuthenticated
-                    ? _buildLoginPrompt(context)
-                    : _isLoading
+                _isLoading
                     ? Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -465,50 +456,6 @@ class _GraphPageState extends State<GraphPage> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildLoginPrompt(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.lock_outline, size: 60, color: Colors.grey.shade400),
-          const SizedBox(height: 20),
-          const Text(
-            '로그인이 필요한 기능입니다.',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '노트 관계도를 생성하고 보려면 로그인이 필요합니다.',
-            style: TextStyle(color: Colors.grey.shade600),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
-            icon: const Icon(Icons.login, size: 16),
-            label: const Text('로그인 페이지로 이동'),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => LoginPage()),
-              ).then((_) {
-                if (!mounted) return;
-                final tokenProvider = context.read<TokenStatusProvider>();
-                if (tokenProvider.isAuthenticated) {
-                  _loadGraphFromEmbeddingsFile();
-                }
-              });
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.deepPurple,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            ),
-          ),
-        ],
-      ),
     );
   }
 

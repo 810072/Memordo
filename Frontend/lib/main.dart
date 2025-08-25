@@ -7,7 +7,6 @@ import 'dart:convert';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:window_manager/window_manager.dart';
 
-// 기존 임포트
 import 'auth/login_page.dart';
 import 'auth/signup_page.dart';
 import 'auth/email_check_page.dart';
@@ -22,7 +21,7 @@ import 'providers/theme_provider.dart';
 import 'providers/token_status_provider.dart';
 import 'features/chatbot_page.dart';
 import 'providers/note_provider.dart';
-import 'providers/scratchpad_provider.dart'; // ✨ [추가] ScratchpadProvider 임포트
+import 'providers/scratchpad_provider.dart';
 
 Future<void> main(List<String> args) async {
   if (args.firstOrNull == 'multi_window') {
@@ -63,7 +62,6 @@ Future<void> main(List<String> args) async {
           ChangeNotifierProvider(create: (context) => ThemeProvider()),
           ChangeNotifierProvider(create: (context) => TokenStatusProvider()),
           ChangeNotifierProvider(create: (context) => NoteProvider()),
-          // ✨ [추가] 앱 전역에서 ScratchpadProvider를 사용할 수 있도록 등록합니다.
           ChangeNotifierProvider(create: (context) => ScratchpadProvider()),
         ],
         child: const MyApp(),
@@ -88,7 +86,6 @@ class MyApp extends StatelessWidget {
               themeProvider.themeMode == AppThemeMode.dark
                   ? ThemeMode.dark
                   : ThemeMode.light,
-          // ✨ [수정] 앱 시작 경로를 '/main'으로 변경
           initialRoute: '/main',
           routes: {
             '/login': (context) => LoginPage(),
@@ -122,17 +119,16 @@ class MainLayoutWrapper extends StatefulWidget {
 class _MainLayoutWrapperState extends State<MainLayoutWrapper> {
   PageType _currentPage = PageType.home;
 
-  void _onPageSelected(PageType pageType) {
-    setState(() {
-      _currentPage = pageType;
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     return MainLayout(
       activePage: _currentPage,
-      onPageSelected: _onPageSelected,
+      // ✨ [수정] 콜백 함수에서 setState를 호출하여 페이지 변경
+      onPageSelected: (pageType) {
+        setState(() {
+          _currentPage = pageType;
+        });
+      },
     );
   }
 }

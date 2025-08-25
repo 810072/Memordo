@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
+import '../widgets/common_ui.dart';
+
 class SignUpPage extends StatefulWidget {
   @override
   State<SignUpPage> createState() => _SignUpPageState();
@@ -22,7 +24,6 @@ class _SignUpPageState extends State<SignUpPage> {
   final String baseUrl = 'https://aidoctorgreen.com';
   final String apiPrefix = '/memo/api';
 
-  // ... (_sendVerificationCode, _verifyCode, _signUp 함수 유지, _showMessage 수정) ...
   Future<void> _sendVerificationCode() async {
     /* ... */
   }
@@ -86,14 +87,14 @@ class _SignUpPageState extends State<SignUpPage> {
                     ),
                   ),
                   const SizedBox(height: 32),
-                  _buildTextField(
+                  buildTextField(
                     controller: _emailController,
                     labelText: 'Email',
                     icon: Icons.email_outlined,
                     enabled: !_emailVerified,
                   ),
                   const SizedBox(height: 12),
-                  _buildElevatedButton(
+                  buildElevatedButton(
                     text: '인증 코드 발송',
                     onPressed:
                         _emailVerified || _isSendingCode
@@ -103,14 +104,14 @@ class _SignUpPageState extends State<SignUpPage> {
                     bgColor: Colors.teal,
                   ),
                   const SizedBox(height: 24),
-                  _buildTextField(
+                  buildTextField(
                     controller: _codeController,
                     labelText: 'Verification Code',
                     icon: Icons.pin_outlined,
                     enabled: !_emailVerified,
                   ),
                   const SizedBox(height: 12),
-                  _buildElevatedButton(
+                  buildElevatedButton(
                     text: '인증 코드 확인',
                     onPressed:
                         _emailVerified || _isVerifyingCode ? null : _verifyCode,
@@ -122,7 +123,7 @@ class _SignUpPageState extends State<SignUpPage> {
                     thickness: 1,
                     color: Colors.grey.shade300,
                   ),
-                  _buildTextField(
+                  buildTextField(
                     controller: _passwordController,
                     labelText: 'Password',
                     icon: Icons.lock_outline,
@@ -130,13 +131,12 @@ class _SignUpPageState extends State<SignUpPage> {
                     enabled: _emailVerified,
                   ),
                   const SizedBox(height: 32),
-                  _buildElevatedButton(
+                  buildElevatedButton(
                     text: 'SIGN UP',
                     onPressed: !_emailVerified || _isLoading ? null : _signUp,
                     isLoading: _isLoading,
                   ),
-                  if (_message.isNotEmpty &&
-                      !_message.contains('성공')) // 성공 메시지는 SnackBar로만 표시
+                  if (_message.isNotEmpty && !_message.contains('성공'))
                     Padding(
                       padding: const EdgeInsets.only(top: 20.0),
                       child: Text(
@@ -153,29 +153,4 @@ class _SignUpPageState extends State<SignUpPage> {
       ),
     );
   }
-
-  // --- 공통 위젯 빌더 ---
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String labelText,
-    required IconData icon,
-    bool obscureText = false,
-    TextInputType? keyboardType,
-    bool enabled = true,
-  }) {
-    /* ... */
-    return TextField(/* ... */);
-  }
-
-  Widget _buildElevatedButton({
-    required String text,
-    required VoidCallback? onPressed,
-    bool isLoading = false,
-    Color bgColor = Colors.deepPurple,
-  }) {
-    /* ... */
-    return SizedBox(/* ... */);
-  }
-
-  // --- ---
 }

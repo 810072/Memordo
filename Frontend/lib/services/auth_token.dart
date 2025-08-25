@@ -1,9 +1,11 @@
-import 'package:flutter/material.dart'; // BuildContext 사용 시 필수!
+import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import '../auth/login_page.dart'; // LoginPage 임포트
+import 'package:provider/provider.dart'; // Provider 임포트 추가
+import '../auth/login_page.dart';
+import '../providers/token_status_provider.dart'; // TokenStatusProvider 임포트 추가
 
 final _storage = FlutterSecureStorage();
 
@@ -64,7 +66,7 @@ Future<void> clearAllTokens() async {
   await _storage.delete(key: 'google_access_token');
   await _storage.delete(key: 'google_refresh_token');
   await _storage.delete(key: 'google_token_expiry');
-  await _storage.delete(key: 'user_email'); // ✨ [추가] 이메일 정보 삭제
+  await _storage.delete(key: 'user_email');
   print('🧹 모든 토큰 및 사용자 정보 삭제 완료');
 }
 
@@ -209,7 +211,7 @@ Future<bool> hasValidGoogleAccessTokenLocally() async {
   final expiry = DateTime.tryParse(expiryRaw);
   if (expiry == null) return false;
 
-  return DateTime.now().isBefore(expiry); // 유효 시간 이내
+  return DateTime.now().isBefore(expiry);
 }
 
 Future<Map<String, dynamic>?> fetchTokenStatus(BuildContext context) async {
@@ -238,13 +240,16 @@ Future<Map<String, dynamic>?> fetchTokenStatus(BuildContext context) async {
   }
 }
 
+// ✨ [수정] Provider를 사용하여 앱 상태를 업데이트하도록 변경
 Future<void> logoutUser(BuildContext context) async {
   await clearAllTokens();
 
   if (context.mounted) {
-    // ✨ [수정] 로그아웃 시 로그인 페이지로 강제 이동하는 대신,
-    // 상태만 초기화하도록 변경. UI는 Provider가 자동으로 갱신.
-    // Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+    // Provider를 통해 forceLogout 호출
+    await Provider.of<TokenStatusProvider>(
+      context,
+      listen: false,
+    ).forceLogout(context);
   }
 }
 

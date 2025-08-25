@@ -1,4 +1,6 @@
 // lib/features/history.dart
+import 'dart:async';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -37,14 +39,62 @@ class _HistoryViewState extends State<HistoryView> {
   final Set<String> _selectedTimestamps = {};
   bool _showSummary = false;
 
+  // 검색 기능 관련 상태 변수
+  final TextEditingController _searchController = TextEditingController();
+  Timer? _debounce;
+  List<Map<String, dynamic>> _filteredHistory = [];
+
   @override
   void initState() {
     super.initState();
-    // ✨ [추가] 위젯이 빌드된 후, 로그인 상태를 확인하고 데이터를 로드합니다.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final tokenProvider = context.read<TokenStatusProvider>();
       if (tokenProvider.isAuthenticated) {
-        context.read<HistoryViewModel>().loadVisitHistory();
+        // 데이터 로드 후 필터링된 리스트 초기화
+        context.read<HistoryViewModel>().loadVisitHistory().then((_) {
+          if (mounted) {
+            _filterHistory(''); // 초기에 전체 리스트로 채움
+          }
+        });
+      }
+    });
+    // 검색 컨트롤러에 리스너 추가
+    _searchController.addListener(_onSearchChanged);
+  }
+
+  @override
+  void dispose() {
+    // 컨트롤러 및 타이머 dispose
+    _searchController.removeListener(_onSearchChanged);
+    _searchController.dispose();
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  // 검색어 변경 시 디바운싱 처리
+  void _onSearchChanged() {
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+    _debounce = Timer(const Duration(milliseconds: 300), () {
+      _filterHistory(_searchController.text);
+    });
+  }
+
+  // 방문 기록 필터링 로직
+  void _filterHistory(String query) {
+    final viewModel = context.read<HistoryViewModel>();
+    final lowerCaseQuery = query.toLowerCase();
+
+    setState(() {
+      if (lowerCaseQuery.isEmpty) {
+        _filteredHistory = List.from(viewModel.visitHistory);
+      } else {
+        _filteredHistory =
+            viewModel.visitHistory.where((item) {
+              final title = item['title']?.toString().toLowerCase() ?? '';
+              final url = item['url']?.toString().toLowerCase() ?? '';
+              return title.contains(lowerCaseQuery) ||
+                  url.contains(lowerCaseQuery);
+            }).toList();
       }
     });
   }
@@ -135,11 +185,11 @@ class _HistoryViewState extends State<HistoryView> {
   Widget build(BuildContext context) {
     final viewModel = context.watch<HistoryViewModel>();
     final bottomController = context.watch<BottomSectionController>();
-    // ✨ [추가] 로그인 상태를 확인하기 위해 TokenStatusProvider를 watch
     final tokenProvider = context.watch<TokenStatusProvider>();
 
     final Map<String, List<Map<String, dynamic>>> groupedByDate = {};
-    for (var item in viewModel.visitHistory) {
+    // 필터링된 리스트를 사용하여 날짜별로 그룹화합니다.
+    for (var item in _filteredHistory) {
       final timestamp = item['timestamp'] ?? item['visitTime']?.toString();
       if (timestamp == null || timestamp.length < 10) continue;
       final date = timestamp.substring(0, 10);
@@ -174,10 +224,15 @@ class _HistoryViewState extends State<HistoryView> {
                     onPressed:
                         viewModel.isLoading || !tokenProvider.isAuthenticated
                             ? null
-                            : () =>
-                                context
-                                    .read<HistoryViewModel>()
-                                    .loadVisitHistory(),
+                            // 새로고침 후 필터링된 리스트도 갱신합니다.
+                            : () => context
+                                .read<HistoryViewModel>()
+                                .loadVisitHistory()
+                                .then((_) {
+                                  if (mounted) {
+                                    _filterHistory(_searchController.text);
+                                  }
+                                }),
                   ),
                   const SizedBox(width: 8),
                   ElevatedButton.icon(
@@ -197,151 +252,265 @@ class _HistoryViewState extends State<HistoryView> {
             ],
           ),
         ),
-        Expanded(
-          child: Row(
-            children: [
-              Expanded(
-                flex: _showSummary ? 2 : 3,
-                child: Container(
-                  margin: const EdgeInsets.all(16.0),
-                  padding: const EdgeInsets.all(16.0),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12.0),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.grey.withOpacity(0.1),
-                        spreadRadius: 1,
-                        blurRadius: 3,
-                        offset: const Offset(0, 1),
-                      ),
-                    ],
-                  ),
-                  // ✨ [수정] 로그인 상태에 따라 다른 UI를 보여줌
-                  child:
-                      !tokenProvider.isAuthenticated
-                          ? _buildLoginPrompt(context)
-                          : viewModel.isLoading
-                          ? Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const CircularProgressIndicator(),
-                                const SizedBox(height: 16),
-                                Text(viewModel.status),
-                              ],
-                            ),
-                          )
-                          : viewModel.visitHistory.isEmpty
-                          ? Center(child: Text(viewModel.status))
-                          : ListView.builder(
-                            itemCount: sortedDates.length,
-                            itemBuilder: (context, index) {
-                              final date = sortedDates[index];
-                              final itemsOnDate = groupedByDate[date]!;
-                              return Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 8.0,
-                                      horizontal: 8.0,
-                                    ),
-                                    child: Text(
-                                      _formatDateKorean(date),
-                                      style: const TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.blueGrey,
-                                      ),
-                                    ),
-                                  ),
-                                  ...itemsOnDate
-                                      .map((item) => _buildHistoryItem(item))
-                                      .toList(),
-                                  if (index < sortedDates.length - 1)
-                                    const Divider(
-                                      height: 30,
-                                      thickness: 0.5,
-                                      indent: 16,
-                                      endIndent: 16,
-                                    ),
-                                ],
-                              );
-                            },
-                          ),
+        // ✨ [수정] 검색창의 높이를 조절합니다.
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+          child: TextField(
+            controller: _searchController,
+            decoration: InputDecoration(
+              hintText: '방문 기록 검색...',
+              prefixIcon: const Icon(Icons.search, size: 20),
+              suffixIcon:
+                  _searchController.text.isNotEmpty
+                      ? IconButton(
+                        icon: const Icon(Icons.clear, size: 20),
+                        onPressed: () {
+                          _searchController.clear();
+                        },
+                      )
+                      : null,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.grey.shade300),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(
+                  color: Theme.of(context).primaryColor,
+                  width: 2,
                 ),
               ),
-              if (_showSummary && tokenProvider.isAuthenticated)
-                Expanded(
-                  flex: 1,
-                  child: Column(
-                    children: [
-                      Expanded(
-                        child: Container(
-                          margin: const EdgeInsets.only(
-                            top: 16.0,
-                            right: 16.0,
-                            bottom: 8.0,
-                          ),
-                          padding: const EdgeInsets.all(16.0),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12.0),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.grey.withOpacity(0.1),
-                                spreadRadius: 1,
-                                blurRadius: 3,
-                                offset: const Offset(0, 1),
-                              ),
-                            ],
-                          ),
-                          child: const AiSummaryWidget(),
-                        ),
-                      ),
-                      if (!bottomController.isLoading &&
-                          bottomController.summaryText.isNotEmpty &&
-                          !bottomController.summaryText.contains("실패"))
-                        Padding(
-                          padding: const EdgeInsets.only(
-                            right: 16.0,
-                            bottom: 16.0,
-                          ),
-                          child: Align(
-                            alignment: Alignment.centerRight,
-                            child: ElevatedButton.icon(
-                              icon: const Icon(
-                                Icons.note_add_outlined,
-                                size: 18,
-                              ),
-                              label: const Text("새 메모 작성"),
-                              onPressed: _createNewMemoWithSummary,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF27ae60),
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 10,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8.0),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-            ],
+              // isDense를 true로 설정하고 contentPadding을 조절하여 높이를 줄입니다.
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(
+                vertical: 8.0,
+                horizontal: 12.0,
+              ),
+            ),
           ),
         ),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child:
+                !tokenProvider.isAuthenticated
+                    ? _buildLoginPrompt(context)
+                    : viewModel.isLoading
+                    ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const CircularProgressIndicator(),
+                          const SizedBox(height: 16),
+                          Text(viewModel.status),
+                        ],
+                      ),
+                    )
+                    // 필터링된 리스트가 비었는지 확인합니다.
+                    : _filteredHistory.isEmpty
+                    ? Center(
+                      child: Text(
+                        _searchController.text.isNotEmpty
+                            ? '검색 결과가 없습니다.'
+                            : viewModel.status,
+                      ),
+                    )
+                    : ListView.builder(
+                      itemCount: sortedDates.length,
+                      itemBuilder: (context, index) {
+                        final date = sortedDates[index];
+                        final itemsOnDate = groupedByDate[date]!;
+                        return _buildDateGroup(context, date, itemsOnDate);
+                      },
+                    ),
+          ),
+        ),
+        if (_showSummary && tokenProvider.isAuthenticated)
+          Expanded(
+            flex: 1,
+            child: Column(
+              children: [
+                Expanded(
+                  child: Container(
+                    margin: const EdgeInsets.only(
+                      top: 16.0,
+                      right: 16.0,
+                      bottom: 8.0,
+                    ),
+                    padding: const EdgeInsets.all(16.0),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).cardColor,
+                      borderRadius: BorderRadius.circular(12.0),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.grey.withOpacity(0.1),
+                          spreadRadius: 1,
+                          blurRadius: 3,
+                          offset: const Offset(0, 1),
+                        ),
+                      ],
+                    ),
+                    child: const AiSummaryWidget(),
+                  ),
+                ),
+                if (!bottomController.isLoading &&
+                    bottomController.summaryText.isNotEmpty &&
+                    !bottomController.summaryText.contains("실패"))
+                  Padding(
+                    padding: const EdgeInsets.only(right: 16.0, bottom: 16.0),
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: ElevatedButton.icon(
+                        icon: const Icon(Icons.note_add_outlined, size: 18),
+                        label: const Text("새 메모 작성"),
+                        onPressed: _createNewMemoWithSummary,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF27ae60),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 10,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8.0),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
       ],
     );
   }
 
-  // ✨ [추가] 비로그인 상태일 때 보여줄 UI 위젯
+  Widget _buildDateGroup(
+    BuildContext context,
+    String date,
+    List<Map<String, dynamic>> items,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 8.0),
+          child: Text(
+            _formatDateKorean(date),
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Colors.blueGrey,
+            ),
+          ),
+        ),
+        Column(children: items.map((item) => _buildHistoryItem(item)).toList()),
+        const Divider(height: 30, thickness: 0.5, indent: 16, endIndent: 16),
+      ],
+    );
+  }
+
+  Widget _buildHistoryItem(Map<String, dynamic> item) {
+    final title =
+        item['title']?.toString() ?? item['url']?.toString() ?? '제목 없음';
+    final url = item['url']?.toString() ?? '';
+    final timestamp = item['timestamp'] ?? item['visitTime']?.toString();
+    final time = _formatTime(timestamp);
+    final bool isChecked = _selectedTimestamps.contains(timestamp);
+
+    return InkWell(
+      onTap: () {
+        if (timestamp == null) return;
+        setState(() {
+          if (isChecked) {
+            _selectedTimestamps.remove(timestamp);
+          } else {
+            _selectedTimestamps.add(timestamp);
+          }
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8.0),
+        decoration: BoxDecoration(
+          color:
+              isChecked
+                  ? Theme.of(context).primaryColor.withOpacity(0.1)
+                  : Colors.transparent,
+          borderRadius: BorderRadius.circular(4.0),
+        ),
+        child: Row(
+          children: [
+            Transform.scale(
+              scale: 0.8,
+              child: Checkbox(
+                value: isChecked,
+                onChanged: (bool? checked) {
+                  if (timestamp == null) return;
+                  setState(() {
+                    if (checked == true) {
+                      _selectedTimestamps.add(timestamp);
+                    } else {
+                      _selectedTimestamps.remove(timestamp);
+                    }
+                  });
+                },
+                activeColor: Theme.of(context).primaryColor,
+              ),
+            ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (url.isNotEmpty)
+                    RichText(
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                      text: TextSpan(
+                        text: url,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.blue,
+                          decoration: TextDecoration.underline,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        recognizer:
+                            TapGestureRecognizer()
+                              ..onTap = () async {
+                                if (url.isNotEmpty) {
+                                  final uri = Uri.tryParse(url);
+                                  if (uri != null && await canLaunchUrl(uri)) {
+                                    await launchUrl(
+                                      uri,
+                                      mode: LaunchMode.externalApplication,
+                                    );
+                                  }
+                                }
+                              },
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              time,
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            const SizedBox(width: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildLoginPrompt(BuildContext context) {
     return Center(
       child: Column(
@@ -368,7 +537,6 @@ class _HistoryViewState extends State<HistoryView> {
                 context,
                 MaterialPageRoute(builder: (context) => LoginPage()),
               ).then((_) {
-                // 로그인 페이지에서 돌아왔을 때 상태 갱신 시도
                 final tokenProvider = context.read<TokenStatusProvider>();
                 if (tokenProvider.isAuthenticated) {
                   context.read<HistoryViewModel>().loadVisitHistory();
@@ -382,92 +550,6 @@ class _HistoryViewState extends State<HistoryView> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildHistoryItem(Map<String, dynamic> item) {
-    final title =
-        item['title']?.toString() ?? item['url']?.toString() ?? '제목 없음';
-    final url = item['url']?.toString() ?? '';
-    final timestamp = item['timestamp'] ?? item['visitTime']?.toString();
-    final time = _formatTime(timestamp);
-    final bool isChecked = _selectedTimestamps.contains(timestamp);
-
-    return Card(
-      elevation: 1.0,
-      margin: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.0)),
-      color: isChecked ? Colors.deepPurple.shade50 : Colors.white,
-      child: ListTile(
-        leading: Transform.scale(
-          scale: 0.8,
-          child: Checkbox(
-            value: isChecked,
-            activeColor: Colors.deepPurple,
-            onChanged: (bool? checked) {
-              if (timestamp == null) return;
-              setState(() {
-                if (checked == true) {
-                  _selectedTimestamps.add(timestamp);
-                } else {
-                  _selectedTimestamps.remove(timestamp);
-                }
-              });
-            },
-          ),
-        ),
-        title: Text(
-          title,
-          style: const TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-        subtitle:
-            url.isNotEmpty
-                ? RichText(
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
-                  text: TextSpan(
-                    text: url,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.blue.shade700,
-                      decoration: TextDecoration.underline,
-                      decorationColor: Colors.blue.shade700,
-                    ),
-                    recognizer:
-                        TapGestureRecognizer()
-                          ..onTap = () async {
-                            if (url.isNotEmpty) {
-                              final uri = Uri.tryParse(url);
-                              if (uri != null && await canLaunchUrl(uri)) {
-                                await launchUrl(
-                                  uri,
-                                  mode: LaunchMode.externalApplication,
-                                );
-                              }
-                            }
-                          },
-                  ),
-                )
-                : null,
-        trailing: Text(
-          time,
-          style: const TextStyle(fontSize: 12, color: Colors.grey),
-        ),
-        onTap: () {
-          if (timestamp == null) return;
-          setState(() {
-            if (isChecked) {
-              _selectedTimestamps.remove(timestamp);
-            } else {
-              _selectedTimestamps.add(timestamp);
-            }
-          });
-        },
       ),
     );
   }

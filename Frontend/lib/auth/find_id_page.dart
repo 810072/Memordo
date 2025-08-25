@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
+import '../widgets/common_ui.dart';
+
 class FindIdPage extends StatefulWidget {
   const FindIdPage({super.key});
 
@@ -160,7 +162,7 @@ class _FindIdPageState extends State<FindIdPage> {
                                     _resultMessage.contains('오류') ||
                                     _resultMessage.contains('알 수 없는'))
                                 ? Colors.red.shade50
-                                : Colors.blue.shade50, // 기본 메시지용
+                                : Colors.blue.shade50,
                         borderRadius: BorderRadius.circular(8.0),
                         border: Border.all(
                           color:
@@ -175,31 +177,22 @@ class _FindIdPageState extends State<FindIdPage> {
                       ),
                       child: Text(
                         _resultMessage,
-                        // ✅ TextStyle에서 const 제거 (color가 동적이므로)
                         style: TextStyle(
-                          fontSize: 14, // 폰트 크기 일관성
-                          // 여기서 사용되는 Colors.green, Colors.red 등은 const이지만,
-                          // 삼항 연산자 때문에 전체 color 표현식은 const가 아님.
+                          fontSize: 14,
                           color:
                               _resultMessage.contains('✅')
-                                  ? Colors
-                                      .green
-                                      .shade800 // .shadeXXX는 const가 아님
+                                  ? Colors.green.shade800
                                   : (_resultMessage.contains('❌') ||
                                       _resultMessage.contains('오류') ||
                                       _resultMessage.contains('알 수 없는'))
-                                  ? Colors
-                                      .red
-                                      .shade800 // .shadeXXX는 const가 아님
-                                  : Colors
-                                      .blue
-                                      .shade800, // .shadeXXX는 const가 아님
+                                  ? Colors.red.shade800
+                                  : Colors.blue.shade800,
                           fontWeight: FontWeight.w500,
                         ),
                         textAlign: TextAlign.center,
                       ),
                     ),
-                  _buildTextField(
+                  buildTextField(
                     controller: _emailController,
                     labelText: '등록된 이메일 주소',
                     icon: Icons.email_outlined,
@@ -207,7 +200,7 @@ class _FindIdPageState extends State<FindIdPage> {
                     enabled: !_isLoading,
                   ),
                   const SizedBox(height: 24),
-                  _buildElevatedButton(
+                  buildElevatedButton(
                     text: '아이디 찾기',
                     onPressed: _isLoading ? null : () => _findId(context),
                     isLoading: _isLoading,
@@ -217,79 +210,6 @@ class _FindIdPageState extends State<FindIdPage> {
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String labelText,
-    required IconData icon,
-    bool obscureText = false,
-    TextInputType? keyboardType,
-    bool enabled = true,
-  }) {
-    return TextField(
-      controller: controller,
-      obscureText: obscureText,
-      keyboardType: keyboardType,
-      enabled: enabled,
-      decoration: InputDecoration(
-        labelText: labelText,
-        prefixIcon: Icon(icon, color: Colors.grey[600]),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8.0)),
-        focusedBorder: OutlineInputBorder(
-          borderSide: BorderSide(color: Colors.deepPurple, width: 2.0),
-          borderRadius: BorderRadius.circular(8.0),
-        ),
-        disabledBorder: OutlineInputBorder(
-          borderSide: BorderSide(color: Colors.grey.shade300),
-          borderRadius: BorderRadius.circular(8.0),
-        ),
-        filled: !enabled,
-        fillColor: Colors.grey.shade100,
-      ),
-    );
-  }
-
-  Widget _buildElevatedButton({
-    required String text,
-    required VoidCallback? onPressed,
-    bool isLoading = false,
-    Color bgColor = Colors.deepPurple,
-  }) {
-    return SizedBox(
-      width: double.infinity,
-      height: 50,
-      child: ElevatedButton(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: bgColor,
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8.0),
-          ),
-          elevation: 4,
-          disabledBackgroundColor: bgColor.withOpacity(0.5),
-        ),
-        onPressed: isLoading ? null : onPressed,
-        child:
-            isLoading
-                ? const SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(
-                    color: Colors.white,
-                    strokeWidth: 3,
-                  ),
-                )
-                // ✅ 여기의 TextStyle은 내부 값들이 모두 const이므로 const로 유지 가능
-                : Text(
-                  text,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
       ),
     );
   }

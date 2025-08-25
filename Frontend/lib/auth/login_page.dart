@@ -10,6 +10,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../services/auth_token.dart';
 import '../providers/token_status_provider.dart';
 
+import '../widgets/common_ui.dart';
 import 'email_check_page.dart';
 import 'find_id_page.dart';
 import 'signup_page.dart';
@@ -35,7 +36,6 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  // 일반 로그인 함수
   Future<void> _login(BuildContext context) async {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
@@ -70,8 +70,6 @@ class _LoginPageState extends State<LoginPage> {
         print('✅ 일반 로그인 성공 및 토큰/이메일 저장 완료.');
 
         if (mounted) {
-          // ✨ [수정] LoginPage에서는 상태 갱신 호출을 제거하고, pop만 실행합니다.
-          // 상태 갱신은 이 페이지를 호출한 main_layout.dart의 .then() 콜백에서 처리합니다.
           Navigator.pop(context, true);
         }
       } else {
@@ -90,7 +88,6 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  // Google 로그인 함수
   Future<void> _signInWithGoogle() async {
     if (_isGoogleLoading || _isLoading) return;
     if (!mounted) return;
@@ -169,7 +166,6 @@ class _LoginPageState extends State<LoginPage> {
         print('✅ Google 로그인 성공 및 토큰/이메일 저장 완료.');
 
         if (mounted) {
-          // ✨ [수정] LoginPage에서는 상태 갱신 호출을 제거하고, pop만 실행합니다.
           Navigator.pop(context, true);
         }
       } else {
@@ -188,7 +184,6 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  // 인증 코드 대기 함수
   Future<String?> _waitForCode(String redirectUriString) async {
     HttpServer? server;
     try {
@@ -262,7 +257,6 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  // 스낵바 함수
   void _showSnackBar(String message, {bool isError = false}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -315,14 +309,17 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                   ),
                   const SizedBox(height: 40),
-                  _buildTextField(
+                  buildTextField(
                     controller: _emailController,
                     labelText: 'Email',
                     icon: Icons.email_outlined,
                     keyboardType: TextInputType.emailAddress,
+                    iconColor: Colors.grey.shade600,
+                    fillColor: Colors.grey.shade200,
+                    focusedBorderColor: Colors.deepPurple.shade300,
                   ),
                   const SizedBox(height: 16),
-                  _buildTextField(
+                  buildTextField(
                     controller: _passwordController,
                     labelText: 'Password',
                     icon: Icons.lock_outline,
@@ -332,15 +329,19 @@ class _LoginPageState extends State<LoginPage> {
                         _login(context);
                       }
                     },
+                    iconColor: Colors.grey.shade600,
+                    fillColor: Colors.grey.shade200,
+                    focusedBorderColor: Colors.deepPurple.shade300,
                   ),
                   const SizedBox(height: 32),
-                  _buildElevatedButton(
+                  buildElevatedButton(
                     text: 'LOGIN',
                     onPressed:
                         _isLoading || _isGoogleLoading
                             ? null
                             : () => _login(context),
                     isLoading: _isLoading,
+                    bgColor: Colors.deepPurple,
                   ),
                   const SizedBox(height: 16),
                   _buildGoogleButton(
@@ -384,89 +385,6 @@ class _LoginPageState extends State<LoginPage> {
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String labelText,
-    required IconData icon,
-    bool obscureText = false,
-    TextInputType? keyboardType,
-    bool enabled = true,
-    void Function(String)? onSubmitted,
-  }) {
-    return TextField(
-      controller: controller,
-      obscureText: obscureText,
-      keyboardType: keyboardType,
-      enabled: enabled,
-      onSubmitted: onSubmitted,
-      decoration: InputDecoration(
-        labelText: labelText,
-        prefixIcon: Icon(icon, color: Colors.grey[600]),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12.0)),
-        focusedBorder: OutlineInputBorder(
-          borderSide: BorderSide(color: Colors.deepPurple.shade300, width: 2.0),
-          borderRadius: BorderRadius.circular(12.0),
-        ),
-        disabledBorder: OutlineInputBorder(
-          borderSide: BorderSide(color: Colors.grey.shade300),
-          borderRadius: BorderRadius.circular(12.0),
-        ),
-        filled: !enabled,
-        fillColor: Colors.grey.shade200,
-        contentPadding: const EdgeInsets.symmetric(
-          vertical: 16.0,
-          horizontal: 12.0,
-        ),
-      ),
-      textInputAction:
-          onSubmitted != null ? TextInputAction.done : TextInputAction.next,
-    );
-  }
-
-  Widget _buildElevatedButton({
-    required String text,
-    required VoidCallback? onPressed,
-    bool isLoading = false,
-    Color bgColor = Colors.deepPurple,
-  }) {
-    return SizedBox(
-      width: double.infinity,
-      height: 50,
-      child: ElevatedButton(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: bgColor,
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12.0),
-          ),
-          elevation: 2,
-          shadowColor: Colors.black38,
-          disabledBackgroundColor: bgColor.withOpacity(0.4),
-          disabledForegroundColor: Colors.white70,
-        ),
-        onPressed: onPressed,
-        child:
-            isLoading
-                ? const SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(
-                    color: Colors.white,
-                    strokeWidth: 2.5,
-                  ),
-                )
-                : Text(
-                  text,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.5,
-                  ),
-                ),
       ),
     );
   }

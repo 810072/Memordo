@@ -88,47 +88,64 @@ class _MeetingScreenState extends State<MeetingScreen> {
   @override
   void initState() {
     super.initState();
-    _initializeController();
+    _initializeController(); // 컨트롤러 초기화
     _initializeState();
     _titleController = TextEditingController(text: _currentEditingFileName);
   }
 
+  // ✨ [수정] 컨트롤러 초기화 시, 임시로 라이트 모드 스타일을 사용합니다.
+  // build 메서드에서 현재 테마에 맞는 스타일로 즉시 업데이트됩니다.
   void _initializeController() {
-    final Map<String, TextStyle> markdownStyles = {
-      'h1': const TextStyle(
+    _controller = ObsidianMarkdownController(
+      text: widget.initialText,
+      styleMap: _getMarkdownStyles(false), // isDarkMode: false
+    );
+  }
+
+  // ✨ [추가] 테마에 따라 동적으로 스타일 맵을 생성하는 메서드
+  Map<String, TextStyle> _getMarkdownStyles(bool isDarkMode) {
+    final Color h1Color = isDarkMode ? Colors.white : const Color(0xFF1a1a1a);
+    final Color h2Color = isDarkMode ? Colors.white : const Color(0xFF2a2a2a);
+    final Color h3Color = isDarkMode ? Colors.white : const Color(0xFF3a3a3a);
+    final Color boldColor = isDarkMode ? Colors.white : const Color(0xFF1a1a1a);
+    final Color italicColor =
+        isDarkMode ? Colors.white : const Color(0xFF2a2a2a);
+    final Color strikeColor =
+        isDarkMode ? Colors.grey.shade500 : const Color(0xFF6a6a6a);
+    final Color quoteColor =
+        isDarkMode ? Colors.grey.shade400 : const Color(0xFF7f8c8d);
+    final Color codeBgColor =
+        isDarkMode ? Colors.grey.shade800 : const Color(0xFFF5F5F5);
+
+    return {
+      'h1': TextStyle(
         fontSize: 32,
         fontWeight: FontWeight.bold,
-        color: Color(0xFF1a1a1a),
+        color: h1Color,
         height: 1.3,
       ),
-      'h2': const TextStyle(
+      'h2': TextStyle(
         fontSize: 28,
         fontWeight: FontWeight.bold,
-        color: Color(0xFF2a2a2a),
+        color: h2Color,
         height: 1.3,
       ),
-      'h3': const TextStyle(
+      'h3': TextStyle(
         fontSize: 24,
         fontWeight: FontWeight.w600,
-        color: Color(0xFF3a3a3a),
+        color: h3Color,
         height: 1.3,
       ),
-      'bold': const TextStyle(
-        fontWeight: FontWeight.bold,
-        color: Color(0xFF1a1a1a),
-      ),
-      'italic': const TextStyle(
-        fontStyle: FontStyle.italic,
-        color: Color(0xFF2a2a2a),
-      ),
-      'strikethrough': const TextStyle(
+      'bold': TextStyle(fontWeight: FontWeight.bold, color: boldColor),
+      'italic': TextStyle(fontStyle: FontStyle.italic, color: italicColor),
+      'strikethrough': TextStyle(
         decoration: TextDecoration.lineThrough,
-        color: Color(0xFF6a6a6a),
+        color: strikeColor,
       ),
-      'code': const TextStyle(
+      'code': TextStyle(
         fontFamily: 'monospace',
-        backgroundColor: Color(0xFFF5F5F5),
-        color: Color(0xFFe74c3c),
+        backgroundColor: codeBgColor,
+        color: const Color(0xFFe74c3c),
         fontSize: 14,
       ),
       'link': const TextStyle(
@@ -136,16 +153,12 @@ class _MeetingScreenState extends State<MeetingScreen> {
         decoration: TextDecoration.underline,
       ),
       'list': const TextStyle(fontSize: 16, height: 1.6),
-      'quote': const TextStyle(
-        color: Color(0xFF7f8c8d),
+      'quote': TextStyle(
+        color: quoteColor,
         fontStyle: FontStyle.italic,
         fontSize: 16,
       ),
     };
-    _controller = ObsidianMarkdownController(
-      text: widget.initialText,
-      styleMap: markdownStyles,
-    );
   }
 
   void _initializeState() {
@@ -204,6 +217,11 @@ class _MeetingScreenState extends State<MeetingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // ✨ [추가] build 메서드 내에서 현재 테마를 확인하고 스타일을 업데이트합니다.
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final markdownStyles = _getMarkdownStyles(isDarkMode);
+    _controller.updateStyles(markdownStyles);
+
     final Map<ShortcutActivator, Intent> shortcuts = {
       const SingleActivator(LogicalKeyboardKey.keyB, control: true):
           ToggleBoldIntent(),
@@ -230,7 +248,6 @@ class _MeetingScreenState extends State<MeetingScreen> {
             _buildNewHeader(),
             Expanded(
               child: Padding(
-                // ✨ [수정] 좌우 여백을 20으로 조정합니다.
                 padding: const EdgeInsets.symmetric(
                   horizontal: 20.0,
                   vertical: 8.0,
@@ -247,7 +264,6 @@ class _MeetingScreenState extends State<MeetingScreen> {
   Widget _buildNewHeader() {
     return Container(
       height: 45,
-      // ✨ [수정] 좌우 여백을 조정하여 정렬을 맞춥니다.
       padding: const EdgeInsets.only(left: 20.0, right: 8.0),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -372,12 +388,16 @@ class _MeetingScreenState extends State<MeetingScreen> {
   }
 
   Widget _buildMarkdownEditor() {
+    // ✨ [수정] TextField의 기본 스타일이 테마를 따르도록 수정합니다.
+    final theme = Theme.of(context);
+    final isDarkMode = theme.brightness == Brightness.dark;
+
     return TextField(
       controller: _controller,
       focusNode: _focusNode,
-      style: const TextStyle(
+      style: TextStyle(
         fontSize: 16,
-        color: Color(0xFF2c3e50),
+        color: isDarkMode ? Colors.white : const Color(0xFF2c3e50),
         height: 1.6,
         fontFamily: 'system-ui',
       ),
@@ -386,7 +406,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
       textAlignVertical: TextAlignVertical.top,
       decoration: const InputDecoration.collapsed(
         hintText:
-            "# 제목1\n" // hintText 변경
+            "# 제목1\n"
             "## 제목2\n"
             "### 제목3\n\n"
             "- 목록을 만들 수 있습니다.\n"

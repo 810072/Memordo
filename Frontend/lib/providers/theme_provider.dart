@@ -54,7 +54,6 @@ class ThemeProvider with ChangeNotifier {
       elevation: 0,
     ),
     cardColor: const Color(0xFFF8F9FA),
-    // ✨ [수정] 구분선 색상을 더 연한 회색으로 변경합니다.
     dividerColor: const Color(0xFFEAECEE),
     textTheme: TextTheme(
       bodyMedium: TextStyle(color: Colors.grey.shade800),
@@ -79,13 +78,14 @@ class ThemeProvider with ChangeNotifier {
     ),
     cardColor: const Color(0xFF1E1E1E),
     dividerColor: Colors.grey.shade800, // 다크모드용 구분선 색상
-    textTheme: TextTheme(
-      bodyMedium: const TextStyle(color: Colors.white70),
-      titleMedium: const TextStyle(color: Colors.white70),
-      bodyLarge: const TextStyle(color: Colors.white),
+    // ✨ [수정] 다크 모드에서 텍스트와 아이콘 색상을 완전한 흰색으로 변경하여 가독성을 높입니다.
+    textTheme: const TextTheme(
+      bodyMedium: TextStyle(color: Colors.white),
+      titleMedium: TextStyle(color: Colors.white),
+      bodyLarge: TextStyle(color: Colors.white),
     ),
     listTileTheme: const ListTileThemeData(
-      iconColor: Colors.white70,
+      iconColor: Colors.white,
       textColor: Colors.white,
     ),
   );
