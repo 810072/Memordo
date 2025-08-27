@@ -10,6 +10,9 @@ import 'package:url_launcher/url_launcher.dart';
 import '../services/auth_token.dart';
 import '../providers/token_status_provider.dart';
 
+import 'package:jwt_decoder/jwt_decoder.dart';
+import '../services/ai_service.dart'; // 방금 만든 서비스 파일
+
 import '../widgets/common_ui.dart';
 import 'email_check_page.dart';
 import 'find_id_page.dart';
@@ -34,6 +37,28 @@ class _LoginPageState extends State<LoginPage> {
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  // --- (2/3) 로컬 AI 초기화 로직을 담은 별도 함수 ---
+  // 이 함수는 코드 중복을 막고 가독성을 높여줍니다.
+  Future<void> _initializeAiWithToken(String? accessToken) async {
+    if (accessToken == null || accessToken.isEmpty) {
+      print('⚠️ AccessToken이 없어 AI 초기화를 건너<0xEB><0x84>니다.');
+      return;
+    }
+    try {
+      Map<String, dynamic> decodedToken = JwtDecoder.decode(accessToken);
+      final String? geminiApiKey = decodedToken['geminiApiKey'];
+
+      if (geminiApiKey != null && geminiApiKey.isNotEmpty) {
+        // AiService 인스턴스를 생성하여 초기화 함수 호출
+        await AiService().initializeLocalAI(geminiApiKey);
+      } else {
+        print('⚠️ JWT 토큰에 Gemini API 키가 없습니다.');
+      }
+    } catch (e) {
+      print('🟥 JWT 토큰 디코딩 또는 AI 초기화 오류: $e');
+    }
   }
 
   Future<void> _login(BuildContext context) async {
@@ -68,6 +93,9 @@ class _LoginPageState extends State<LoginPage> {
         await setStoredUserEmail(email);
 
         print('✅ 일반 로그인 성공 및 토큰/이메일 저장 완료.');
+
+        // --- (3/3) 로그인 성공 후 AI 초기화 함수 호출 ---
+        await _initializeAiWithToken(accessToken);
 
         if (mounted) {
           Navigator.pop(context, true);
@@ -164,6 +192,9 @@ class _LoginPageState extends State<LoginPage> {
         if (userEmail != null) await setStoredUserEmail(userEmail);
 
         print('✅ Google 로그인 성공 및 토큰/이메일 저장 완료.');
+
+        // --- (3/3) 구글 로그인 성공 후 AI 초기화 함수 호출 ---
+        await _initializeAiWithToken(accessToken);
 
         if (mounted) {
           Navigator.pop(context, true);
