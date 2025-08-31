@@ -7,18 +7,16 @@ import traceback
 import datetime
 import os
 import json
-# from dotenv import load_dotenv # .env 파일을 더 이상 직접 사용하지 않으므로 주석 처리 또는 삭제
 import asyncio
 
 # --- 1. 초기 설정 (수정됨) ---
-# load_dotenv() # 주석 처리 또는 삭제
+# .env 파일을 더 이상 직접 사용하지 않으므로 load_dotenv 관련 코드를 제거합니다.
 LOG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "log")
 
 # --- 2. AI 모듈 및 워크플로우 임포트 (수정됨) ---
-# GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") # 주석 처리 또는 삭제
-
+# GEMINI_API_KEY를 직접 로드하는 대신, 동적 초기화를 위해 필요한 함수를 import 합니다.
 try:
-    # (1/3) 수정: initialize_ai_client 함수를 추가로 import 합니다.
+    # [통합] API 키를 받아 AI 클라이언트를 초기화하는 함수를 import 합니다.
     from gemini_ai import initialize_ai_client, get_embedding_for_text, get_embeddings_batch, query_gemini, execute_simple_task, DEFAULT_GEMINI_MODEL
     print("'gemini_ai.py' 모듈 로드 성공.")
     
@@ -48,7 +46,7 @@ def log_api_interaction(log_data):
 def home():
     return jsonify({"message": "Gemini AI Python 백엔드 서버가 실행 중입니다.", "status": "ok"})
 
-# --- (2/3) 추가: API 키를 받아 AI 클라이언트를 초기화하는 엔드포인트 ---
+# [통합] API 키를 받아 AI 클라이언트를 초기화하는 엔드포인트를 유지합니다.
 @app.route('/api/initialize', methods=['POST'])
 def initialize_ai():
     data = request.json
@@ -95,10 +93,10 @@ def rag_chat():
         return jsonify({'result': result.get('answer')})
         
     except Exception as e:
-        # --- (3/3) 수정: AI가 초기화되지 않았을 때 더 친절한 에러 메시지 제공 ---
+        # [통합] AI가 초기화되지 않았을 때 더 친절한 에러 메시지를 제공하는 로직을 유지합니다.
         if "AI client has not been initialized" in str(e):
-             print(f"API /rag_chat 처리 중 오류: AI 클라이언트가 초기화되지 않았습니다.")
-             return jsonify({"error": "AI가 초기화되지 않았습니다. 먼저 API 키를 등록해주세요."}), 503 # Service Unavailable
+              print(f"API /rag_chat 처리 중 오류: AI 클라이언트가 초기화되지 않았습니다.")
+              return jsonify({"error": "AI가 초기화되지 않았습니다. 먼저 API 키를 등록해주세요."}), 503 # Service Unavailable
         
         print(f"API /rag_chat 처리 중 예외: {e}")
         traceback.print_exc()
@@ -112,7 +110,7 @@ def rag_chat():
     finally:
         loop.close()
 
-# ... (나머지 /api/get-embeddings, /api/execute_task 등 엔드포인트는 변경 없음) ...
+# --- 나머지 엔드포인트 (두 버전에서 동일하여 변경 없음) ---
 @app.route('/api/get-embeddings', methods=['POST'])
 def get_embeddings():
     try:
