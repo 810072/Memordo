@@ -36,7 +36,8 @@ class HistoryView extends StatefulWidget {
 }
 
 class _HistoryViewState extends State<HistoryView> {
-  final Set<String> _selectedTimestamps = {};
+  // ✨ [수정] _selectedTimestamps 대신 _selectedUniqueKeys 사용
+  final Set<String> _selectedUniqueKeys = {};
   bool _showSummary = false;
 
   // 검색 기능 관련 상태 변수
@@ -44,34 +45,34 @@ class _HistoryViewState extends State<HistoryView> {
   Timer? _debounce;
   List<Map<String, dynamic>> _filteredHistory = [];
 
+  bool _wasAuthenticated = false;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final tokenProvider = context.read<TokenStatusProvider>();
-      if (tokenProvider.isAuthenticated) {
-        // 데이터 로드 후 필터링된 리스트 초기화
+      _wasAuthenticated = tokenProvider.isAuthenticated;
+
+      if (_wasAuthenticated) {
         context.read<HistoryViewModel>().loadVisitHistory().then((_) {
           if (mounted) {
-            _filterHistory(''); // 초기에 전체 리스트로 채움
+            _filterHistory('');
           }
         });
       }
     });
-    // 검색 컨트롤러에 리스너 추가
     _searchController.addListener(_onSearchChanged);
   }
 
   @override
   void dispose() {
-    // 컨트롤러 및 타이머 dispose
     _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
     _debounce?.cancel();
     super.dispose();
   }
 
-  // 검색어 변경 시 디바운싱 처리
   void _onSearchChanged() {
     if (_debounce?.isActive ?? false) _debounce!.cancel();
     _debounce = Timer(const Duration(milliseconds: 300), () {
@@ -79,7 +80,6 @@ class _HistoryViewState extends State<HistoryView> {
     });
   }
 
-  // 방문 기록 필터링 로직
   void _filterHistory(String query) {
     final viewModel = context.read<HistoryViewModel>();
     final lowerCaseQuery = query.toLowerCase();
@@ -105,16 +105,22 @@ class _HistoryViewState extends State<HistoryView> {
 
     if (bottomController.isLoading) return;
 
-    if (_selectedTimestamps.length == 1) {
-      final selectedTimestamp = _selectedTimestamps.first;
-      String? selectedUrl;
+    // ✨ [수정] _selectedUniqueKeys 사용
+    if (_selectedUniqueKeys.length == 1) {
+      final selectedUniqueKey = _selectedUniqueKeys.first;
+      // uniqueKey에서 URL을 파싱해냅니다.
+      // 예: "2023-10-27T10:30:00.000Z-http://example.com/page1"
+      // 마지막 하이픈 이후가 URL이라고 가정
+      final lastHyphenIndex = selectedUniqueKey.lastIndexOf('-');
 
-      for (var item in viewModel.visitHistory) {
-        final timestamp = item['timestamp'] ?? item['visitTime'];
-        if (timestamp == selectedTimestamp) {
-          selectedUrl = item['url'] as String?;
-          break;
-        }
+      String? selectedUrl;
+      if (lastHyphenIndex != -1 &&
+          lastHyphenIndex < selectedUniqueKey.length - 1) {
+        selectedUrl = selectedUniqueKey.substring(lastHyphenIndex + 1);
+      } else {
+        // 하이픈이 없거나 마지막에 있는 경우, URL로 간주하기 어렵습니다.
+        // 또는 timestamp만으로 구성된 경우 (이전 로직과의 호환성을 위해)
+        selectedUrl = selectedUniqueKey; // 일단 전체를 URL로 시도
       }
 
       if (selectedUrl != null && selectedUrl.isNotEmpty) {
@@ -150,7 +156,8 @@ class _HistoryViewState extends State<HistoryView> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            _selectedTimestamps.isEmpty
+            _selectedUniqueKeys
+                    .isEmpty // ✨ [수정] _selectedUniqueKeys 사용
                 ? '내용을 요약할 URL을 선택해주세요.'
                 : '내용을 요약할 URL은 하나만 선택할 수 있습니다.',
           ),
@@ -187,8 +194,20 @@ class _HistoryViewState extends State<HistoryView> {
     final bottomController = context.watch<BottomSectionController>();
     final tokenProvider = context.watch<TokenStatusProvider>();
 
+    if (tokenProvider.isAuthenticated && !_wasAuthenticated) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        context.read<HistoryViewModel>().loadVisitHistory().then((_) {
+          if (mounted) {
+            _filterHistory(_searchController.text);
+            _selectedUniqueKeys.clear(); // ✨ [수정] _selectedUniqueKeys 초기화
+            _showSummary = false;
+          }
+        });
+      });
+    }
+    _wasAuthenticated = tokenProvider.isAuthenticated;
+
     final Map<String, List<Map<String, dynamic>>> groupedByDate = {};
-    // 필터링된 리스트를 사용하여 날짜별로 그룹화합니다.
     for (var item in _filteredHistory) {
       final timestamp = item['timestamp'] ?? item['visitTime']?.toString();
       if (timestamp == null || timestamp.length < 10) continue;
@@ -224,7 +243,6 @@ class _HistoryViewState extends State<HistoryView> {
                     onPressed:
                         viewModel.isLoading || !tokenProvider.isAuthenticated
                             ? null
-                            // 새로고침 후 필터링된 리스트도 갱신합니다.
                             : () => context
                                 .read<HistoryViewModel>()
                                 .loadVisitHistory()
@@ -252,7 +270,6 @@ class _HistoryViewState extends State<HistoryView> {
             ],
           ),
         ),
-        // ✨ [수정] 검색창의 높이를 조절합니다.
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
           child: TextField(
@@ -280,7 +297,6 @@ class _HistoryViewState extends State<HistoryView> {
                   width: 2,
                 ),
               ),
-              // isDense를 true로 설정하고 contentPadding을 조절하여 높이를 줄입니다.
               isDense: true,
               contentPadding: const EdgeInsets.symmetric(
                 vertical: 8.0,
@@ -306,7 +322,6 @@ class _HistoryViewState extends State<HistoryView> {
                         ],
                       ),
                     )
-                    // 필터링된 리스트가 비었는지 확인합니다.
                     : _filteredHistory.isEmpty
                     ? Center(
                       child: Text(
@@ -415,17 +430,29 @@ class _HistoryViewState extends State<HistoryView> {
         item['title']?.toString() ?? item['url']?.toString() ?? '제목 없음';
     final url = item['url']?.toString() ?? '';
     final timestamp = item['timestamp'] ?? item['visitTime']?.toString();
+
+    if (timestamp == null) {
+      // timestamp가 없으면 선택 불가하게 처리하거나,
+      // 아예 렌더링하지 않거나, 대체 키를 생성하는 로직 추가
+      return Container(); // 이 경우 해당 항목은 렌더링되지 않습니다.
+    }
+
+    // ✨ [수정] timestamp와 URL을 조합하여 고유한 키를 만듭니다.
+    // 이는 timestamp만으로는 고유하지 않은 경우를 대비합니다.
+    final String uniqueKey = '$timestamp-$url';
+
     final time = _formatTime(timestamp);
-    final bool isChecked = _selectedTimestamps.contains(timestamp);
+    final bool isChecked = _selectedUniqueKeys.contains(
+      uniqueKey,
+    ); // ✨ [수정] uniqueKey 사용
 
     return InkWell(
       onTap: () {
-        if (timestamp == null) return;
         setState(() {
           if (isChecked) {
-            _selectedTimestamps.remove(timestamp);
+            _selectedUniqueKeys.remove(uniqueKey); // ✨ [수정] uniqueKey 사용
           } else {
-            _selectedTimestamps.add(timestamp);
+            _selectedUniqueKeys.add(uniqueKey); // ✨ [수정] uniqueKey 사용
           }
         });
       },
@@ -445,12 +472,13 @@ class _HistoryViewState extends State<HistoryView> {
               child: Checkbox(
                 value: isChecked,
                 onChanged: (bool? checked) {
-                  if (timestamp == null) return;
                   setState(() {
                     if (checked == true) {
-                      _selectedTimestamps.add(timestamp);
+                      _selectedUniqueKeys.add(uniqueKey); // ✨ [수정] uniqueKey 사용
                     } else {
-                      _selectedTimestamps.remove(timestamp);
+                      _selectedUniqueKeys.remove(
+                        uniqueKey,
+                      ); // ✨ [수정] uniqueKey 사용
                     }
                   });
                 },
@@ -536,12 +564,7 @@ class _HistoryViewState extends State<HistoryView> {
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => LoginPage()),
-              ).then((_) {
-                final tokenProvider = context.read<TokenStatusProvider>();
-                if (tokenProvider.isAuthenticated) {
-                  context.read<HistoryViewModel>().loadVisitHistory();
-                }
-              });
+              );
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.deepPurple,

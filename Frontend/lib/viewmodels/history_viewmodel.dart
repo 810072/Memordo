@@ -1,6 +1,6 @@
 // lib/viewmodels/history_viewmodel.dart
 
-import 'dart:convert';
+import 'dart:convert'; // lib/viewmodels/history_viewmodel.dart
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../services/auth_token.dart';
@@ -14,11 +14,14 @@ class HistoryViewModel with ChangeNotifier {
   String get status => _status;
   bool get isLoading => _isLoading;
 
-  HistoryViewModel() {
-    loadVisitHistory();
-  }
+  // ✨ [수정] 생성자에서 자동 로딩을 제거합니다.
+  // View의 initState에서 명시적으로 호출하는 것이 더 안정적입니다.
+  HistoryViewModel();
 
   Future<void> loadVisitHistory() async {
+    // 이미 로딩 중이면 다시 실행하지 않도록 방어 코드 추가
+    if (_isLoading) return;
+
     _isLoading = true;
     _status = '방문 기록 불러오는 중...';
     notifyListeners();
@@ -32,41 +35,60 @@ class HistoryViewModel with ChangeNotifier {
       const folderName = 'memordo';
       final folderId = await _getFolderIdByName(folderName, googleAccessToken);
       if (folderId == null) {
-        throw Exception("'memordo' 폴더를 찾을 수 없습니다.");
-      }
-
-      final url = Uri.parse(
-        'https://www.googleapis.com/drive/v3/files?q=%27$folderId%27+in+parents+and+name+contains+%27.jsonl%27&orderBy=createdTime+desc&fields=nextPageToken,files(id,name,createdTime,modifiedTime)',
-      );
-
-      final allFiles = await _fetchAllDriveFiles(url, googleAccessToken);
-
-      if (allFiles.isEmpty) {
         _visitHistory = [];
-        _status = '방문 기록 파일(.jsonl)이 없습니다.';
+        _status = "'memordo' 폴더를 찾을 수 없습니다. 확장 프로그램에서 폴더를 생성해주세요.";
+        // throw Exception("'memordo' 폴더를 찾을 수 없습니다."); // 오류를 던지는 대신 상태 메시지로 처리
       } else {
-        final List<Map<String, dynamic>> allHistory = [];
-        await Future.wait(
-          allFiles.map((file) async {
-            final historyPart = await _downloadAndParseJsonl(
-              googleAccessToken,
-              file['id'],
-            );
-            allHistory.addAll(historyPart);
-          }),
+        final url = Uri.parse(
+          'https://www.googleapis.com/drive/v3/files?q=%27$folderId%27+in+parents+and+name+contains+%27.jsonl%27&orderBy=createdTime+desc&fields=nextPageToken,files(id,name,createdTime,modifiedTime)',
         );
 
-        allHistory.sort((a, b) {
-          final at = a['timestamp'] ?? a['visitTime']?.toString() ?? '';
-          final bt = b['timestamp'] ?? b['visitTime']?.toString() ?? '';
-          return bt.compareTo(at);
-        });
+        final allFiles = await _fetchAllDriveFiles(url, googleAccessToken);
 
-        _visitHistory = allHistory;
-        _status =
-            allHistory.isEmpty
-                ? '방문 기록이 없습니다.'
-                : '총 ${allHistory.length}개의 방문 기록을 불러왔습니다.';
+        if (allFiles.isEmpty) {
+          _visitHistory = [];
+          _status = '방문 기록 파일(.jsonl)이 없습니다.';
+        } else {
+          final List<Map<String, dynamic>> allHistory = [];
+          await Future.wait(
+            allFiles.map((file) async {
+              final historyPart = await _downloadAndParseJsonl(
+                googleAccessToken,
+                file['id'],
+              );
+              allHistory.addAll(historyPart);
+            }),
+          );
+
+          // ✨ [추가] 모든 기록을 합친 후 중복을 제거하는 로직
+          final uniqueKeys = <String>{};
+          final List<Map<String, dynamic>> uniqueHistory = [];
+          for (var item in allHistory) {
+            final timestamp =
+                item['timestamp'] ?? item['visitTime']?.toString() ?? '';
+            final url = item['url']?.toString() ?? '';
+            final uniqueKey = '$timestamp-$url';
+
+            if (uniqueKeys.add(uniqueKey)) {
+              // Set에 키 추가 성공 시 (처음 보는 키일 때)
+              uniqueHistory.add(item);
+            }
+          }
+          // --- 중복 제거 로직 끝 ---
+
+          // 중복이 제거된 리스트를 시간순으로 정렬
+          uniqueHistory.sort((a, b) {
+            final at = a['timestamp'] ?? a['visitTime']?.toString() ?? '';
+            final bt = b['timestamp'] ?? b['visitTime']?.toString() ?? '';
+            return bt.compareTo(at);
+          });
+
+          _visitHistory = uniqueHistory; // 중복 제거된 리스트로 교체
+          _status =
+              _visitHistory.isEmpty
+                  ? '방문 기록이 없습니다.'
+                  : '총 ${_visitHistory.length}개의 방문 기록을 불러왔습니다.';
+        }
       }
     } catch (e) {
       _status = '오류 발생: ${e.toString()}';
@@ -154,6 +176,11 @@ class HistoryViewModel with ChangeNotifier {
     );
 
     if (res.statusCode != 200) {
+      // 파일이 없을 때 404가 발생할 수 있으므로, 오류 대신 빈 리스트 반환
+      if (res.statusCode == 404) {
+        print('⚠️ 파일을 찾을 수 없습니다 (404): $fileId');
+        return [];
+      }
       throw Exception('파일 다운로드 실패 (상태: ${res.statusCode})');
     }
 
@@ -164,6 +191,7 @@ class HistoryViewModel with ChangeNotifier {
           try {
             return jsonDecode(line);
           } catch (e) {
+            print('JSON 파싱 오류: $line');
             return {};
           }
         })

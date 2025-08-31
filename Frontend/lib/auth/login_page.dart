@@ -11,7 +11,7 @@ import '../services/auth_token.dart';
 import '../providers/token_status_provider.dart';
 
 import 'package:jwt_decoder/jwt_decoder.dart';
-import '../services/ai_service.dart'; // 방금 만든 서비스 파일
+import '../services/ai_service.dart';
 
 import '../widgets/common_ui.dart';
 import 'email_check_page.dart';
@@ -39,8 +39,6 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  // --- (2/3) 로컬 AI 초기화 로직을 담은 별도 함수 ---
-  // 이 함수는 코드 중복을 막고 가독성을 높여줍니다.
   Future<void> _initializeAiWithToken(String? accessToken) async {
     if (accessToken == null || accessToken.isEmpty) {
       print('⚠️ AccessToken이 없어 AI 초기화를 건너<0xEB><0x84>니다.');
@@ -51,7 +49,6 @@ class _LoginPageState extends State<LoginPage> {
       final String? geminiApiKey = decodedToken['geminiApiKey'];
 
       if (geminiApiKey != null && geminiApiKey.isNotEmpty) {
-        // AiService 인스턴스를 생성하여 초기화 함수 호출
         await AiService().initializeLocalAI(geminiApiKey);
       } else {
         print('⚠️ JWT 토큰에 Gemini API 키가 없습니다.');
@@ -94,11 +91,26 @@ class _LoginPageState extends State<LoginPage> {
 
         print('✅ 일반 로그인 성공 및 토큰/이메일 저장 완료.');
 
-        // --- (3/3) 로그인 성공 후 AI 초기화 함수 호출 ---
+        // ✨ [추가] Provider에 로그인 성공 상태를 즉시 알립니다.
+        // 로그인에 성공했으므로 토큰들이 유효하다고 가정하고 상태 객체를 만듭니다.
+        final statusData = {
+          'accessTokenValid': true,
+          'refreshTokenValid': true,
+          'googleAccessTokenValid': false, // 일반 로그인이므로 false
+          'googleRefreshTokenValid': false, // 일반 로그인이므로 false
+        };
+        // context가 여전히 유효할 때 Provider를 업데이트합니다.
+        if (mounted) {
+          await Provider.of<TokenStatusProvider>(
+            context,
+            listen: false,
+          ).updateStatus(statusData);
+        }
+
         await _initializeAiWithToken(accessToken);
 
         if (mounted) {
-          Navigator.pop(context, true);
+          Navigator.pop(context); // 이전 화면으로 돌아갑니다.
         }
       } else {
         final responseBody = jsonDecode(response.body);
@@ -193,11 +205,28 @@ class _LoginPageState extends State<LoginPage> {
 
         print('✅ Google 로그인 성공 및 토큰/이메일 저장 완료.');
 
-        // --- (3/3) 구글 로그인 성공 후 AI 초기화 함수 호출 ---
+        // ✨ [추가] Provider에 로그인 성공 상태를 즉시 알립니다.
+        // 서버에서 받은 토큰이 있는지 여부로 유효성을 판단하여 상태 객체를 만듭니다.
+        final statusData = {
+          'accessTokenValid': accessToken != null && accessToken.isNotEmpty,
+          'refreshTokenValid': refreshToken != null && refreshToken.isNotEmpty,
+          'googleAccessTokenValid':
+              googleAccessToken != null && googleAccessToken.isNotEmpty,
+          'googleRefreshTokenValid':
+              googleRefreshToken != null && googleRefreshToken.isNotEmpty,
+        };
+        // context가 여전히 유효할 때 Provider를 업데이트합니다.
+        if (mounted) {
+          await Provider.of<TokenStatusProvider>(
+            context,
+            listen: false,
+          ).updateStatus(statusData);
+        }
+
         await _initializeAiWithToken(accessToken);
 
         if (mounted) {
-          Navigator.pop(context, true);
+          Navigator.pop(context); // 이전 화면으로 돌아갑니다.
         }
       } else {
         final responseBody = jsonDecode(response.body);
