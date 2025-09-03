@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:convert';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
+import 'package:window_manager/window_manager.dart'; // ✨ window_manager 임포트 추가
 
 import 'left_sidebar_content.dart';
 import 'right_sidebar_content.dart';
@@ -102,57 +103,64 @@ class _MainLayoutState extends State<MainLayout> {
     final bool showRightPanelButton = _showRightSidebar;
 
     return Scaffold(
+      // ✨ [수정] AppBar를 DragToMoveArea로 감싸서 창을 드래그할 수 있게 합니다.
       appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(45.0),
-        child: AppBar(
-          elevation: 0,
-          shape: Border(
-            bottom: BorderSide(color: Theme.of(context).dividerColor, width: 1),
-          ),
-          titleSpacing: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.menu, color: Color(0xFF475569)),
-            onPressed: _toggleLeftPanel,
-            tooltip: 'Toggle Sidebar',
-          ),
-          title: Row(
-            children: [
-              const Icon(Icons.note_alt_rounded, color: Color(0xFF3d98f4)),
-              const SizedBox(width: 8),
-              Text(
-                'Memordo',
-                style: TextStyle(
-                  // ✨ [수정] 하드코딩된 색상 대신 현재 테마의 AppBar 전경색을 사용합니다.
-                  color: Theme.of(context).appBarTheme.foregroundColor,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 20,
-                  fontFamily: 'Work Sans',
-                ),
+        preferredSize: const Size.fromHeight(35.0),
+        child: DragToMoveArea(
+          child: AppBar(
+            elevation: 0,
+            shape: Border(
+              bottom: BorderSide(
+                color: Theme.of(context).dividerColor,
+                width: 1,
               ),
-            ],
-          ),
-          actions: [
-            IconButton(
-              icon: const Icon(
-                Icons.smart_toy_outlined,
-                color: Color(0xFF475569),
-              ),
-              onPressed: _openChatbotWindow,
-              tooltip: '챗봇 열기',
             ),
-            const SizedBox(width: 4),
-            if (showRightPanelButton)
+            titleSpacing: 0,
+            leading: IconButton(
+              icon: const Icon(Icons.menu, color: Color(0xFF475569)),
+              onPressed: _toggleLeftPanel,
+              tooltip: 'Toggle Sidebar',
+            ),
+            title: Row(
+              children: [
+                const Icon(Icons.note_alt_rounded, color: Color(0xFF3d98f4)),
+                const SizedBox(width: 6),
+                Text(
+                  'Memordo',
+                  style: TextStyle(
+                    color: Theme.of(context).appBarTheme.foregroundColor,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 18,
+                    fontFamily: 'Work Sans',
+                  ),
+                ),
+              ],
+            ),
+            actions: [
               IconButton(
                 icon: const Icon(
-                  Icons.menu_open_outlined,
+                  Icons.smart_toy_outlined,
                   color: Color(0xFF475569),
                 ),
-                onPressed: _toggleRightPanel,
-                tooltip: 'Toggle Memos',
+                onPressed: _openChatbotWindow,
+                tooltip: '챗봇 열기',
               ),
-            _buildUserProfileIcon(context),
-            const SizedBox(width: 10),
-          ],
+              const SizedBox(width: 4),
+              if (showRightPanelButton)
+                IconButton(
+                  icon: const Icon(
+                    Icons.menu_open_outlined,
+                    color: Color(0xFF475569),
+                  ),
+                  onPressed: _toggleRightPanel,
+                  tooltip: 'Toggle Memos',
+                ),
+              _buildUserProfileIcon(context),
+              // ✨ [추가] 직접 만든 창 조절 버튼
+              const WindowButtons(),
+              const SizedBox(width: 10),
+            ],
+          ),
         ),
       ),
       body: Row(
@@ -394,6 +402,44 @@ class _MainLayoutState extends State<MainLayout> {
               ),
             ],
           ),
+    );
+  }
+}
+
+// ✨ [추가] 창 조절 버튼을 위한 새로운 위젯
+class WindowButtons extends StatelessWidget {
+  const WindowButtons({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        IconButton(
+          icon: const Icon(Icons.minimize, size: 16),
+          onPressed: () => windowManager.minimize(),
+          tooltip: 'Minimize',
+          color: const Color(0xFF475569),
+        ),
+        IconButton(
+          icon: const Icon(Icons.crop_square, size: 16),
+          onPressed: () async {
+            if (await windowManager.isMaximized()) {
+              windowManager.unmaximize();
+            } else {
+              windowManager.maximize();
+            }
+          },
+          tooltip: 'Maximize',
+          color: const Color(0xFF475569),
+        ),
+        IconButton(
+          icon: const Icon(Icons.close, size: 16),
+          onPressed: () => windowManager.close(),
+          tooltip: 'Close',
+          color: const Color(0xFF475569),
+          hoverColor: Colors.red.withOpacity(0.1),
+        ),
+      ],
     );
   }
 }

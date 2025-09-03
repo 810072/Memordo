@@ -42,9 +42,13 @@ Future<void> main(List<String> args) async {
       center: true,
       minimumSize: Size(800, 600),
       title: 'Memordo',
+      titleBarStyle: TitleBarStyle.hidden,
     );
 
     windowManager.waitUntilReadyToShow(windowOptions, () async {
+      await windowManager.setBackgroundColor(Colors.transparent);
+      // ✨ [수정] 'setShadow' 메서드가 현재 window_manager 버전과 호환되지 않아 이 라인을 제거했습니다.
+      // await windowManager.setShadow(true);
       await windowManager.show();
       await windowManager.focus();
     });
@@ -123,7 +127,6 @@ class _MainLayoutWrapperState extends State<MainLayoutWrapper> {
   Widget build(BuildContext context) {
     return MainLayout(
       activePage: _currentPage,
-      // ✨ [수정] 콜백 함수에서 setState를 호출하여 페이지 변경
       onPageSelected: (pageType) {
         setState(() {
           _currentPage = pageType;
