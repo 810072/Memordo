@@ -53,6 +53,7 @@ dependencies:
   window_manager: ^0.3.0 # ✅ 새로 추가
   desktop_multi_window: ^0.2.1
   vector_math: ^2.1.4
+  jwt_decoder: ^2.0.1 # ✅ 새로 추가
 
 
 

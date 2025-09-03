@@ -7,22 +7,17 @@ import traceback
 import datetime
 import os
 import json
-from dotenv import load_dotenv
-import asyncio # [수정] asyncio 라이브러리를 임포트합니다.
+import asyncio
 
-# --- 1. 초기 설정 ---
-load_dotenv()
+# --- 1. 초기 설정 (수정됨) ---
+# .env 파일을 더 이상 직접 사용하지 않으므로 load_dotenv 관련 코드를 제거합니다.
 LOG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "log")
 
-# --- 2. AI 모듈 및 워크플로우 임포트 ---
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-if not GEMINI_API_KEY:
-    print("CRITICAL - .env 파일에서 GEMINI_API_KEY를 로드하지 못했습니다.")
-else:
-    print(f"GEMINI_API_KEY 로드 성공 (첫 5자리: {GEMINI_API_KEY[:5]}...).")
-
+# --- 2. AI 모듈 및 워크플로우 임포트 (수정됨) ---
+# GEMINI_API_KEY를 직접 로드하는 대신, 동적 초기화를 위해 필요한 함수를 import 합니다.
 try:
-    from gemini_ai import get_embedding_for_text, get_embeddings_batch, query_gemini, execute_simple_task, DEFAULT_GEMINI_MODEL
+    # [통합] API 키를 받아 AI 클라이언트를 초기화하는 함수를 import 합니다.
+    from gemini_ai import initialize_ai_client, get_embedding_for_text, get_embeddings_batch, query_gemini, execute_simple_task, DEFAULT_GEMINI_MODEL
     print("'gemini_ai.py' 모듈 로드 성공.")
     
     from rag_workflow import build_rag_workflow
@@ -36,7 +31,7 @@ except ImportError as e:
 app = Flask(__name__)
 CORS(app)
 
-# --- 4. 유틸리티 함수: 로깅 ---
+# --- 4. 유틸리티 함수: 로깅 (변경 없음) ---
 def log_api_interaction(log_data):
     try:
         os.makedirs(LOG_DIR, exist_ok=True)
@@ -51,20 +46,32 @@ def log_api_interaction(log_data):
 def home():
     return jsonify({"message": "Gemini AI Python 백엔드 서버가 실행 중입니다.", "status": "ok"})
 
+# [통합] API 키를 받아 AI 클라이언트를 초기화하는 엔드포인트를 유지합니다.
+@app.route('/api/initialize', methods=['POST'])
+def initialize_ai():
+    data = request.json
+    api_key = data.get('api_key')
+    
+    if not api_key:
+        return jsonify({'error': 'api_key가 필요합니다.'}), 400
+        
+    success = initialize_ai_client(api_key)
+    
+    if success:
+        return jsonify({'message': 'AI 클라이언트가 성공적으로 초기화되었습니다.'}), 200
+    else:
+        return jsonify({'error': 'AI 클라이언트 초기화에 실패했습니다.'}), 500
+
 @app.route('/api/rag_chat', methods=['POST'])
 def rag_chat():
-    """
-    RAG 워크플로우를 실행하여 사용자의 질문에 답변합니다.
-    """
     data = request.json
     if not data or 'query' not in data or 'notes' not in data or 'edges' not in data:
         return jsonify({'error': '잘못된 요청. query, notes, edges가 필요합니다.'}), 400
 
-    # [수정] 현재 스레드를 위한 asyncio 이벤트 루프를 설정합니다.
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     
-    result = {} # 결과를 저장할 변수
+    result = {}
 
     try:
         rag_app = build_rag_workflow()
@@ -73,8 +80,6 @@ def rag_chat():
             "notes": data['notes'],
             "edges": data['edges'],
         }
-        # invoke는 동기 함수이지만, 내부적으로 비동기 코드를 실행하므로
-        # 이벤트 루프가 설정된 컨텍스트 내에서 호출해야 합니다.
         result = rag_app.invoke(inputs)
         
         log_api_interaction({
@@ -88,6 +93,11 @@ def rag_chat():
         return jsonify({'result': result.get('answer')})
         
     except Exception as e:
+        # [통합] AI가 초기화되지 않았을 때 더 친절한 에러 메시지를 제공하는 로직을 유지합니다.
+        if "AI client has not been initialized" in str(e):
+              print(f"API /rag_chat 처리 중 오류: AI 클라이언트가 초기화되지 않았습니다.")
+              return jsonify({"error": "AI가 초기화되지 않았습니다. 먼저 API 키를 등록해주세요."}), 503 # Service Unavailable
+        
         print(f"API /rag_chat 처리 중 예외: {e}")
         traceback.print_exc()
         log_api_interaction({
@@ -98,10 +108,9 @@ def rag_chat():
         })
         return jsonify({"error": "서버 내부 오류 발생"}), 500
     finally:
-        # [수정] 작업이 끝나면 이벤트 루프를 닫아줍니다.
         loop.close()
 
-# ... (나머지 /api/execute_task, /api/get-embeddings 등 엔드포인트는 동일) ...
+# --- 나머지 엔드포인트 (두 버전에서 동일하여 변경 없음) ---
 @app.route('/api/get-embeddings', methods=['POST'])
 def get_embeddings():
     try:
@@ -162,7 +171,7 @@ def generate_graph_data():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# --- 6. Flask 앱 실행 ---
+# --- 6. Flask 앱 실행 (변경 없음) ---
 if __name__ == '__main__':
     print("Flask 서버를 시작합니다...")
     app.run(host='0.0.0.0', port=5001, debug=True)

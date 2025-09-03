@@ -1,6 +1,9 @@
 # py/rag_workflow.py
 
 import os
+import json
+import platform
+from pathlib import Path
 from dotenv import load_dotenv
 from langchain_community.vectorstores import Chroma
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
@@ -15,7 +18,18 @@ from langgraph.graph import StateGraph, END
 load_dotenv()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-# --- 1. 상태 정의 ---
+def _get_embeddings_path() -> str:
+    """실행 중인 OS를 감지하여 embeddings.json 파일의 동적 경로를 반환합니다."""
+    home_dir = Path.home()
+    system = platform.system()
+    if system == "Darwin": # macOS
+        notes_dir = home_dir / "Memordo_Notes"
+    else: # Windows, Linux 등
+        notes_dir = home_dir / "Documents" / "Memordo_Notes"
+    
+    os.makedirs(notes_dir, exist_ok=True)
+    return str(notes_dir / "embeddings.json")
+
 class GraphState(TypedDict):
     question: str
     notes: List[dict]
@@ -24,48 +38,144 @@ class GraphState(TypedDict):
     vectorstore: Chroma
     connected_nodes: set
     isolated_nodes: set
-    # [수정] 단일 문서가 아닌 문서 리스트를 저장합니다.
-    top_docs: List[Document] 
+    top_docs: List[Document]
     expanded_docs: List[Document]
     final_context: str
     answer: str
 
-# --- 2. 노드(함수)들 정의 ---
+# (expand_short_notes, expand_question 함수는 이전과 동일)
+def expand_short_notes(state: GraphState) -> dict:
+    print("--- (Node 0) 짧은 메모 보강 시작 ---")
+    notes = state['notes']
+    MIN_CHARS_FOR_EXPANSION = 100
+    updated_notes = []
+    llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.5, google_api_key=GEMINI_API_KEY)
+    prompt = ChatPromptTemplate.from_template(
+        """다음 메모는 내용이 너무 짧아 문맥이 부족합니다.
+        메모의 핵심 의미를 유지하면서, 이 메모가 어떤 상황에서 작성되었을지 추론하여 내용을 보강해주세요.
+        보강된 내용만 간결하게 답변해주세요.
+        
+        --- 원본 메모 ---
+        {original_content}
+        """
+    )
+    chain = prompt | llm | StrOutputParser()
+    for note in notes:
+        if len(note['content']) < MIN_CHARS_FOR_EXPANSION:
+            print(f"    - '{note['fileName']}' 보강 필요 (현재 {len(note['content'])}자)")
+            expanded_content = chain.invoke({"original_content": note['content']})
+            note['content'] = expanded_content
+            print(f"    - 보강 완료: {expanded_content[:50]}...")
+        updated_notes.append(note)
+    return {"notes": updated_notes}
+
+def expand_question(state: GraphState) -> dict:
+    print("--- (Node 1) 질문 확장 시작 ---")
+    original_question = state['question']
+    llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0, google_api_key=GEMINI_API_KEY)
+    prompt = ChatPromptTemplate.from_template(
+        """당신은 사용자의 질문을 벡터 검색에 더 적합하도록 재작성하는 전문가입니다.
+        질문의 핵심 의도는 유지하되, 가능한 상세하고 구체적인 정보(예: 주제, 맥락, 예상 답변 형식)를 포함하는 풍부한 문장으로 만들어주세요.
+        재작성된 질문만 간결하게 답변해주세요.
+
+        --- 원본 질문 ---
+        {question}
+        """
+    )
+    chain = prompt | llm | StrOutputParser()
+    expanded_question = chain.invoke({"question": original_question})
+    print(f"    - 원본 질문: \"{original_question}\"")
+    print(f"    - 확장된 질문: \"{expanded_question}\"")
+    return {"question": expanded_question}
 
 def prepare_retrieval(state: GraphState) -> dict:
-    print("--- (Node 1) 검색 준비 및 그룹 분류 ---")
+    """[FIXED] 복잡한 embeddings.json 구조를 파싱하고, 신규 메모를 자동으로 임베딩하며 캐시를 업데이트합니다."""
+    print("--- (Node 2) 검색 준비 및 그룹 분류 (신규 메모 자동 임베딩) ---")
     notes = state['notes']
     edges = state['edges']
+    embeddings_path = _get_embeddings_path()
     
-    documents = [Document(page_content=note['content'], metadata={'source': note['fileName']}) for note in notes]
+    embedding_data = []
+    embedding_map = {}
+    try:
+        if os.path.exists(embeddings_path) and os.path.getsize(embeddings_path) > 0:
+            with open(embeddings_path, 'r', encoding='utf-8') as f:
+                loaded_json = json.load(f)
+                # [FIX] 복잡한 JSON 구조에서 'embeddings' 키에 해당하는 데이터만 추출
+                if isinstance(loaded_json, dict) and 'embeddings' in loaded_json:
+                    embeddings_dict = loaded_json.get('embeddings', {})
+                    # 맵과 리스트 데이터 구조를 재구성
+                    for fileName, data in embeddings_dict.items():
+                        if 'vector' in data:
+                            embedding_map[fileName] = data['vector']
+                            embedding_data.append({'fileName': fileName, 'embedding': data['vector']})
+                    print(f"    - '{embeddings_path}'에서 {len(embedding_data)}개 임베딩 정보 로드 완료.")
+                else:
+                    print(f"    - 경고: '{embeddings_path}'에 'embeddings' 키가 없거나 형식이 잘못되었습니다.")
+    except Exception as e:
+        print(f"    - 경고: '{embeddings_path}' 파일을 처리하는 중 오류 발생: {e}")
+
+    notes_to_embed = [note for note in notes if note['fileName'] not in embedding_map]
     
+    if notes_to_embed:
+        print(f"    - {len(notes_to_embed)}개의 신규 메모를 발견하여 임베딩을 생성합니다.")
+        embedding_function_doc = GoogleGenerativeAIEmbeddings(model="models/embedding-001", task_type="retrieval_document", google_api_key=GEMINI_API_KEY)
+        
+        contents_to_embed = [note['content'] for note in notes_to_embed]
+        new_embeddings = embedding_function_doc.embed_documents(contents_to_embed)
+        
+        for i, note in enumerate(notes_to_embed):
+            file_name = note['fileName']
+            new_embedding_entry = {'fileName': file_name, 'embedding': new_embeddings[i]}
+            embedding_data.append(new_embedding_entry)
+            embedding_map[file_name] = new_embeddings[i]
+        
+        # [FIXED] 더 단순하고 안정적인 리스트 형태로 파일 저장
+        try:
+            with open(embeddings_path, 'w', encoding='utf-8') as f:
+                json.dump(embedding_data, f, ensure_ascii=False, indent=4)
+            print(f"    - '{embeddings_path}'에 단순화된 형식으로 임베딩 정보 저장 완료.")
+        except Exception as e:
+            print(f"    - 에러: '{embeddings_path}' 파일 저장에 실패했습니다: {e}")
+
+    documents, texts_for_db, embeddings_for_db, metadatas_for_db = [], [], [], []
+    for note in notes:
+        file_name = note['fileName']
+        if file_name in embedding_map:
+            documents.append(Document(page_content=note['content'], metadata={'source': file_name}))
+            texts_for_db.append(note['content'])
+            embeddings_for_db.append(embedding_map[file_name])
+            metadatas_for_db.append({'source': file_name})
+
+    embedding_function_query = GoogleGenerativeAIEmbeddings(model="models/embedding-001", task_type="retrieval_query", google_api_key=GEMINI_API_KEY)
+    vectorstore = Chroma(embedding_function=embedding_function_query)
+    
+    if texts_for_db:
+        vectorstore.add_texts(texts=texts_for_db, embeddings=embeddings_for_db, metadatas=metadatas_for_db)
+        print(f"    - {len(texts_for_db)}개의 문서를 ChromaDB에 추가 완료.")
+
     connected_nodes = {edge['from'] for edge in edges} | {edge['to'] for edge in edges}
     all_nodes = {note['fileName'] for note in notes}
     isolated_nodes = all_nodes - connected_nodes
     
     print(f"    - 연결된 노드: {len(connected_nodes)}개, 고립된 노드: {len(isolated_nodes)}개")
     
-    embedding_function = GoogleGenerativeAIEmbeddings(
-        model="models/embedding-001", 
-        task_type="retrieval_document",
-        google_api_key=GEMINI_API_KEY
-    )
-    vectorstore = Chroma.from_documents(documents, embedding_function)
-    
     return {
-        "documents": documents,
-        "vectorstore": vectorstore,
-        "connected_nodes": connected_nodes,
-        "isolated_nodes": isolated_nodes,
+        "documents": documents, "vectorstore": vectorstore,
+        "connected_nodes": connected_nodes, "isolated_nodes": isolated_nodes,
     }
 
+# (이하 first_pass_retrieval, analyze_and_branch, second_pass_retrieval, generate_answer, build_rag_workflow 함수는 이전과 동일합니다.)
+
 def first_pass_retrieval(state: GraphState) -> dict:
-    """[수정] 1차 검색: 전체 문서를 대상으로 여러 개(k=3)의 후보를 검색합니다."""
-    print("--- (Node 2) 1차 검색 수행 ---")
+    print("--- (Node 3) 1차 검색 수행 ---")
     question = state['question']
     vectorstore = state['vectorstore']
     
-    # k=1에서 k=3으로 변경하여 3개의 후보 문서를 가져옵니다.
+    if not vectorstore or not hasattr(vectorstore, '_collection') or vectorstore._collection.count() == 0:
+         print("    - 벡터 저장소가 비어있어 검색을 건너<binary data, 2 bytes>니다.")
+         return {"top_docs": []}
+
     retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
     top_docs = retriever.invoke(question)
     
@@ -73,9 +183,7 @@ def first_pass_retrieval(state: GraphState) -> dict:
     return {"top_docs": top_docs}
 
 def analyze_and_branch(state: GraphState) -> str:
-    """[수정] 검색된 최상위 문서(첫 번째 후보)가 '허브'인지 '고립'인지 판단하여 분기합니다."""
-    print("--- (Node 3) 분기 결정 ---")
-    # 후보가 없는 경우를 대비
+    print("--- (Node 4) 분기 결정 ---")
     if not state['top_docs']:
         print("    -> 1차 검색 결과 없음. 바로 답변 생성으로 이동합니다.")
         return "generate_answer_direct"
@@ -91,8 +199,7 @@ def analyze_and_branch(state: GraphState) -> str:
         return "generate_answer_direct"
 
 def second_pass_retrieval(state: GraphState) -> dict:
-    """[수정] 최상위 문서의 이웃 노드들 내에서만 검색합니다."""
-    print("--- (Node 4a) 2차 검색 (문맥 확장) ---")
+    print("--- (Node 5a) 2차 검색 (문맥 확장) ---")
     question = state['question']
     top_doc_source = state['top_docs'][0].metadata['source']
     edges = state['edges']
@@ -115,14 +222,11 @@ def second_pass_retrieval(state: GraphState) -> dict:
     return {"expanded_docs": expanded_docs}
 
 def generate_answer(state: GraphState) -> dict:
-    """[수정] 최종 컨텍스트를 구성하고 LLM으로 답변 생성합니다."""
-    print("--- (Node 5) 최종 답변 생성 ---")
+    print("--- (Node 6) 최종 답변 생성 ---")
     question = state['question']
-    # 1차 검색 결과 전체를 기본 컨텍스트로 사용합니다.
     top_docs = state.get('top_docs', [])
     expanded_docs = state.get('expanded_docs', [])
 
-    # 중복을 제거하면서 최종 컨텍스트 구성
     final_docs_map = {doc.metadata['source']: doc for doc in top_docs}
     for doc in expanded_docs:
         final_docs_map[doc.metadata['source']] = doc
@@ -151,7 +255,7 @@ def generate_answer(state: GraphState) -> dict:
         답변:"""
     )
     
-    llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0.3, google_api_key=GEMINI_API_KEY)
+    llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.3, google_api_key=GEMINI_API_KEY)
     
     chain = prompt_template | llm | StrOutputParser()
     answer = chain.invoke({"context": context_text, "question": question})
@@ -159,16 +263,18 @@ def generate_answer(state: GraphState) -> dict:
     print("--- 답변 생성 완료 ---")
     return {"final_context": context_text, "answer": answer}
 
-# --- 3. 워크플로우 빌더 함수 (기존과 동일) ---
 def build_rag_workflow():
     workflow = StateGraph(GraphState)
-
+    workflow.add_node("expand_notes", expand_short_notes)
+    workflow.add_node("expand_question", expand_question)
     workflow.add_node("prepare", prepare_retrieval)
     workflow.add_node("first_retrieval", first_pass_retrieval)
     workflow.add_node("expand_retrieval", second_pass_retrieval)
     workflow.add_node("generate", generate_answer)
 
-    workflow.set_entry_point("prepare")
+    workflow.set_entry_point("expand_notes")
+    workflow.add_edge("expand_notes", "expand_question")
+    workflow.add_edge("expand_question", "prepare")
     workflow.add_edge("prepare", "first_retrieval")
     
     workflow.add_conditional_edges(
