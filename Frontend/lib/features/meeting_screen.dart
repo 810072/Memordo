@@ -321,9 +321,18 @@ class _MeetingScreenState extends State<MeetingScreen> {
           ),
           Consumer<BottomSectionController>(
             builder: (context, bottomController, child) {
+              // ✨ [수정] PopupMenuButton 디자인 변경
               return PopupMenuButton<String>(
                 icon: const Icon(Icons.more_vert),
                 tooltip: '더보기',
+                // ✨ [추가] 둥근 모서리와 그림자 효과
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12.0),
+                ),
+                // ✨ [수정] 메뉴 크기 조절
+                constraints: const BoxConstraints(maxWidth: 180.0),
+                elevation: 4.0,
+                color: Theme.of(context).cardColor,
                 onSelected: (value) {
                   switch (value) {
                     case 'new_memo':

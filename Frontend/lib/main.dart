@@ -122,13 +122,36 @@ class MainLayoutWrapper extends StatefulWidget {
 
 class _MainLayoutWrapperState extends State<MainLayoutWrapper> {
   PageType _currentPage = PageType.home;
+  String? _initialTextForMemo;
+
+  @override
+  void initState() {
+    super.initState();
+    Provider.of<NoteProvider>(context, listen: false).onNewMemoFromHistory = (
+      text,
+    ) {
+      if (!mounted) return;
+      setState(() {
+        _initialTextForMemo = text;
+        _currentPage = PageType.home;
+      });
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
+    // ✨ [수정] build 메서드에서 postFrameCallback을 사용하여 상태를 변경하는 로직을 제거하고,
+    // onPageSelected 콜백에서 상태를 관리하도록 변경하여 안정성을 높입니다.
     return MainLayout(
       activePage: _currentPage,
+      initialTextForMemo: _initialTextForMemo,
       onPageSelected: (pageType) {
         setState(() {
+          // 사용자가 메모 작성 페이지에서 다른 페이지로 이동할 때,
+          // 전달받았던 초기 텍스트를 초기화하여 다시 사용되지 않도록 합니다.
+          if (_currentPage == PageType.home && pageType != PageType.home) {
+            _initialTextForMemo = null;
+          }
           _currentPage = pageType;
         });
       },

@@ -39,7 +39,10 @@ class _SearchPageState extends State<SearchPage> {
   @override
   void initState() {
     super.initState();
-    _loadDataForSelectedType();
+    // ✨ [수정] 위젯 빌드가 완료된 후 데이터를 로드하도록 변경
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadDataForSelectedType();
+    });
     _searchController.addListener(_onSearchChanged);
   }
 
@@ -89,6 +92,8 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   Future<List<FileSystemEntry>> _loadFiles() async {
+    // context.mounted 체크 추가
+    if (!mounted) return [];
     final fileProvider = Provider.of<FileSystemProvider>(
       context,
       listen: false,
@@ -319,6 +324,8 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   Widget _buildFileItem(FileSystemEntry item) {
+    // context.mounted 체크 추가
+    if (!mounted) return const SizedBox.shrink();
     final fileProvider = Provider.of<FileSystemProvider>(
       context,
       listen: false,

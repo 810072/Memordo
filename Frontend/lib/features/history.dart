@@ -13,6 +13,7 @@ import '../features/meeting_screen.dart';
 import '../utils/ai_service.dart';
 import '../providers/token_status_provider.dart';
 import '../auth/login_page.dart';
+import '../providers/note_provider.dart';
 
 /// HistoryPage는 ViewModel을 제공하는 역할만 담당합니다.
 class HistoryPage extends StatelessWidget {
@@ -36,20 +37,27 @@ class HistoryView extends StatefulWidget {
 }
 
 class _HistoryViewState extends State<HistoryView> {
-  // ✨ [수정] _selectedTimestamps 대신 _selectedUniqueKeys 사용
   final Set<String> _selectedUniqueKeys = {};
   bool _showSummary = false;
 
-  // 검색 기능 관련 상태 변수
   final TextEditingController _searchController = TextEditingController();
   Timer? _debounce;
   List<Map<String, dynamic>> _filteredHistory = [];
 
   bool _wasAuthenticated = false;
 
+  // ✨ [추가] Provider 인스턴스를 저장할 멤버 변수
+  late final NoteProvider _noteProvider;
+  late final BottomSectionController _bottomController;
+
   @override
   void initState() {
     super.initState();
+    // ✨ [추가] initState에서 context.read를 사용하여 Provider를 한 번만 가져옵니다.
+    // 이렇게 하면 위젯이 비활성화되는 시점에 context에 접근하는 것을 방지할 수 있습니다.
+    _noteProvider = context.read<NoteProvider>();
+    _bottomController = context.read<BottomSectionController>();
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final tokenProvider = context.read<TokenStatusProvider>();
       _wasAuthenticated = tokenProvider.isAuthenticated;
@@ -105,12 +113,8 @@ class _HistoryViewState extends State<HistoryView> {
 
     if (bottomController.isLoading) return;
 
-    // ✨ [수정] _selectedUniqueKeys 사용
     if (_selectedUniqueKeys.length == 1) {
       final selectedUniqueKey = _selectedUniqueKeys.first;
-      // uniqueKey에서 URL을 파싱해냅니다.
-      // 예: "2023-10-27T10:30:00.000Z-http://example.com/page1"
-      // 마지막 하이픈 이후가 URL이라고 가정
       final lastHyphenIndex = selectedUniqueKey.lastIndexOf('-');
 
       String? selectedUrl;
@@ -118,9 +122,7 @@ class _HistoryViewState extends State<HistoryView> {
           lastHyphenIndex < selectedUniqueKey.length - 1) {
         selectedUrl = selectedUniqueKey.substring(lastHyphenIndex + 1);
       } else {
-        // 하이픈이 없거나 마지막에 있는 경우, URL로 간주하기 어렵습니다.
-        // 또는 timestamp만으로 구성된 경우 (이전 로직과의 호환성을 위해)
-        selectedUrl = selectedUniqueKey; // 일단 전체를 URL로 시도
+        selectedUrl = selectedUniqueKey;
       }
 
       if (selectedUrl != null && selectedUrl.isNotEmpty) {
@@ -156,8 +158,7 @@ class _HistoryViewState extends State<HistoryView> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            _selectedUniqueKeys
-                    .isEmpty // ✨ [수정] _selectedUniqueKeys 사용
+            _selectedUniqueKeys.isEmpty
                 ? '내용을 요약할 URL을 선택해주세요.'
                 : '내용을 요약할 URL은 하나만 선택할 수 있습니다.',
           ),
@@ -168,17 +169,19 @@ class _HistoryViewState extends State<HistoryView> {
   }
 
   void _createNewMemoWithSummary() {
-    final bottomController = context.read<BottomSectionController>();
-    final summary = bottomController.summaryText;
+    // ✨ [수정] initState에서 저장해둔 provider 인스턴스를 사용합니다.
+    final summary = _bottomController.summaryText;
 
-    if (summary.isNotEmpty && !summary.contains('실패')) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => MeetingScreen(initialText: summary),
-        ),
-      );
+    if (summary.isNotEmpty &&
+        !summary.contains('실패') &&
+        !summary.contains('오류')) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        // if (!mounted) return; // 콜백 내에서는 mounted 체크가 불안정할 수 있으므로 Provider 콜백 호출은 그대로 둡니다.
+        // ✨ [수정] context를 직접 사용하지 않고, 저장된 provider 인스턴스를 통해 요청합니다.
+        _noteProvider.requestNewMemoFromHistory(summary);
+      });
     } else {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('생성할 요약 내용이 없습니다.'),
@@ -199,7 +202,7 @@ class _HistoryViewState extends State<HistoryView> {
         context.read<HistoryViewModel>().loadVisitHistory().then((_) {
           if (mounted) {
             _filterHistory(_searchController.text);
-            _selectedUniqueKeys.clear(); // ✨ [수정] _selectedUniqueKeys 초기화
+            _selectedUniqueKeys.clear();
             _showSummary = false;
           }
         });
@@ -432,27 +435,21 @@ class _HistoryViewState extends State<HistoryView> {
     final timestamp = item['timestamp'] ?? item['visitTime']?.toString();
 
     if (timestamp == null) {
-      // timestamp가 없으면 선택 불가하게 처리하거나,
-      // 아예 렌더링하지 않거나, 대체 키를 생성하는 로직 추가
-      return Container(); // 이 경우 해당 항목은 렌더링되지 않습니다.
+      return Container();
     }
 
-    // ✨ [수정] timestamp와 URL을 조합하여 고유한 키를 만듭니다.
-    // 이는 timestamp만으로는 고유하지 않은 경우를 대비합니다.
     final String uniqueKey = '$timestamp-$url';
 
     final time = _formatTime(timestamp);
-    final bool isChecked = _selectedUniqueKeys.contains(
-      uniqueKey,
-    ); // ✨ [수정] uniqueKey 사용
+    final bool isChecked = _selectedUniqueKeys.contains(uniqueKey);
 
     return InkWell(
       onTap: () {
         setState(() {
           if (isChecked) {
-            _selectedUniqueKeys.remove(uniqueKey); // ✨ [수정] uniqueKey 사용
+            _selectedUniqueKeys.remove(uniqueKey);
           } else {
-            _selectedUniqueKeys.add(uniqueKey); // ✨ [수정] uniqueKey 사용
+            _selectedUniqueKeys.add(uniqueKey);
           }
         });
       },
@@ -474,11 +471,9 @@ class _HistoryViewState extends State<HistoryView> {
                 onChanged: (bool? checked) {
                   setState(() {
                     if (checked == true) {
-                      _selectedUniqueKeys.add(uniqueKey); // ✨ [수정] uniqueKey 사용
+                      _selectedUniqueKeys.add(uniqueKey);
                     } else {
-                      _selectedUniqueKeys.remove(
-                        uniqueKey,
-                      ); // ✨ [수정] uniqueKey 사용
+                      _selectedUniqueKeys.remove(uniqueKey);
                     }
                   });
                 },

@@ -14,6 +14,14 @@ class NoteProvider with ChangeNotifier {
   TextEditingController? _controller;
   FocusNode? _focusNode;
 
+  // ✨ [추가] History 페이지에서 메모 작성을 요청하기 위한 콜백
+  void Function(String)? onNewMemoFromHistory;
+
+  // ✨ [추가] History 페이지에서 이 함수를 호출하여 메모 작성을 요청합니다.
+  void requestNewMemoFromHistory(String text) {
+    onNewMemoFromHistory?.call(text);
+  }
+
   TextEditingController? get controller => _controller;
 
   // 컨트롤러와 포커스 노드를 등록하는 메서드

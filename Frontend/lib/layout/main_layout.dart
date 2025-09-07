@@ -24,11 +24,14 @@ import '../services/auth_token.dart';
 class MainLayout extends StatefulWidget {
   final PageType activePage;
   final ValueChanged<PageType> onPageSelected;
+  // ✨ [추가] 새 메모를 위한 초기 텍스트를 받는 매개변수
+  final String? initialTextForMemo;
 
   const MainLayout({
     Key? key,
     required this.activePage,
     required this.onPageSelected,
+    this.initialTextForMemo, // ✨ [추가]
   }) : super(key: key);
 
   @override
@@ -38,14 +41,12 @@ class MainLayout extends StatefulWidget {
 class _MainLayoutState extends State<MainLayout> {
   bool _isLeftExpanded = false;
   bool _isRightExpanded = true;
-  late final List<Widget> _pages;
+  // ✨ [제거] initState에서 한 번만 생성되던 _pages 리스트를 제거합니다.
 
   @override
   void initState() {
     super.initState();
-    _pages =
-        PageType.values.map((pageType) => _getPageWidget(pageType)).toList();
-
+    // ✨ [제거] _pages 초기화 로직 제거
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<TokenStatusProvider>(
         context,
@@ -54,10 +55,16 @@ class _MainLayoutState extends State<MainLayout> {
     });
   }
 
+  // ✨ [수정] build 메서드 내에서 페이지 위젯을 생성하도록 변경
   Widget _getPageWidget(PageType pageType) {
     switch (pageType) {
       case PageType.home:
-        return const MeetingScreen();
+        // widget.initialTextForMemo를 사용하여 MeetingScreen을 생성합니다.
+        // key를 사용하여 initialText가 변경될 때마다 MeetingScreen이 새로 생성되도록 합니다.
+        return MeetingScreen(
+          key: ValueKey(widget.initialTextForMemo),
+          initialText: widget.initialTextForMemo,
+        );
       case PageType.history:
         return const HistoryPage();
       case PageType.calendar:
@@ -100,6 +107,11 @@ class _MainLayoutState extends State<MainLayout> {
 
   @override
   Widget build(BuildContext context) {
+    // ✨ [추가] build 메서드가 호출될 때마다 페이지 리스트를 새로 생성합니다.
+    // 이렇게 하면 initialTextForMemo가 변경되었을 때 MeetingScreen에 올바르게 전달됩니다.
+    final pages =
+        PageType.values.map((pageType) => _getPageWidget(pageType)).toList();
+
     final bool showRightPanelButton = _showRightSidebar;
 
     return Scaffold(
@@ -184,7 +196,8 @@ class _MainLayoutState extends State<MainLayout> {
           Expanded(
             child: IndexedStack(
               index: widget.activePage.index,
-              children: _pages,
+              // ✨ [수정] 새로 생성된 pages 리스트를 사용합니다.
+              children: pages,
             ),
           ),
           if (_showRightSidebar)

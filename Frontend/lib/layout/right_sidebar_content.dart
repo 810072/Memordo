@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
 import '../model/file_system_entry.dart';
+import '../providers/file_system_provider.dart';
 import '../widgets/expandable_folder_tile.dart';
 import '../layout/bottom_section_controller.dart';
 import '../widgets/ai_summary_widget.dart';
@@ -38,6 +39,13 @@ class _RightSidebarContentState extends State<RightSidebarContent>
   late TabController _tabController;
   late BottomSectionController _bottomSectionController;
 
+  String? _editingPath;
+  bool _isCreatingNew = false;
+  bool _isCreatingFolder = false;
+  String? _creationParentPath;
+  final TextEditingController _editingController = TextEditingController();
+  final FocusNode _editingFocusNode = FocusNode();
+
   @override
   void initState() {
     super.initState();
@@ -64,7 +72,183 @@ class _RightSidebarContentState extends State<RightSidebarContent>
   void dispose() {
     _bottomSectionController.removeListener(_onControllerUpdate);
     _tabController.dispose();
+    _editingController.dispose();
+    _editingFocusNode.dispose();
     super.dispose();
+  }
+
+  void _startCreatingNewFile() {
+    if (_editingPath != null) return;
+    final provider = context.read<FileSystemProvider>();
+    setState(() {
+      _isCreatingNew = true;
+      _isCreatingFolder = false;
+      _editingPath = 'new_file';
+      _creationParentPath = provider.selectedFolderPath;
+      _editingController.clear();
+    });
+    _editingFocusNode.requestFocus();
+  }
+
+  void _startCreatingNewFolder() {
+    if (_editingPath != null) return;
+    final provider = context.read<FileSystemProvider>();
+    setState(() {
+      _isCreatingNew = true;
+      _isCreatingFolder = true;
+      _editingPath = 'new_folder';
+      _creationParentPath = provider.selectedFolderPath;
+      _editingController.clear();
+    });
+    _editingFocusNode.requestFocus();
+  }
+
+  void _startRenaming(FileSystemEntry entry) {
+    if (_editingPath != null) return;
+    setState(() {
+      _isCreatingNew = false;
+      _editingPath = entry.path;
+      _editingController.text =
+          entry.isDirectory
+              ? entry.name
+              : p.basenameWithoutExtension(entry.name);
+    });
+    _editingFocusNode.requestFocus();
+  }
+
+  void _cancelEditing() {
+    setState(() {
+      _editingPath = null;
+      _isCreatingNew = false;
+      _creationParentPath = null;
+      _editingController.clear();
+    });
+  }
+
+  void _submitEdit() {
+    final name = _editingController.text.trim();
+    final provider = context.read<FileSystemProvider>();
+
+    if (_isCreatingNew) {
+      if (name.isNotEmpty) {
+        if (_isCreatingFolder) {
+          provider.createNewFolder(
+            context,
+            name,
+            parentPath: _creationParentPath,
+          );
+        } else {
+          provider.createNewFile(
+            context,
+            name,
+            parentPath: _creationParentPath,
+          );
+        }
+      }
+    } else if (_editingPath != null) {
+      FileSystemEntry? findEntryByPath(
+        List<FileSystemEntry> entries,
+        String path,
+      ) {
+        for (var entry in entries) {
+          if (entry.path == path) return entry;
+          if (entry.isDirectory && entry.children != null) {
+            final found = findEntryByPath(entry.children!, path);
+            if (found != null) return found;
+          }
+        }
+        return null;
+      }
+
+      final entryToRename = findEntryByPath(
+        widget.fileSystemEntries,
+        _editingPath!,
+      );
+      if (entryToRename != null) {
+        final currentName =
+            entryToRename.isDirectory
+                ? entryToRename.name
+                : p.basenameWithoutExtension(entryToRename.name);
+
+        if (name.isNotEmpty && name != currentName) {
+          final newFullName = entryToRename.isDirectory ? name : '$name.md';
+          provider.renameEntry(context, entryToRename, newFullName);
+        }
+      }
+    }
+    _cancelEditing();
+  }
+
+  void _showContextMenu(
+    BuildContext context,
+    Offset position,
+    FileSystemEntry entry,
+  ) {
+    final fileSystemProvider = context.read<FileSystemProvider>();
+
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        position.dx,
+        position.dy,
+        position.dx,
+        position.dy,
+      ),
+      items: <PopupMenuEntry<String>>[
+        PopupMenuItem<String>(
+          value: 'pin',
+          child: ListTile(
+            leading: Icon(
+              entry.isPinned ? Icons.push_pin : Icons.push_pin_outlined,
+              size: 18,
+            ),
+            title: Text(
+              entry.isPinned ? '고정 해제' : '고정하기',
+              style: const TextStyle(fontSize: 13),
+            ),
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+          ),
+        ),
+        PopupMenuItem<String>(
+          value: 'rename',
+          child: const ListTile(
+            leading: Icon(Icons.edit_outlined, size: 18),
+            title: Text('이름 변경', style: TextStyle(fontSize: 13)),
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+          ),
+        ),
+        PopupMenuItem<String>(
+          value: 'delete',
+          child: const ListTile(
+            leading: Icon(
+              Icons.delete_outline,
+              size: 18,
+              color: Colors.redAccent,
+            ),
+            title: Text(
+              '삭제',
+              style: TextStyle(fontSize: 13, color: Colors.redAccent),
+            ),
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+          ),
+        ),
+      ],
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
+      constraints: const BoxConstraints(maxWidth: 150.0),
+      elevation: 4.0,
+      color: Theme.of(context).cardColor,
+    ).then((String? value) {
+      if (value == 'rename') {
+        _startRenaming(entry);
+      } else if (value == 'delete') {
+        widget.onDeleteEntry(entry);
+      } else if (value == 'pin') {
+        fileSystemProvider.togglePinStatus(entry);
+      }
+    });
   }
 
   @override
@@ -114,7 +298,6 @@ class _RightSidebarContentState extends State<RightSidebarContent>
             ],
           ),
         ),
-        // ✨ [수정] 구분선 색상을 테마에서 가져옵니다.
         Divider(height: 1, thickness: 1, color: Theme.of(context).dividerColor),
         Expanded(
           child: TabBarView(
@@ -136,6 +319,30 @@ class _RightSidebarContentState extends State<RightSidebarContent>
   }
 
   Widget _buildFileListView() {
+    List<FileSystemEntry> getAllPinnedEntries(List<FileSystemEntry> entries) {
+      final List<FileSystemEntry> pinned = [];
+      final Set<String> seenPaths = {};
+
+      void findPinnedRecursive(List<FileSystemEntry> currentEntries) {
+        for (final entry in currentEntries) {
+          if (entry.isPinned) {
+            if (seenPaths.add(entry.path)) {
+              pinned.add(entry);
+            }
+          }
+          if (entry.isDirectory && entry.children != null) {
+            findPinnedRecursive(entry.children!);
+          }
+        }
+      }
+
+      findPinnedRecursive(entries);
+      return pinned;
+    }
+
+    final pinnedEntries = getAllPinnedEntries(widget.fileSystemEntries);
+    final regularEntries = widget.fileSystemEntries;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -156,23 +363,39 @@ class _RightSidebarContentState extends State<RightSidebarContent>
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              IconButton(
-                icon: Icon(
-                  Icons.refresh,
-                  size: 14,
-                  color: Colors.grey.shade600,
-                ),
-                tooltip: "새로고침",
-                onPressed: widget.isLoading ? null : widget.onRefresh,
-                padding: EdgeInsets.zero,
-                constraints: BoxConstraints.tight(const Size(28, 28)),
+              Row(
+                children: [
+                  IconButton(
+                    icon: Icon(
+                      Icons.note_add_outlined,
+                      size: 14,
+                      color: Colors.grey.shade600,
+                    ),
+                    tooltip: "새 파일",
+                    onPressed: widget.isLoading ? null : _startCreatingNewFile,
+                    padding: EdgeInsets.zero,
+                    constraints: BoxConstraints.tight(const Size(28, 28)),
+                  ),
+                  IconButton(
+                    icon: Icon(
+                      Icons.create_new_folder_outlined,
+                      size: 14,
+                      color: Colors.grey.shade600,
+                    ),
+                    tooltip: "새 폴더",
+                    onPressed:
+                        widget.isLoading ? null : _startCreatingNewFolder,
+                    padding: EdgeInsets.zero,
+                    constraints: BoxConstraints.tight(const Size(28, 28)),
+                  ),
+                ],
               ),
             ],
           ),
         ),
         if (widget.isLoading)
           const Expanded(child: Center(child: CircularProgressIndicator()))
-        else if (widget.fileSystemEntries.isEmpty)
+        else if (widget.fileSystemEntries.isEmpty && !_isCreatingNew)
           Expanded(
             child: Center(
               child: Padding(
@@ -190,26 +413,104 @@ class _RightSidebarContentState extends State<RightSidebarContent>
           )
         else
           Expanded(
-            child: ListView.builder(
+            child: ListView(
               padding: const EdgeInsets.symmetric(
                 horizontal: 4.0,
                 vertical: 4.0,
               ),
-              itemCount: widget.fileSystemEntries.length,
-              itemBuilder: (context, index) {
-                final entry = widget.fileSystemEntries[index];
-                return _buildFileSystemEntry(
-                  context,
-                  entry,
-                  widget.onEntryTap,
-                  widget.onRenameEntry,
-                  widget.onDeleteEntry,
-                  0,
-                  widget.sidebarIsExpanded,
-                );
-              },
+              children: [
+                if (_isCreatingNew && _creationParentPath == null)
+                  _buildInlineEditingItem(
+                    isFolder: _isCreatingFolder,
+                    indentLevel: 0,
+                    isLast: true,
+                    parentIsLast: [],
+                  ),
+                if (pinnedEntries.isNotEmpty) ...[
+                  _buildSectionHeader("고정된 메모"),
+                  for (int i = 0; i < pinnedEntries.length; i++)
+                    _buildFileSystemEntry(
+                      context,
+                      pinnedEntries[i],
+                      0,
+                      isLast: i == pinnedEntries.length - 1,
+                      parentIsLast: [],
+                    ),
+                  const Divider(height: 24, thickness: 1),
+                ],
+                if (regularEntries.isNotEmpty) ...[
+                  if (pinnedEntries.isNotEmpty) _buildSectionHeader("메모"),
+                  for (int i = 0; i < regularEntries.length; i++)
+                    _buildFileSystemEntry(
+                      context,
+                      regularEntries[i],
+                      0,
+                      isLast: i == regularEntries.length - 1,
+                      parentIsLast: [],
+                    ),
+                ],
+              ],
             ),
           ),
+      ],
+    );
+  }
+
+  Widget _buildSectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(10.0, 8.0, 10.0, 4.0),
+      child: Text(
+        title,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: Colors.grey.shade500,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInlineEditingItem({
+    required bool isFolder,
+    required int indentLevel,
+    required bool isLast,
+    required List<bool> parentIsLast,
+  }) {
+    final double itemHeight = 24.0;
+    final double indentPerLevel = 15.0;
+
+    return Row(
+      children: [
+        CustomPaint(
+          size: Size(indentLevel * indentPerLevel, itemHeight),
+          painter: _TreeLinePainter(
+            indentLevel: indentLevel,
+            isLast: isLast,
+            parentIsLast: parentIsLast,
+            color: Colors.grey.shade500,
+          ),
+        ),
+        Icon(
+          isFolder ? Icons.folder_outlined : Icons.description_outlined,
+          size: 16,
+          color: Colors.grey.shade500,
+        ),
+        const SizedBox(width: 4),
+        Expanded(
+          child: TextField(
+            controller: _editingController,
+            focusNode: _editingFocusNode,
+            autofocus: true,
+            style: const TextStyle(fontSize: 12),
+            decoration: const InputDecoration(
+              isDense: true,
+              contentPadding: EdgeInsets.only(bottom: 8),
+              border: InputBorder.none,
+            ),
+            onSubmitted: (_) => _submitEdit(),
+            onTapOutside: (_) => _submitEdit(),
+          ),
+        ),
       ],
     );
   }
@@ -217,151 +518,187 @@ class _RightSidebarContentState extends State<RightSidebarContent>
   Widget _buildFileSystemEntry(
     BuildContext context,
     FileSystemEntry entry,
-    Function(FileSystemEntry) onEntryTap,
-    Function(FileSystemEntry) onRenameEntry,
-    Function(FileSystemEntry) onDeleteEntry,
-    int indentLevel,
-    bool sidebarIsExpanded,
-  ) {
+    int indentLevel, {
+    required bool isLast,
+    required List<bool> parentIsLast,
+  }) {
+    if (_editingPath == entry.path) {
+      return _buildInlineEditingItem(
+        isFolder: entry.isDirectory,
+        indentLevel: indentLevel,
+        isLast: isLast,
+        parentIsLast: parentIsLast,
+      );
+    }
+
     final double itemHeight = 24.0;
-    final double indentPerLevel = sidebarIsExpanded ? 15.0 : 0.0;
-    final double effectivePaddingLeft = (indentLevel * indentPerLevel);
+    final double indentPerLevel = 15.0;
 
     final Color defaultTextColor = Colors.grey.shade800;
     final Color fileIconColor = Colors.grey.shade500;
     final Color folderIconColor = Colors.blueGrey.shade600;
 
+    Widget entryWidget;
+    final fileSystemProvider = context.watch<FileSystemProvider>();
+
     if (entry.isDirectory) {
-      return ExpandableFolderTile(
-        key: PageStorageKey(entry.path),
-        itemHeight: itemHeight,
-        arrowColor: Colors.grey,
-        folderIcon: Padding(
-          padding: EdgeInsets.only(
-            left: effectivePaddingLeft + (sidebarIsExpanded ? 0.0 : 0.0),
+      final isSelected = fileSystemProvider.selectedFolderPath == entry.path;
+      entryWidget = GestureDetector(
+        onSecondaryTapUp:
+            (details) =>
+                _showContextMenu(context, details.globalPosition, entry),
+        child: ExpandableFolderTile(
+          key: PageStorageKey(entry.path),
+          itemHeight: itemHeight,
+          arrowColor: Colors.grey,
+          folderIcon: Icon(Icons.folder, size: 16, color: folderIconColor),
+          title: Text(
+            entry.name,
+            style: TextStyle(
+              color: defaultTextColor,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              fontFamily: 'Work Sans',
+            ),
+            overflow: TextOverflow.ellipsis,
           ),
-          child: Icon(Icons.folder, size: 16, color: folderIconColor),
-        ),
-        title: Text(
-          entry.name,
-          style: TextStyle(
-            color: defaultTextColor,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            fontFamily: 'Work Sans',
-          ),
-          overflow: TextOverflow.ellipsis,
-        ),
-        children:
-            entry.children!.map((child) {
-              return _buildFileSystemEntry(
+          onSelect: () => fileSystemProvider.selectFolder(entry.path),
+          isSelected: isSelected,
+          children: [
+            if (_isCreatingNew && _creationParentPath == entry.path)
+              _buildInlineEditingItem(
+                isFolder: _isCreatingFolder,
+                indentLevel: indentLevel + 1,
+                isLast: entry.children!.isEmpty,
+                parentIsLast: [...parentIsLast, isLast],
+              ),
+            for (int i = 0; i < entry.children!.length; i++)
+              _buildFileSystemEntry(
                 context,
-                child,
-                onEntryTap,
-                onRenameEntry,
-                onDeleteEntry,
+                entry.children![i],
                 indentLevel + 1,
-                sidebarIsExpanded,
-              );
-            }).toList(),
+                isLast: i == entry.children!.length - 1,
+                parentIsLast: [...parentIsLast, isLast],
+              ),
+          ],
+        ),
       );
     } else {
-      final double totalLeftFixedSpaceForFile =
-          (sidebarIsExpanded ? 20.0 + 4.0 : 0.0 + 4.0);
-      return Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () => onEntryTap(entry),
-          borderRadius: BorderRadius.zero,
-          hoverColor: Colors.grey[200],
-          child: SizedBox(
-            height: itemHeight,
-            child: Padding(
-              padding: EdgeInsets.only(
-                left: effectivePaddingLeft + totalLeftFixedSpaceForFile,
-                right: 8.0,
-              ),
-              child: ClipRect(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.description_outlined,
-                      size: 16,
-                      color: fileIconColor,
+      entryWidget = GestureDetector(
+        onSecondaryTapUp:
+            (details) =>
+                _showContextMenu(context, details.globalPosition, entry),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => widget.onEntryTap(entry),
+            borderRadius: BorderRadius.zero,
+            hoverColor: Colors.grey[200],
+            child: SizedBox(
+              height: itemHeight,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  // ✅ [수정] Icon 위젯에서 'const'를 제거하여 오류를 해결합니다.
+                  Icon(
+                    Icons.description_outlined,
+                    size: 16,
+                    color: fileIconColor,
+                  ),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      p.basenameWithoutExtension(entry.name),
+                      style: TextStyle(
+                        color: defaultTextColor,
+                        fontSize: 12,
+                        fontWeight: FontWeight.normal,
+                        fontFamily: 'Work Sans',
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        p.basenameWithoutExtension(entry.name),
-                        style: TextStyle(
-                          color: defaultTextColor,
-                          fontSize: 12,
-                          fontWeight: FontWeight.normal,
-                          fontFamily: 'Work Sans',
-                        ),
-                        overflow: TextOverflow.ellipsis,
+                  ),
+                  if (entry.isPinned)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 4.0),
+                      child: Icon(
+                        Icons.push_pin,
+                        size: 12,
+                        color: Colors.blueGrey.shade400,
                       ),
                     ),
-                    _buildEntryActions(
-                      context,
-                      entry,
-                      onRenameEntry,
-                      onDeleteEntry,
-                      itemHeight,
-                    ),
-                  ],
-                ),
+                ],
               ),
             ),
           ),
         ),
       );
     }
-  }
 
-  Widget _buildEntryActions(
-    BuildContext context,
-    FileSystemEntry entry,
-    Function(FileSystemEntry) onRenameEntry,
-    Function(FileSystemEntry) onDeleteEntry,
-    double parentItemHeight,
-  ) {
-    final double iconSize = parentItemHeight * 0.7;
-
-    return SizedBox(
-      height: parentItemHeight,
-      width: parentItemHeight,
-      child: PopupMenuButton<String>(
-        onSelected: (value) {
-          if (value == 'rename') {
-            onRenameEntry(entry);
-          } else if (value == 'delete') {
-            onDeleteEntry(entry);
-          }
-        },
-        itemBuilder:
-            (BuildContext context) => <PopupMenuEntry<String>>[
-              const PopupMenuItem<String>(
-                value: 'rename',
-                height: 28,
-                child: Text('이름 변경', style: TextStyle(fontSize: 12)),
-              ),
-              const PopupMenuItem<String>(
-                value: 'delete',
-                height: 28,
-                child: Text('삭제', style: TextStyle(fontSize: 12)),
-              ),
-            ],
-        icon: Icon(
-          Icons.more_vert,
-          size: iconSize,
-          color: Colors.grey.shade500,
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        CustomPaint(
+          size: Size(indentLevel * indentPerLevel, itemHeight),
+          painter: _TreeLinePainter(
+            indentLevel: indentLevel,
+            isLast: isLast,
+            parentIsLast: parentIsLast,
+            color: Colors.grey.shade500,
+          ),
         ),
-        tooltip: '더보기',
-        padding: EdgeInsets.zero,
-        splashRadius: 16,
-      ),
+        Expanded(child: entryWidget),
+      ],
     );
   }
+}
+
+class _TreeLinePainter extends CustomPainter {
+  final int indentLevel;
+  final bool isLast;
+  final List<bool> parentIsLast;
+  final Color color;
+  final double strokeWidth;
+  final double indentSpace;
+
+  // ✅ [수정] 생성자에서 'const'를 제거하여 오류를 해결합니다.
+  _TreeLinePainter({
+    required this.indentLevel,
+    required this.isLast,
+    required this.parentIsLast,
+    this.color = Colors.grey,
+    this.strokeWidth = 1.0,
+    this.indentSpace = 15.0,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint =
+        Paint()
+          ..color = color
+          ..strokeWidth = strokeWidth;
+
+    for (int i = 0; i < indentLevel - 1; i++) {
+      if (!parentIsLast[i + 1]) {
+        final dx = (i * indentSpace) + (indentSpace / 2);
+        canvas.drawLine(Offset(dx, 0), Offset(dx, size.height), paint);
+      }
+    }
+
+    if (indentLevel > 0) {
+      final double dx = ((indentLevel - 1) * indentSpace) + (indentSpace / 2);
+      final double dy = size.height / 2;
+
+      canvas.drawLine(Offset(dx, dy), Offset(dx + indentSpace / 2, dy), paint);
+
+      if (isLast) {
+        canvas.drawLine(Offset(dx, 0), Offset(dx, dy), paint);
+      } else {
+        canvas.drawLine(Offset(dx, 0), Offset(dx, size.height), paint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }

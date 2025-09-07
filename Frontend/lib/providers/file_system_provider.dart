@@ -4,14 +4,18 @@ import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../model/file_system_entry.dart';
 
 class FileSystemProvider extends ChangeNotifier {
   List<FileSystemEntry> _fileSystemEntries = [];
   bool _isLoading = false;
   String? _lastSavedDirectoryPath; // 마지막으로 저장된 폴더 경로
+  List<String> _pinnedPaths = []; // ✨ [수정]
+  static const String _prefsKeyForPinnedPaths = 'pinned_paths'; // ✨ [수정]
 
   FileSystemEntry? _selectedFileForMeetingScreen;
+  String? _selectedFolderPath; // ✨ [추가]
 
   // ✨ 실시간 업데이트를 위한 변수 추가
   StreamSubscription<FileSystemEvent>? _directoryWatcher;
@@ -22,6 +26,11 @@ class FileSystemProvider extends ChangeNotifier {
   String? get lastSavedDirectoryPath => _lastSavedDirectoryPath;
   FileSystemEntry? get selectedFileForMeetingScreen =>
       _selectedFileForMeetingScreen;
+  String? get selectedFolderPath => _selectedFolderPath; // ✨ [추가]
+
+  FileSystemProvider() {
+    _loadPinnedFiles(); // ✨ [추가] Provider 생성 시 고정된 파일 목록 로드
+  }
 
   // ✨ Provider가 소멸될 때 watcher와 timer를 안전하게 정리합니다.
   @override
@@ -35,6 +44,41 @@ class FileSystemProvider extends ChangeNotifier {
   void setSelectedFileForMeetingScreen(FileSystemEntry? entry) {
     _selectedFileForMeetingScreen = entry;
     notifyListeners(); // 변경 사항을 구독자에게 알림
+  }
+
+  // ✨ [추가] 폴더 선택/해제 로직
+  void selectFolder(String? path) {
+    if (_selectedFolderPath == path) {
+      _selectedFolderPath = null; // 이미 선택된 폴더를 다시 탭하면 선택 해제
+    } else {
+      _selectedFolderPath = path;
+    }
+    notifyListeners();
+  }
+
+  // ✨ [추가] SharedPreferences에서 고정된 파일 목록을 불러오는 함수
+  Future<void> _loadPinnedFiles() async {
+    final prefs = await SharedPreferences.getInstance();
+    _pinnedPaths = prefs.getStringList(_prefsKeyForPinnedPaths) ?? [];
+    notifyListeners();
+  }
+
+  // ✨ [추가] SharedPreferences에 고정된 파일 목록을 저장하는 함수
+  Future<void> _savePinnedFiles() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_prefsKeyForPinnedPaths, _pinnedPaths);
+  }
+
+  // ✨ [수정] 파일/폴더의 고정 상태를 토글하는 함수
+  Future<void> togglePinStatus(FileSystemEntry entry) async {
+    if (_pinnedPaths.contains(entry.path)) {
+      _pinnedPaths.remove(entry.path);
+    } else {
+      _pinnedPaths.add(entry.path);
+    }
+
+    await _savePinnedFiles();
+    await scanForFileSystem(); // 상태 변경 후 UI 갱신을 위해 파일 목록 다시 스캔
   }
 
   // 파일 시스템 스캔 및 업데이트
@@ -53,6 +97,7 @@ class FileSystemProvider extends ChangeNotifier {
     }
 
     try {
+      await _loadPinnedFiles(); // ✨ [추가] 스캔 전 최신 고정 목록 확인
       final notesDirPath = await getOrCreateNoteFolderPath();
       _watchDirectory(notesDirPath); // ✨ 디렉토리 감시 시작/확인
 
@@ -60,6 +105,7 @@ class FileSystemProvider extends ChangeNotifier {
       if (await rootDirectory.exists()) {
         final List<FileSystemEntry> entries = [];
         await _buildDirectoryTree(rootDirectory, entries);
+        _markPinnedEntries(entries); // ✨ [추가] 고정된 항목 표시
         _sortEntries(entries);
         _fileSystemEntries = entries;
       }
@@ -101,6 +147,16 @@ class FileSystemProvider extends ChangeNotifier {
     }
   }
 
+  // ✨ [수정] 재귀적으로 순회하며 고정된 항목에 isPinned 플래그를 설정하는 함수
+  void _markPinnedEntries(List<FileSystemEntry> entries) {
+    for (var entry in entries) {
+      entry.isPinned = _pinnedPaths.contains(entry.path);
+      if (entry.isDirectory && entry.children != null) {
+        _markPinnedEntries(entry.children!);
+      }
+    }
+  }
+
   // 재귀적으로 디렉토리를 탐색하고 FileSystemEntry를 빌드하는 헬퍼 함수
   Future<void> _buildDirectoryTree(
     Directory directory,
@@ -133,11 +189,13 @@ class FileSystemProvider extends ChangeNotifier {
     parentChildren.addAll(currentDirChildren);
   }
 
-  // 파일 시스템 항목 정렬 헬퍼 함수
+  // ✨ [수정] 파일 시스템 항목 정렬 헬퍼 함수 (고정된 항목은 정렬에 영향 X)
   void _sortEntries(List<FileSystemEntry> entries) {
     entries.sort((a, b) {
+      // 폴더를 파일보다 앞으로
       if (a.isDirectory && !b.isDirectory) return -1;
       if (!a.isDirectory && b.isDirectory) return 1;
+      // 이름순으로 정렬
       return a.name.toLowerCase().compareTo(b.name.toLowerCase());
     });
   }
@@ -159,13 +217,43 @@ class FileSystemProvider extends ChangeNotifier {
     return folderPath;
   }
 
-  // 새 폴더 생성
-  Future<bool> createNewFolder(BuildContext context, String folderName) async {
+  // ✨ [수정] 새 파일 생성 (부모 경로 지정 가능)
+  Future<bool> createNewFile(
+    BuildContext context,
+    String fileName, {
+    String? parentPath,
+  }) async {
     if (kIsWeb) return false;
     try {
-      String parentPath =
-          _lastSavedDirectoryPath ?? await getOrCreateNoteFolderPath();
-      final newFolderPath = p.join(parentPath, folderName);
+      String basePath = parentPath ?? await getOrCreateNoteFolderPath();
+      final newFilePath = p.join(basePath, '$fileName.md');
+      final newFile = File(newFilePath);
+
+      if (await newFile.exists()) {
+        _showSnackBar(context, '이미 같은 이름의 파일이 존재합니다. ❌', isError: true);
+        return false;
+      }
+
+      await newFile.create();
+      await newFile.writeAsString(''); // 비어있는 파일 생성
+      _showSnackBar(context, '파일 생성 완료: $fileName.md ✅');
+      return true;
+    } catch (e) {
+      _showSnackBar(context, '파일 생성 중 오류 발생: $e ❌', isError: true);
+      return false;
+    }
+  }
+
+  // ✨ [수정] 새 폴더 생성 (부모 경로 지정 가능)
+  Future<bool> createNewFolder(
+    BuildContext context,
+    String folderName, {
+    String? parentPath,
+  }) async {
+    if (kIsWeb) return false;
+    try {
+      String basePath = parentPath ?? await getOrCreateNoteFolderPath();
+      final newFolderPath = p.join(basePath, folderName);
       final newDirectory = Directory(newFolderPath);
 
       if (await newDirectory.exists()) {
@@ -175,7 +263,6 @@ class FileSystemProvider extends ChangeNotifier {
 
       await newDirectory.create(recursive: false);
       _showSnackBar(context, '폴더 생성 완료: $folderName ✅');
-      // scanForFileSystem()은 watcher에 의해 자동으로 호출되므로 여기서 직접 호출할 필요가 없습니다.
       return true;
     } catch (e) {
       _showSnackBar(context, '폴더 생성 중 오류 발생: $e ❌', isError: true);
@@ -204,7 +291,6 @@ class FileSystemProvider extends ChangeNotifier {
         await File(entry.path).rename(newPath);
       }
       _showSnackBar(context, '이름 변경 완료: ${entry.name} -> $newName ✅');
-      // scanForFileSystem()은 watcher에 의해 자동으로 호출됩니다.
       return true;
     } catch (e) {
       _showSnackBar(context, '이름 변경 중 오류 발생: $e ❌', isError: true);
@@ -242,7 +328,6 @@ class FileSystemProvider extends ChangeNotifier {
         await File(entry.path).delete();
       }
       _showSnackBar(context, '삭제 완료: ${entry.name} ✅');
-      // scanForFileSystem()은 watcher에 의해 자동으로 호출됩니다.
       return true;
     } catch (e) {
       _showSnackBar(context, '삭제 중 오류 발생: $e ❌', isError: true);
@@ -269,6 +354,5 @@ class FileSystemProvider extends ChangeNotifier {
 
   void updateLastSavedDirectoryPath(String? path) {
     _lastSavedDirectoryPath = path;
-    // notifyListeners(); // 이 상태 변경은 UI 갱신을 트리거할 필요는 없음
   }
 }
