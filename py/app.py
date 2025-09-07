@@ -90,7 +90,10 @@ def rag_chat():
             "final_context": result.get('final_context', 'N/A')
         })
         
-        return jsonify({'result': result.get('answer')})
+        return jsonify({
+            'result': result.get('answer'),
+            'sources': result.get('sources')
+        })
         
     except Exception as e:
         # [통합] AI가 초기화되지 않았을 때 더 친절한 에러 메시지를 제공하는 로직을 유지합니다.

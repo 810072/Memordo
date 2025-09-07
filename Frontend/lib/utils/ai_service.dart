@@ -247,28 +247,31 @@ Future<String> _getNotesDirectory() async {
       : p.join(home, 'Documents', 'Memordo_Notes');
 }
 
-// [추가됨] 로컬 파일 기반 RAG를 수행하도록 백엔드에 요청하는 최종 함수
-Future<String?> callRagTask({required String query}) async {
+// [수정됨] RAG 기능이 Map<String, dynamic>을 반환하도록 변경
+Future<Map<String, dynamic>?> callRagTask({required String query}) async {
   print('[AI_SERVICE] RAG Task Request: $query');
   try {
-    // 1. 지식 베이스 파일(embeddings.json) 경로 확인
+    // 1. 지식 베이스 파일 경로 확인
     final notesDir = await _getNotesDirectory();
     final embeddingsFile = File(p.join(notesDir, 'embeddings.json'));
 
     if (!await embeddingsFile.exists()) {
-      return "오류: 지식 베이스 파일(embeddings.json)을 찾을 수 없습니다. 먼저 그래프 페이지에서 '임베딩 생성'을 실행해주세요.";
+      return {
+        'error':
+            "오류: 지식 베이스 파일(embeddings.json)을 찾을 수 없습니다. 먼저 그래프 페이지에서 '임베딩 생성'을 실행해주세요.",
+      };
     }
 
-    // 2. 지식 베이스 파일(그래프 정보) 로드
+    // 2. 지식 베이스 파일 로드
     final cacheData = jsonDecode(await embeddingsFile.readAsString());
     final List<dynamic> nodes = cacheData['nodes'] ?? [];
     final List<dynamic> edges = cacheData['edges'] ?? [];
 
     if (nodes.isEmpty) {
-      return "지식 베이스에 문서가 없습니다.";
+      return {'error': "지식 베이스에 문서가 없습니다."};
     }
 
-    // 3. 지식 베이스에 명시된 모든 노트의 최신 내용을 다시 읽기
+    // 3. 지식 베이스 노트의 최신 내용 읽기
     List<Map<String, String>> notesData = [];
     for (var node in nodes) {
       final fileName = node['id'];
@@ -284,8 +287,8 @@ Future<String?> callRagTask({required String query}) async {
     final Map<String, String> headers = {'Content-Type': 'application/json'};
     final Map<String, dynamic> body = {
       'query': query,
-      'notes': notesData, // 모든 노트의 최신 내용
-      'edges': edges, // 문서 간 연결 정보
+      'notes': notesData,
+      'edges': edges,
     };
 
     final response = await http
@@ -294,16 +297,20 @@ Future<String?> callRagTask({required String query}) async {
 
     if (response.statusCode == 200) {
       final data = jsonDecode(utf8.decode(response.bodyBytes));
-      return data['result']?.toString().trim();
+      // 성공 시, 전체 데이터 맵 반환
+      return data;
     } else {
       final errorData = jsonDecode(utf8.decode(response.bodyBytes));
       print(
         '[AI_SERVICE] ❌ RAG Task Failed (${response.statusCode}): $errorData',
       );
-      return "백엔드 오류 (${response.statusCode}): ${errorData['error'] ?? '알 수 없는 오류'}";
+      return {
+        'error':
+            "백엔드 오류 (${response.statusCode}): ${errorData['error'] ?? '알 수 없는 오류'}",
+      };
     }
   } catch (e) {
     print('[AI_SERVICE] ❌ Exception during RAG Task: $e');
-    return "RAG 작업 중 예외가 발생했습니다: $e";
+    return {'error': "RAG 작업 중 예외가 발생했습니다: $e"};
   }
 }

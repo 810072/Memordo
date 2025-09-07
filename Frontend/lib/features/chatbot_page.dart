@@ -8,8 +8,9 @@ import 'dart:async';
 class ChatMessage {
   final String text;
   final bool isUser;
+  final List<String>? sourceFiles; // RAG 소스 파일을 위한 필드 추가
 
-  ChatMessage({required this.text, required this.isUser});
+  ChatMessage({required this.text, required this.isUser, this.sourceFiles});
 }
 
 class ChatbotPage extends StatefulWidget {
@@ -24,6 +25,7 @@ class _ChatbotPageState extends State<ChatbotPage> {
   final ScrollController _scrollController = ScrollController();
   final List<ChatMessage> _messages = [];
   bool _isLoading = false;
+  List<String> _currentSourceFiles = []; // 사이드 패널을 위한 상태 변수
 
   // [수정 1] RAG 모드 활성화를 위한 상태 변수를 추가합니다.
   bool _isRagMode = false;
@@ -49,19 +51,39 @@ class _ChatbotPageState extends State<ChatbotPage> {
     _scrollToBottom();
 
     // RAG 모드 여부에 따라 분기
-    String? response;
     if (_isRagMode) {
-      response = await callRagTask(query: text);
-    } else {
-      response = await callBackendTask(taskType: 'chat', text: text);
-    }
+      final response = await callRagTask(query: text);
+      final responseText =
+          response?['result']?.toString() ??
+          (response?['error']?.toString() ?? "오류가 발생했습니다.");
+      final List<String>? sourceFiles =
+          (response?['sources'] as List?)
+              ?.map((item) => item.toString())
+              .toList();
 
-    setState(() {
-      _isLoading = false;
-      _messages.add(
-        ChatMessage(text: response ?? "오류가 발생했습니다.", isUser: false),
-      );
-    });
+      setState(() {
+        _isLoading = false;
+        _messages.add(
+          ChatMessage(
+            text: responseText,
+            isUser: false,
+            sourceFiles: sourceFiles,
+          ),
+        );
+        // 사이드 패널의 상태를 업데이트
+        _currentSourceFiles = sourceFiles ?? [];
+      });
+    } else {
+      final response = await callBackendTask(taskType: 'chat', text: text);
+      setState(() {
+        _isLoading = false;
+        _messages.add(
+          ChatMessage(text: response ?? "오류가 발생했습니다.", isUser: false),
+        );
+        // 일반 채팅 시에는 소스 패널을 비웁니다.
+        _currentSourceFiles = [];
+      });
+    }
     _scrollToBottom();
   }
 
@@ -86,7 +108,6 @@ class _ChatbotPageState extends State<ChatbotPage> {
         backgroundColor: const Color(0xFFF7F7F7),
         body: Center(
           child: Container(
-            width: 360,
             height: 740,
             decoration: BoxDecoration(
               color: Colors.white,
@@ -104,11 +125,22 @@ class _ChatbotPageState extends State<ChatbotPage> {
                 ),
               ],
             ),
-            child: Column(
+            child: Row(
               children: [
-                _buildChatHeader(),
-                Expanded(child: _buildMessagesArea()),
-                _buildInputField(),
+                // Main chat area
+                Expanded(
+                  child: Column(
+                    children: [
+                      _buildChatHeader(),
+                      Expanded(child: _buildMessagesArea()),
+                      _buildInputField(),
+                    ],
+                  ),
+                ),
+                // Divider and Sources panel (conditional)
+                if (_currentSourceFiles.isNotEmpty)
+                  Container(width: 1, color: Colors.grey.shade200),
+                if (_currentSourceFiles.isNotEmpty) _buildSourcesPanel(),
               ],
             ),
           ),
@@ -311,6 +343,84 @@ class _ChatbotPageState extends State<ChatbotPage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildSourcesPanel() {
+    return Container(
+      width: 200,
+      color: const Color(0xFFF0F2F5),
+      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '참조 문서',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+              color: Color(0xFF333333),
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Divider(),
+          const SizedBox(height: 8),
+          if (_currentSourceFiles.isEmpty)
+            const Expanded(
+              child: Center(
+                child: Text(
+                  '표시할 참조 문서가\n없습니다.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+            )
+          else
+            Expanded(
+              child: ListView.builder(
+                itemCount: _currentSourceFiles.length,
+                itemBuilder: (context, index) {
+                  final file = _currentSourceFiles[index];
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 8.0),
+                    padding: const EdgeInsets.all(8.0),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8.0),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.description,
+                          size: 16,
+                          color: Colors.grey.shade700,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            file,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey.shade800,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+        ],
       ),
     );
   }

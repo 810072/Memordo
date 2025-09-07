@@ -42,6 +42,7 @@ class GraphState(TypedDict):
     expanded_docs: List[Document]
     final_context: str
     answer: str
+    sources: List[str]
 
 # (expand_short_notes, expand_question 함수는 이전과 동일)
 def expand_short_notes(state: GraphState) -> dict:
@@ -260,8 +261,10 @@ def generate_answer(state: GraphState) -> dict:
     chain = prompt_template | llm | StrOutputParser()
     answer = chain.invoke({"context": context_text, "question": question})
     
-    print("--- 답변 생성 완료 ---")
-    return {"final_context": context_text, "answer": answer}
+    # [FIX] 소스 문서 목록을 결과에 포함하여 반환
+    source_names = [doc.metadata['source'] for doc in final_docs]
+    print(f"--- 답변 생성 완료 (참조: {source_names}) ---")
+    return {"final_context": context_text, "answer": answer, "sources": source_names}
 
 def build_rag_workflow():
     workflow = StateGraph(GraphState)
