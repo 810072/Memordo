@@ -10,6 +10,8 @@ class ExpandableFolderTile extends StatefulWidget {
   final double itemHeight;
   final VoidCallback? onSelect;
   final bool isSelected;
+  // ✨ [수정] 확장 상태 변경 콜백 함수 추가
+  final ValueChanged<bool>? onExpansionChanged;
 
   const ExpandableFolderTile({
     Key? key,
@@ -21,6 +23,7 @@ class ExpandableFolderTile extends StatefulWidget {
     this.itemHeight = 24.0,
     this.onSelect,
     this.isSelected = false,
+    this.onExpansionChanged, // ✨ [수정]
   }) : super(key: key);
 
   @override
@@ -49,6 +52,22 @@ class _ExpandableFolderTileState extends State<ExpandableFolderTile>
     }
   }
 
+  // ✨ [수정] isInitiallyExpanded 값이 외부에서 변경되었을 때 상태를 동기화하기 위함
+  @override
+  void didUpdateWidget(covariant ExpandableFolderTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isInitiallyExpanded != _isExpanded) {
+      setState(() {
+        _isExpanded = widget.isInitiallyExpanded;
+        if (_isExpanded) {
+          _controller.forward();
+        } else {
+          _controller.reverse();
+        }
+      });
+    }
+  }
+
   @override
   void dispose() {
     _controller.dispose();
@@ -64,6 +83,8 @@ class _ExpandableFolderTileState extends State<ExpandableFolderTile>
       } else {
         _controller.reverse();
       }
+      // ✨ [수정] 상태 변경 시 콜백 함수 호출
+      widget.onExpansionChanged?.call(_isExpanded);
     });
   }
 

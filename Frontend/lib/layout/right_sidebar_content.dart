@@ -46,6 +46,8 @@ class _RightSidebarContentState extends State<RightSidebarContent>
   final TextEditingController _editingController = TextEditingController();
   final FocusNode _editingFocusNode = FocusNode();
 
+  String? _dragOverPath;
+
   @override
   void initState() {
     super.initState();
@@ -322,13 +324,10 @@ class _RightSidebarContentState extends State<RightSidebarContent>
     List<FileSystemEntry> getAllPinnedEntries(List<FileSystemEntry> entries) {
       final List<FileSystemEntry> pinned = [];
       final Set<String> seenPaths = {};
-
       void findPinnedRecursive(List<FileSystemEntry> currentEntries) {
         for (final entry in currentEntries) {
           if (entry.isPinned) {
-            if (seenPaths.add(entry.path)) {
-              pinned.add(entry);
-            }
+            if (seenPaths.add(entry.path)) pinned.add(entry);
           }
           if (entry.isDirectory && entry.children != null) {
             findPinnedRecursive(entry.children!);
@@ -340,6 +339,7 @@ class _RightSidebarContentState extends State<RightSidebarContent>
       return pinned;
     }
 
+    final fileSystemProvider = context.read<FileSystemProvider>();
     final pinnedEntries = getAllPinnedEntries(widget.fileSystemEntries);
     final regularEntries = widget.fileSystemEntries;
 
@@ -413,43 +413,71 @@ class _RightSidebarContentState extends State<RightSidebarContent>
           )
         else
           Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 4.0,
-                vertical: 4.0,
-              ),
-              children: [
-                if (_isCreatingNew && _creationParentPath == null)
-                  _buildInlineEditingItem(
-                    isFolder: _isCreatingFolder,
-                    indentLevel: 0,
-                    isLast: true,
-                    parentIsLast: [],
+            child: DragTarget<FileSystemEntry>(
+              onWillAccept: (entry) {
+                if (entry == null) return false;
+                setState(() => _dragOverPath = 'root');
+                return true;
+              },
+              onLeave: (entry) {
+                setState(() => _dragOverPath = null);
+              },
+              onAccept: (entry) async {
+                final rootPath =
+                    await fileSystemProvider.getOrCreateNoteFolderPath();
+                fileSystemProvider.moveEntry(
+                  context,
+                  entryToMove: entry,
+                  newParentPath: rootPath,
+                );
+                setState(() => _dragOverPath = null);
+              },
+              builder: (context, candidateData, rejectedData) {
+                return Container(
+                  color:
+                      _dragOverPath == 'root'
+                          ? Theme.of(context).primaryColor.withOpacity(0.1)
+                          : Colors.transparent,
+                  child: ListView(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4.0,
+                      vertical: 4.0,
+                    ),
+                    children: [
+                      if (_isCreatingNew && _creationParentPath == null)
+                        _buildInlineEditingItem(
+                          isFolder: _isCreatingFolder,
+                          indentLevel: 0,
+                          isLast: true,
+                          parentIsLast: [],
+                        ),
+                      if (pinnedEntries.isNotEmpty) ...[
+                        _buildSectionHeader("고정된 메모"),
+                        for (int i = 0; i < pinnedEntries.length; i++)
+                          _buildFileSystemEntry(
+                            context,
+                            pinnedEntries[i],
+                            0,
+                            isLast: i == pinnedEntries.length - 1,
+                            parentIsLast: [],
+                          ),
+                        const Divider(height: 24, thickness: 1),
+                      ],
+                      if (regularEntries.isNotEmpty) ...[
+                        if (pinnedEntries.isNotEmpty) _buildSectionHeader("메모"),
+                        for (int i = 0; i < regularEntries.length; i++)
+                          _buildFileSystemEntry(
+                            context,
+                            regularEntries[i],
+                            0,
+                            isLast: i == regularEntries.length - 1,
+                            parentIsLast: [],
+                          ),
+                      ],
+                    ],
                   ),
-                if (pinnedEntries.isNotEmpty) ...[
-                  _buildSectionHeader("고정된 메모"),
-                  for (int i = 0; i < pinnedEntries.length; i++)
-                    _buildFileSystemEntry(
-                      context,
-                      pinnedEntries[i],
-                      0,
-                      isLast: i == pinnedEntries.length - 1,
-                      parentIsLast: [],
-                    ),
-                  const Divider(height: 24, thickness: 1),
-                ],
-                if (regularEntries.isNotEmpty) ...[
-                  if (pinnedEntries.isNotEmpty) _buildSectionHeader("메모"),
-                  for (int i = 0; i < regularEntries.length; i++)
-                    _buildFileSystemEntry(
-                      context,
-                      regularEntries[i],
-                      0,
-                      isLast: i == regularEntries.length - 1,
-                      parentIsLast: [],
-                    ),
-                ],
-              ],
+                );
+              },
             ),
           ),
       ],
@@ -478,7 +506,6 @@ class _RightSidebarContentState extends State<RightSidebarContent>
   }) {
     final double itemHeight = 24.0;
     final double indentPerLevel = 15.0;
-
     return Row(
       children: [
         CustomPaint(
@@ -515,6 +542,7 @@ class _RightSidebarContentState extends State<RightSidebarContent>
     );
   }
 
+  // ✨ [수정] 드래그 앤 드롭과 들여쓰기 문제를 해결하기 위해 구조 재통합 및 로직 수정
   Widget _buildFileSystemEntry(
     BuildContext context,
     FileSystemEntry entry,
@@ -531,60 +559,90 @@ class _RightSidebarContentState extends State<RightSidebarContent>
       );
     }
 
-    final double itemHeight = 24.0;
-    final double indentPerLevel = 15.0;
-
-    final Color defaultTextColor = Colors.grey.shade800;
-    final Color fileIconColor = Colors.grey.shade500;
-    final Color folderIconColor = Colors.blueGrey.shade600;
-
-    Widget entryWidget;
     final fileSystemProvider = context.watch<FileSystemProvider>();
 
+    // 핵심 UI 위젯 (Tile) 정의
+    Widget tile;
     if (entry.isDirectory) {
       final isSelected = fileSystemProvider.selectedFolderPath == entry.path;
-      entryWidget = GestureDetector(
-        onSecondaryTapUp:
-            (details) =>
-                _showContextMenu(context, details.globalPosition, entry),
-        child: ExpandableFolderTile(
-          key: PageStorageKey(entry.path),
-          itemHeight: itemHeight,
-          arrowColor: Colors.grey,
-          folderIcon: Icon(Icons.folder, size: 16, color: folderIconColor),
-          title: Text(
-            entry.name,
-            style: TextStyle(
-              color: defaultTextColor,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              fontFamily: 'Work Sans',
+      final isDragOver = _dragOverPath == entry.path;
+
+      tile = DragTarget<FileSystemEntry>(
+        onWillAccept: (data) {
+          if (data == null ||
+              data.path == entry.path ||
+              p.isWithin(entry.path, data.path)) {
+            return false;
+          }
+          setState(() => _dragOverPath = entry.path);
+          return true;
+        },
+        onLeave: (data) => setState(() => _dragOverPath = null),
+        onAccept: (data) {
+          fileSystemProvider.moveEntry(
+            context,
+            entryToMove: data,
+            newParentPath: entry.path,
+          );
+          setState(() => _dragOverPath = null);
+        },
+        builder: (context, candidateData, rejectedData) {
+          return ExpandableFolderTile(
+            key: PageStorageKey(entry.path),
+            folderIcon: Icon(
+              Icons.folder,
+              size: 16,
+              color: Colors.blueGrey.shade600,
             ),
-            overflow: TextOverflow.ellipsis,
-          ),
-          onSelect: () => fileSystemProvider.selectFolder(entry.path),
-          isSelected: isSelected,
-          children: [
-            if (_isCreatingNew && _creationParentPath == entry.path)
-              _buildInlineEditingItem(
-                isFolder: _isCreatingFolder,
-                indentLevel: indentLevel + 1,
-                isLast: entry.children!.isEmpty,
-                parentIsLast: [...parentIsLast, isLast],
+            title: Text(
+              entry.name,
+              style: TextStyle(
+                color: Colors.grey.shade800,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                fontFamily: 'Work Sans',
               ),
-            for (int i = 0; i < entry.children!.length; i++)
-              _buildFileSystemEntry(
-                context,
-                entry.children![i],
-                indentLevel + 1,
-                isLast: i == entry.children!.length - 1,
-                parentIsLast: [...parentIsLast, isLast],
-              ),
-          ],
-        ),
+              overflow: TextOverflow.ellipsis,
+            ),
+            onSelect: () => fileSystemProvider.selectFolder(entry.path),
+            isSelected: isSelected,
+            isInitiallyExpanded: fileSystemProvider.expandedFolderPaths
+                .contains(entry.path),
+            onExpansionChanged:
+                (isExpanded) => fileSystemProvider.setFolderExpanded(
+                  entry.path,
+                  isExpanded,
+                ),
+            backgroundColor:
+                isDragOver
+                    ? Theme.of(context).primaryColor.withOpacity(0.1)
+                    : null,
+            onSecondaryTapUp:
+                (details) =>
+                    _showContextMenu(context, details.globalPosition, entry),
+            children: [
+              if (_isCreatingNew && _creationParentPath == entry.path)
+                _buildInlineEditingItem(
+                  isFolder: _isCreatingFolder,
+                  indentLevel: indentLevel + 1,
+                  isLast: true,
+                  parentIsLast: [...parentIsLast, isLast],
+                ),
+              for (int i = 0; i < entry.children!.length; i++)
+                _buildFileSystemEntry(
+                  context,
+                  entry.children![i],
+                  indentLevel + 1, // ✨ 들여쓰기 수준을 1 증가시켜 전달
+                  isLast: i == entry.children!.length - 1,
+                  parentIsLast: [...parentIsLast, isLast], // ✨ 부모의 마지막 여부 상태 전달
+                ),
+            ],
+          );
+        },
       );
     } else {
-      entryWidget = GestureDetector(
+      // 파일 UI 정의
+      tile = GestureDetector(
         onSecondaryTapUp:
             (details) =>
                 _showContextMenu(context, details.globalPosition, entry),
@@ -595,22 +653,21 @@ class _RightSidebarContentState extends State<RightSidebarContent>
             borderRadius: BorderRadius.zero,
             hoverColor: Colors.grey[200],
             child: SizedBox(
-              height: itemHeight,
+              height: 24.0,
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  // ✅ [수정] Icon 위젯에서 'const'를 제거하여 오류를 해결합니다.
                   Icon(
                     Icons.description_outlined,
                     size: 16,
-                    color: fileIconColor,
+                    color: Colors.grey.shade500,
                   ),
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(
                       p.basenameWithoutExtension(entry.name),
                       style: TextStyle(
-                        color: defaultTextColor,
+                        color: Colors.grey.shade800,
                         fontSize: 12,
                         fontWeight: FontWeight.normal,
                         fontFamily: 'Work Sans',
@@ -635,11 +692,12 @@ class _RightSidebarContentState extends State<RightSidebarContent>
       );
     }
 
+    // Draggable로 감싸고 최종 Row로 조합
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         CustomPaint(
-          size: Size(indentLevel * indentPerLevel, itemHeight),
+          size: Size(indentLevel * 15.0, 24.0),
           painter: _TreeLinePainter(
             indentLevel: indentLevel,
             isLast: isLast,
@@ -647,7 +705,56 @@ class _RightSidebarContentState extends State<RightSidebarContent>
             color: Colors.grey.shade500,
           ),
         ),
-        Expanded(child: entryWidget),
+        Expanded(
+          child: Draggable<FileSystemEntry>(
+            data: entry,
+            feedback: Material(
+              color: Colors.transparent,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).cardColor.withOpacity(0.8),
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.2),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      entry.isDirectory ? Icons.folder : Icons.description,
+                      size: 14,
+                      color: Colors.grey.shade700,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      entry.name,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            childWhenDragging: Opacity(opacity: 0.3, child: tile),
+            onDragStarted: () {
+              if (entry.isDirectory) {
+                fileSystemProvider.setFolderExpanded(entry.path, false);
+              }
+            },
+            child: tile,
+          ),
+        ),
       ],
     );
   }
@@ -661,7 +768,6 @@ class _TreeLinePainter extends CustomPainter {
   final double strokeWidth;
   final double indentSpace;
 
-  // ✅ [수정] 생성자에서 'const'를 제거하여 오류를 해결합니다.
   _TreeLinePainter({
     required this.indentLevel,
     required this.isLast,
@@ -678,8 +784,9 @@ class _TreeLinePainter extends CustomPainter {
           ..color = color
           ..strokeWidth = strokeWidth;
 
-    for (int i = 0; i < indentLevel - 1; i++) {
-      if (!parentIsLast[i + 1]) {
+    // 부모로부터 이어지는 수직선들 그리기
+    for (int i = 0; i < parentIsLast.length; i++) {
+      if (!parentIsLast[i]) {
         final dx = (i * indentSpace) + (indentSpace / 2);
         canvas.drawLine(Offset(dx, 0), Offset(dx, size.height), paint);
       }
@@ -689,8 +796,10 @@ class _TreeLinePainter extends CustomPainter {
       final double dx = ((indentLevel - 1) * indentSpace) + (indentSpace / 2);
       final double dy = size.height / 2;
 
+      // 현재 아이템으로 뻗어오는 수평선
       canvas.drawLine(Offset(dx, dy), Offset(dx + indentSpace / 2, dy), paint);
 
+      // 현재 아이템의 수직선
       if (isLast) {
         canvas.drawLine(Offset(dx, 0), Offset(dx, dy), paint);
       } else {
@@ -701,4 +810,143 @@ class _TreeLinePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
+class ExpandableFolderTile extends StatefulWidget {
+  final Widget folderIcon;
+  final Widget title;
+  final List<Widget> children;
+  final bool isInitiallyExpanded;
+  final Color arrowColor;
+  final double itemHeight;
+  final VoidCallback? onSelect;
+  final bool isSelected;
+  final ValueChanged<bool>? onExpansionChanged;
+  final Color? backgroundColor;
+  final void Function(TapUpDetails)? onSecondaryTapUp;
+
+  const ExpandableFolderTile({
+    Key? key,
+    required this.folderIcon,
+    required this.title,
+    required this.children,
+    this.isInitiallyExpanded = false,
+    this.arrowColor = Colors.grey,
+    this.itemHeight = 24.0,
+    this.onSelect,
+    this.isSelected = false,
+    this.onExpansionChanged,
+    this.backgroundColor,
+    this.onSecondaryTapUp,
+  }) : super(key: key);
+
+  @override
+  _ExpandableFolderTileState createState() => _ExpandableFolderTileState();
+}
+
+class _ExpandableFolderTileState extends State<ExpandableFolderTile>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _heightFactor;
+  bool _isExpanded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _isExpanded = widget.isInitiallyExpanded;
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 200),
+      vsync: this,
+    );
+    _heightFactor = _controller.drive(CurveTween(curve: Curves.easeInQuad));
+    if (_isExpanded) _controller.value = 1.0;
+  }
+
+  @override
+  void didUpdateWidget(covariant ExpandableFolderTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isInitiallyExpanded != _isExpanded) {
+      setState(() {
+        _isExpanded = widget.isInitiallyExpanded;
+        if (_isExpanded)
+          _controller.forward();
+        else
+          _controller.reverse();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _handleTap() {
+    widget.onSelect?.call();
+    setState(() {
+      _isExpanded = !_isExpanded;
+      if (_isExpanded)
+        _controller.forward();
+      else
+        _controller.reverse();
+      widget.onExpansionChanged?.call(_isExpanded);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bgColor =
+        widget.backgroundColor ??
+        (widget.isSelected
+            ? Theme.of(context).primaryColor.withOpacity(0.1)
+            : Colors.transparent);
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        GestureDetector(
+          onSecondaryTapUp: widget.onSecondaryTapUp,
+          child: Material(
+            color: bgColor,
+            child: InkWell(
+              onTap: _handleTap,
+              hoverColor: Colors.grey[200],
+              splashFactory: NoSplash.splashFactory,
+              child: SizedBox(
+                height: widget.itemHeight,
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 20,
+                      child: Center(
+                        child: Icon(
+                          _isExpanded
+                              ? Icons.keyboard_arrow_down
+                              : Icons.keyboard_arrow_right,
+                          size: 16,
+                          color: widget.arrowColor,
+                        ),
+                      ),
+                    ),
+                    widget.folderIcon,
+                    const SizedBox(width: 4),
+                    Expanded(child: widget.title),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        AnimatedBuilder(
+          animation: _controller.view,
+          builder:
+              (context, child) => ClipRect(
+                child: Align(heightFactor: _heightFactor.value, child: child),
+              ),
+          child: Column(children: widget.children),
+        ),
+      ],
+    );
+  }
 }
