@@ -1,3 +1,0 @@
-([('memordo_ai_backend',
-   '/Users/kimsb/flutter/Memordo_main3/Memordo/dist/memordo_ai_backend',
-   'EXECUTABLE')],)
