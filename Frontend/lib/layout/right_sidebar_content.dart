@@ -265,6 +265,7 @@ class _RightSidebarContentState extends State<RightSidebarContent>
           child: Row(
             mainAxisAlignment: MainAxisAlignment.start,
             children: [
+              // ✨ [수정 1] TabBar를 Flexible로 감싸 오버플로우를 방지합니다.
               Flexible(
                 child: TabBar(
                   controller: _tabController,
@@ -274,24 +275,26 @@ class _RightSidebarContentState extends State<RightSidebarContent>
                   indicatorColor: Theme.of(context).primaryColor,
                   indicatorWeight: 2.5,
                   tabAlignment: TabAlignment.start,
+                  // ✨ [수정 2] 아이콘 간 좌우 간격을 줄이기 위해 labelPadding을 추가합니다.
+                  labelPadding: const EdgeInsets.symmetric(horizontal: 12.0),
                   onTap: (index) {
                     bottomCtrl.setActiveTab(index);
                   },
                   tabs: const [
                     Tab(
-                      icon: Icon(Icons.folder_outlined, size: 20),
+                      icon: Icon(Icons.folder_outlined, size: 16),
                       iconMargin: EdgeInsets.zero,
                     ),
                     Tab(
-                      icon: Icon(Icons.format_list_bulleted, size: 20),
+                      icon: Icon(Icons.format_list_bulleted, size: 16),
                       iconMargin: EdgeInsets.zero,
                     ),
                     Tab(
-                      icon: Icon(Icons.auto_awesome_outlined, size: 20),
+                      icon: Icon(Icons.auto_awesome_outlined, size: 16),
                       iconMargin: EdgeInsets.zero,
                     ),
                     Tab(
-                      icon: Icon(Icons.edit_note, size: 20),
+                      icon: Icon(Icons.edit_note, size: 16),
                       iconMargin: EdgeInsets.zero,
                     ),
                   ],
@@ -542,7 +545,6 @@ class _RightSidebarContentState extends State<RightSidebarContent>
     );
   }
 
-  // ✨ [수정] 드래그 앤 드롭과 들여쓰기 문제를 해결하기 위해 구조 재통합 및 로직 수정
   Widget _buildFileSystemEntry(
     BuildContext context,
     FileSystemEntry entry,
@@ -561,7 +563,6 @@ class _RightSidebarContentState extends State<RightSidebarContent>
 
     final fileSystemProvider = context.watch<FileSystemProvider>();
 
-    // 핵심 UI 위젯 (Tile) 정의
     Widget tile;
     if (entry.isDirectory) {
       final isSelected = fileSystemProvider.selectedFolderPath == entry.path;
@@ -632,16 +633,15 @@ class _RightSidebarContentState extends State<RightSidebarContent>
                 _buildFileSystemEntry(
                   context,
                   entry.children![i],
-                  indentLevel + 1, // ✨ 들여쓰기 수준을 1 증가시켜 전달
+                  indentLevel + 1,
                   isLast: i == entry.children!.length - 1,
-                  parentIsLast: [...parentIsLast, isLast], // ✨ 부모의 마지막 여부 상태 전달
+                  parentIsLast: [...parentIsLast, isLast],
                 ),
             ],
           );
         },
       );
     } else {
-      // 파일 UI 정의
       tile = GestureDetector(
         onSecondaryTapUp:
             (details) =>
@@ -692,7 +692,6 @@ class _RightSidebarContentState extends State<RightSidebarContent>
       );
     }
 
-    // Draggable로 감싸고 최종 Row로 조합
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -784,7 +783,6 @@ class _TreeLinePainter extends CustomPainter {
           ..color = color
           ..strokeWidth = strokeWidth;
 
-    // 부모로부터 이어지는 수직선들 그리기
     for (int i = 0; i < parentIsLast.length; i++) {
       if (!parentIsLast[i]) {
         final dx = (i * indentSpace) + (indentSpace / 2);
@@ -796,10 +794,8 @@ class _TreeLinePainter extends CustomPainter {
       final double dx = ((indentLevel - 1) * indentSpace) + (indentSpace / 2);
       final double dy = size.height / 2;
 
-      // 현재 아이템으로 뻗어오는 수평선
       canvas.drawLine(Offset(dx, dy), Offset(dx + indentSpace / 2, dy), paint);
 
-      // 현재 아이템의 수직선
       if (isLast) {
         canvas.drawLine(Offset(dx, 0), Offset(dx, dy), paint);
       } else {

@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:convert';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
-import 'package:window_manager/window_manager.dart'; // ✨ window_manager 임포트 추가
+import 'package:window_manager/window_manager.dart';
 
 import 'left_sidebar_content.dart';
 import 'right_sidebar_content.dart';
@@ -24,14 +24,13 @@ import '../services/auth_token.dart';
 class MainLayout extends StatefulWidget {
   final PageType activePage;
   final ValueChanged<PageType> onPageSelected;
-  // ✨ [추가] 새 메모를 위한 초기 텍스트를 받는 매개변수
   final String? initialTextForMemo;
 
   const MainLayout({
     Key? key,
     required this.activePage,
     required this.onPageSelected,
-    this.initialTextForMemo, // ✨ [추가]
+    this.initialTextForMemo,
   }) : super(key: key);
 
   @override
@@ -39,14 +38,11 @@ class MainLayout extends StatefulWidget {
 }
 
 class _MainLayoutState extends State<MainLayout> {
-  bool _isLeftExpanded = false;
   bool _isRightExpanded = true;
-  // ✨ [제거] initState에서 한 번만 생성되던 _pages 리스트를 제거합니다.
 
   @override
   void initState() {
     super.initState();
-    // ✨ [제거] _pages 초기화 로직 제거
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<TokenStatusProvider>(
         context,
@@ -55,12 +51,9 @@ class _MainLayoutState extends State<MainLayout> {
     });
   }
 
-  // ✨ [수정] build 메서드 내에서 페이지 위젯을 생성하도록 변경
   Widget _getPageWidget(PageType pageType) {
     switch (pageType) {
       case PageType.home:
-        // widget.initialTextForMemo를 사용하여 MeetingScreen을 생성합니다.
-        // key를 사용하여 initialText가 변경될 때마다 MeetingScreen이 새로 생성되도록 합니다.
         return MeetingScreen(
           key: ValueKey(widget.initialTextForMemo),
           initialText: widget.initialTextForMemo,
@@ -93,12 +86,6 @@ class _MainLayoutState extends State<MainLayout> {
 
   bool get _showRightSidebar => widget.activePage == PageType.home;
 
-  void _toggleLeftPanel() {
-    setState(() {
-      _isLeftExpanded = !_isLeftExpanded;
-    });
-  }
-
   void _toggleRightPanel() {
     setState(() {
       _isRightExpanded = !_isRightExpanded;
@@ -107,15 +94,11 @@ class _MainLayoutState extends State<MainLayout> {
 
   @override
   Widget build(BuildContext context) {
-    // ✨ [추가] build 메서드가 호출될 때마다 페이지 리스트를 새로 생성합니다.
-    // 이렇게 하면 initialTextForMemo가 변경되었을 때 MeetingScreen에 올바르게 전달됩니다.
     final pages =
         PageType.values.map((pageType) => _getPageWidget(pageType)).toList();
-
     final bool showRightPanelButton = _showRightSidebar;
 
     return Scaffold(
-      // ✨ [수정] AppBar를 DragToMoveArea로 감싸서 창을 드래그할 수 있게 합니다.
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(35.0),
         child: DragToMoveArea(
@@ -128,25 +111,23 @@ class _MainLayoutState extends State<MainLayout> {
               ),
             ),
             titleSpacing: 0,
-            leading: IconButton(
-              icon: const Icon(Icons.menu, color: Color(0xFF475569)),
-              onPressed: _toggleLeftPanel,
-              tooltip: 'Toggle Sidebar',
-            ),
-            title: Row(
-              children: [
-                const Icon(Icons.note_alt_rounded, color: Color(0xFF3d98f4)),
-                const SizedBox(width: 6),
-                Text(
-                  'Memordo',
-                  style: TextStyle(
-                    color: Theme.of(context).appBarTheme.foregroundColor,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 18,
-                    fontFamily: 'Work Sans',
+            title: Padding(
+              padding: const EdgeInsets.only(left: 16.0),
+              child: Row(
+                children: [
+                  const Icon(Icons.note_alt_rounded, color: Color(0xFF3d98f4)),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Memordo',
+                    style: TextStyle(
+                      color: Theme.of(context).appBarTheme.foregroundColor,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 18,
+                      fontFamily: 'Work Sans',
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
             actions: [
               IconButton(
@@ -168,7 +149,6 @@ class _MainLayoutState extends State<MainLayout> {
                   tooltip: 'Toggle Memos',
                 ),
               _buildUserProfileIcon(context),
-              // ✨ [추가] 직접 만든 창 조절 버튼
               const WindowButtons(),
               const SizedBox(width: 10),
             ],
@@ -177,10 +157,8 @@ class _MainLayoutState extends State<MainLayout> {
       ),
       body: Row(
         children: [
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 250),
-            curve: Curves.easeInOut,
-            width: _isLeftExpanded ? 192 : 52,
+          Container(
+            width: 42,
             decoration: BoxDecoration(
               color: Theme.of(context).cardColor,
               border: Border(
@@ -188,16 +166,9 @@ class _MainLayoutState extends State<MainLayout> {
               ),
             ),
             child: LeftSidebarContent(
-              isExpanded: _isLeftExpanded,
+              isExpanded: false,
               activePage: widget.activePage,
               onPageSelected: widget.onPageSelected,
-            ),
-          ),
-          Expanded(
-            child: IndexedStack(
-              index: widget.activePage.index,
-              // ✨ [수정] 새로 생성된 pages 리스트를 사용합니다.
-              children: pages,
             ),
           ),
           if (_showRightSidebar)
@@ -239,6 +210,12 @@ class _MainLayoutState extends State<MainLayout> {
                 },
               ),
             ),
+          Expanded(
+            child: IndexedStack(
+              index: widget.activePage.index,
+              children: pages,
+            ),
+          ),
         ],
       ),
     );
@@ -419,7 +396,6 @@ class _MainLayoutState extends State<MainLayout> {
   }
 }
 
-// ✨ [추가] 창 조절 버튼을 위한 새로운 위젯
 class WindowButtons extends StatelessWidget {
   const WindowButtons({Key? key}) : super(key: key);
 
@@ -472,7 +448,8 @@ class ResizableRightSidebar extends StatefulWidget {
 }
 
 class _ResizableRightSidebarState extends State<ResizableRightSidebar> {
-  double _width = 200.0;
+  // ✨ [수정 1] 기본 너비와 최소 너비를 180.0으로 복원
+  double _width = 160.0;
   bool _isResizing = false;
 
   @override
@@ -494,13 +471,15 @@ class _ResizableRightSidebarState extends State<ResizableRightSidebar> {
 
     return Row(
       children: [
+        resizableContainer,
         if (widget.isVisible)
           GestureDetector(
             onHorizontalDragStart: (_) => setState(() => _isResizing = true),
             onHorizontalDragUpdate: (details) {
               setState(() {
-                _width -= details.delta.dx;
-                _width = _width.clamp(180.0, 500.0);
+                _width += details.delta.dx;
+                // ✨ [수정 2] 최소 너비를 180.0으로 제한
+                _width = _width.clamp(160.0, 500.0);
               });
             },
             onHorizontalDragEnd: (_) => setState(() => _isResizing = false),
@@ -520,7 +499,6 @@ class _ResizableRightSidebarState extends State<ResizableRightSidebar> {
               ),
             ),
           ),
-        resizableContainer,
       ],
     );
   }
