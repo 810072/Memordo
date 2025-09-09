@@ -46,7 +46,6 @@ def log_api_interaction(log_data):
 def home():
     return jsonify({"message": "Gemini AI Python 백엔드 서버가 실행 중입니다.", "status": "ok"})
 
-# [통합] API 키를 받아 AI 클라이언트를 초기화하는 엔드포인트를 유지합니다.
 @app.route('/api/initialize', methods=['POST'])
 def initialize_ai():
     data = request.json
@@ -54,6 +53,11 @@ def initialize_ai():
     
     if not api_key:
         return jsonify({'error': 'api_key가 필요합니다.'}), 400
+    
+    # --- 수정된 부분 ---
+    # LangChain과 같은 다른 라이브러리가 키를 찾을 수 있도록 환경 변수로 설정합니다.
+    os.environ['GOOGLE_API_KEY'] = api_key
+    # --- 여기까지 수정 ---
         
     success = initialize_ai_client(api_key)
     
@@ -96,10 +100,9 @@ def rag_chat():
         })
         
     except Exception as e:
-        # [통합] AI가 초기화되지 않았을 때 더 친절한 에러 메시지를 제공하는 로직을 유지합니다.
         if "AI client has not been initialized" in str(e):
               print(f"API /rag_chat 처리 중 오류: AI 클라이언트가 초기화되지 않았습니다.")
-              return jsonify({"error": "AI가 초기화되지 않았습니다. 먼저 API 키를 등록해주세요."}), 503 # Service Unavailable
+              return jsonify({"error": "AI가 초기화되지 않았습니다. 먼저 API 키를 등록해주세요."}), 503
         
         print(f"API /rag_chat 처리 중 예외: {e}")
         traceback.print_exc()
@@ -113,7 +116,6 @@ def rag_chat():
     finally:
         loop.close()
 
-# --- 나머지 엔드포인트 (두 버전에서 동일하여 변경 없음) ---
 @app.route('/api/get-embeddings', methods=['POST'])
 def get_embeddings():
     try:
