@@ -239,3 +239,19 @@ input:checked + .slider:before {
   background-color: #f0fff0; /* 활성 상태 핸들 배경색 */
   transform: translateX(20px); /* 핸들을 오른쪽으로 20px 이동 */
 }
+
+/* assets/style.css 에 추가 */
+.login-input {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #dcdcdc;
+  border-radius: 3px;
+  box-sizing: border-box;
+}
+.status-message {
+  text-align: center;
+  width: 100%;
+  padding-top: 5px;
+  font-size: 12px;
+  color: #d9534f; /* 에러 메시지 색상 */
+}
