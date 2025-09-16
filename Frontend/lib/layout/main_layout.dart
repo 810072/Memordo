@@ -21,6 +21,7 @@ import '../layout/bottom_section_controller.dart';
 import '../auth/login_page.dart';
 import '../providers/tab_provider.dart';
 import '../viewmodels/history_viewmodel.dart';
+import '../viewmodels/calendar_viewmodel.dart'; // ✨ [추가] CalendarViewModel 임포트
 
 class MainLayout extends StatefulWidget {
   final PageType activePage;
@@ -288,6 +289,22 @@ class _MainLayoutState extends State<MainLayout> {
                               ),
                             ),
                           ),
+                        // ✨ [추가] 캘린더 페이지 제목
+                        if (widget.activePage == PageType.calendar)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 16.0),
+                            child: Text(
+                              'Calendar',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color:
+                                    Theme.of(
+                                      context,
+                                    ).textTheme.bodyLarge?.color,
+                              ),
+                            ),
+                          ),
                         if (widget.activePage != PageType.home) const Spacer(),
                         if (widget.activePage == PageType.home)
                           Consumer<TabProvider>(
@@ -321,7 +338,6 @@ class _MainLayoutState extends State<MainLayout> {
                                             : () =>
                                                 viewModel.loadVisitHistory(),
                                   ),
-                                  // ✨ [수정] ElevatedButton.icon을 IconButton으로 변경
                                   IconButton(
                                     icon: const Icon(
                                       Icons.auto_awesome_outlined,
@@ -340,6 +356,35 @@ class _MainLayoutState extends State<MainLayout> {
                                 ],
                               );
                             },
+                          ),
+                        // ✨ [추가] 캘린더 페이지 액션 버튼 (Today)
+                        if (widget.activePage == PageType.calendar)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 8.0),
+                            child: Consumer<CalendarViewModel>(
+                              builder: (context, viewModel, child) {
+                                return ElevatedButton(
+                                  onPressed: () => viewModel.jumpToToday(),
+                                  child: const Text('Today'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF3d98f4),
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 8,
+                                    ),
+                                    textStyle: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8.0),
+                                    ),
+                                    elevation: 0,
+                                  ),
+                                );
+                              },
+                            ),
                           ),
                         IconButton(
                           icon: const Icon(

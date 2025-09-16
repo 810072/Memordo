@@ -1,10 +1,13 @@
-// Frontend/lib/features/calendar_page.dart
+// lib/features/calendar_page.dart
+
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'package:path/path.dart' as p;
+import '../viewmodels/calendar_viewmodel.dart'; // ✨ [추가] CalendarViewModel 임포트
 
 class CalendarPage extends StatefulWidget {
   const CalendarPage({super.key});
@@ -14,8 +17,9 @@ class CalendarPage extends StatefulWidget {
 }
 
 class _CalendarPageState extends State<CalendarPage> {
-  DateTime _focusedDay = DateTime.now();
-  DateTime? _selectedDay;
+  // ✨ [수정] 로컬 상태를 ViewModel로 이전
+  // DateTime _focusedDay = DateTime.now();
+  // DateTime? _selectedDay;
   CalendarFormat _calendarFormat = CalendarFormat.month;
 
   final Map<DateTime, String> _memoData = {};
@@ -125,54 +129,24 @@ class _CalendarPageState extends State<CalendarPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(children: [_buildTopBar(), _buildCalendarWithMemo()]);
+    // ✨ [수정] ViewModel을 watch하여 UI를 최신 상태로 유지
+    final calendarViewModel = context.watch<CalendarViewModel>();
+
+    // ✨ [수정] _buildTopBar() 호출 및 Column 제거
+    return _buildCalendarWithMemo(calendarViewModel);
   }
 
-  Widget _buildTopBar() {
-    return Container(
-      height: 45,
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      decoration: BoxDecoration(
-        color: Theme.of(context).appBarTheme.backgroundColor,
-        border: Border(
-          bottom: BorderSide(color: Theme.of(context).dividerColor),
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          const Text(
-            'Calendar',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              setState(() {
-                _focusedDay = DateTime.now();
-                _selectedDay = null;
-              });
-            },
-            child: const Text('Today'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF3d98f4),
-              foregroundColor: Colors.white,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  // ✨ [수정] _buildTopBar() 메서드 전체 삭제
 
-  Widget _buildCalendarWithMemo() {
+  // ✨ [수정] ViewModel을 인자로 받도록 변경
+  Widget _buildCalendarWithMemo(CalendarViewModel viewModel) {
     return Expanded(
-      // ✨ [수정] 전체를 감싸는 컨테이너 제거. 이제 각 섹션이 독립적인 위젯으로 배치됨
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              // 캘린더 섹션
               decoration: BoxDecoration(
                 color: Theme.of(context).cardColor,
                 borderRadius: BorderRadius.circular(12.0),
@@ -186,13 +160,15 @@ class _CalendarPageState extends State<CalendarPage> {
                 ],
               ),
               padding: const EdgeInsets.all(16.0),
-              child: _buildCalendarView(),
+              // ✨ [수정] ViewModel을 인자로 전달
+              child: _buildCalendarView(viewModel),
             ),
             const SizedBox(height: 24),
-            if (_selectedDay != null) ...[
-              _buildCreatedFilesList(),
+            // ✨ [수정] ViewModel의 상태를 사용
+            if (viewModel.selectedDay != null) ...[
+              _buildCreatedFilesList(viewModel.selectedDay!),
               const SizedBox(height: 16),
-              _buildMemoSection(),
+              _buildMemoSection(viewModel.selectedDay!),
             ],
           ],
         ),
@@ -200,19 +176,23 @@ class _CalendarPageState extends State<CalendarPage> {
     );
   }
 
-  Widget _buildCalendarView() {
+  // ✨ [수정] ViewModel을 인자로 받도록 변경
+  Widget _buildCalendarView(CalendarViewModel viewModel) {
     return TableCalendar(
       firstDay: DateTime.utc(2010, 1, 1),
       lastDay: DateTime.utc(2030, 12, 31),
-      focusedDay: _focusedDay,
+      // ✨ [수정] ViewModel의 상태를 사용
+      focusedDay: viewModel.focusedDay,
       calendarFormat: _calendarFormat,
-      selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
+      selectedDayPredicate: (day) => isSameDay(viewModel.selectedDay, day),
       onDaySelected: (selectedDay, focusedDay) {
-        setState(() {
-          _selectedDay = selectedDay;
-          _focusedDay = focusedDay;
-          _memoController.text = _memoData[_pureDate(selectedDay)] ?? '';
-        });
+        // ✨ [수정] ViewModel의 메서드 호출
+        viewModel.onDaySelected(selectedDay, focusedDay);
+        _memoController.text = _memoData[_pureDate(selectedDay)] ?? '';
+      },
+      onPageChanged: (focusedDay) {
+        // ✨ [추가] 페이지 변경 시 ViewModel 업데이트
+        viewModel.setFocusedDay(focusedDay);
       },
       eventLoader: (day) {
         final pure = _pureDate(day);
@@ -264,7 +244,8 @@ class _CalendarPageState extends State<CalendarPage> {
     );
   }
 
-  Widget _buildMemoSection() {
+  // ✨ [수정] 선택된 날짜를 인자로 받도록 변경
+  Widget _buildMemoSection(DateTime selectedDay) {
     return Container(
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor,
@@ -304,7 +285,7 @@ class _CalendarPageState extends State<CalendarPage> {
                   border: InputBorder.none,
                 ),
                 onChanged: (value) {
-                  _saveMemo(_pureDate(_selectedDay!), value);
+                  _saveMemo(_pureDate(selectedDay), value);
                 },
               ),
             ),
@@ -314,8 +295,9 @@ class _CalendarPageState extends State<CalendarPage> {
     );
   }
 
-  Widget _buildCreatedFilesList() {
-    final pureSelectedDay = _pureDate(_selectedDay!);
+  // ✨ [수정] 선택된 날짜를 인자로 받도록 변경
+  Widget _buildCreatedFilesList(DateTime selectedDay) {
+    final pureSelectedDay = _pureDate(selectedDay);
     final files = _createdFilesData[pureSelectedDay];
 
     if (files == null || files.isEmpty) {

@@ -26,7 +26,8 @@ import 'features/chatbot_page.dart';
 import 'providers/note_provider.dart';
 import 'providers/scratchpad_provider.dart';
 import 'providers/tab_provider.dart';
-import 'viewmodels/history_viewmodel.dart'; // ✨ [추가] HistoryViewModel 임포트
+import 'viewmodels/history_viewmodel.dart';
+import 'viewmodels/calendar_viewmodel.dart'; // ✨ [추가] CalendarViewModel 임포트
 
 // macOS에서만 사용할 백엔드 서버 프로세스 변수
 Process? _macOSBackendProcess;
@@ -76,8 +77,9 @@ Future<void> main(List<String> args) async {
           ChangeNotifierProvider(create: (context) => NoteProvider()),
           ChangeNotifierProvider(create: (context) => ScratchpadProvider()),
           ChangeNotifierProvider(create: (context) => TabProvider()),
-          // ✨ [수정] HistoryViewModel을 MultiProvider에 추가
           ChangeNotifierProvider(create: (context) => HistoryViewModel()),
+          // ✨ [추가] CalendarViewModel을 MultiProvider에 추가
+          ChangeNotifierProvider(create: (context) => CalendarViewModel()),
         ],
         child: const MyApp(),
       ),
