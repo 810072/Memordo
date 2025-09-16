@@ -1,4 +1,5 @@
 // lib/features/history.dart
+
 import 'dart:async';
 
 import 'package:flutter/gestures.dart';
@@ -7,24 +8,16 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../viewmodels/history_viewmodel.dart';
-import '../layout/bottom_section_controller.dart';
-import '../widgets/ai_summary_widget.dart';
-import '../features/meeting_screen.dart';
-import '../utils/ai_service.dart';
 import '../providers/token_status_provider.dart';
 import '../auth/login_page.dart';
-import '../providers/note_provider.dart';
 
-/// HistoryPage는 ViewModel을 제공하는 역할만 담당합니다.
+// ✨ [수정] HistoryPage는 더 이상 Provider를 생성하지 않고, 단순히 HistoryView를 반환합니다.
 class HistoryPage extends StatelessWidget {
   const HistoryPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => HistoryViewModel(),
-      child: const HistoryView(), // 실제 UI는 HistoryView에서 렌더링
-    );
+    return const HistoryView();
   }
 }
 
@@ -37,8 +30,9 @@ class HistoryView extends StatefulWidget {
 }
 
 class _HistoryViewState extends State<HistoryView> {
-  final Set<String> _selectedUniqueKeys = {};
-  bool _showSummary = false;
+  // ✨ [수정] UI 상태 변수들 제거. ViewModel에서 관리합니다.
+  // final Set<String> _selectedUniqueKeys = {};
+  // bool _showSummary = false;
 
   final TextEditingController _searchController = TextEditingController();
   Timer? _debounce;
@@ -46,25 +40,18 @@ class _HistoryViewState extends State<HistoryView> {
 
   bool _wasAuthenticated = false;
 
-  // ✨ [추가] Provider 인스턴스를 저장할 멤버 변수
-  late final NoteProvider _noteProvider;
-  late final BottomSectionController _bottomController;
-
   @override
   void initState() {
     super.initState();
-    // ✨ [추가] initState에서 context.read를 사용하여 Provider를 한 번만 가져옵니다.
-    // 이렇게 하면 위젯이 비활성화되는 시점에 context에 접근하는 것을 방지할 수 있습니다.
-    _noteProvider = context.read<NoteProvider>();
-    _bottomController = context.read<BottomSectionController>();
-
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final tokenProvider = context.read<TokenStatusProvider>();
+      final historyViewModel = context.read<HistoryViewModel>();
       _wasAuthenticated = tokenProvider.isAuthenticated;
 
       if (_wasAuthenticated) {
-        context.read<HistoryViewModel>().loadVisitHistory().then((_) {
+        historyViewModel.loadVisitHistory().then((_) {
           if (mounted) {
+            // ViewModel의 데이터를 기반으로 필터링
             _filterHistory('');
           }
         });
@@ -89,6 +76,7 @@ class _HistoryViewState extends State<HistoryView> {
   }
 
   void _filterHistory(String query) {
+    // ✨ [수정] ViewModel에서 데이터를 가져오도록 변경
     final viewModel = context.read<HistoryViewModel>();
     final lowerCaseQuery = query.toLowerCase();
 
@@ -107,103 +95,19 @@ class _HistoryViewState extends State<HistoryView> {
     });
   }
 
-  void _handleSummarizeAction() {
-    final viewModel = context.read<HistoryViewModel>();
-    final bottomController = context.read<BottomSectionController>();
-
-    if (bottomController.isLoading) return;
-
-    if (_selectedUniqueKeys.length == 1) {
-      final selectedUniqueKey = _selectedUniqueKeys.first;
-      final lastHyphenIndex = selectedUniqueKey.lastIndexOf('-');
-
-      String? selectedUrl;
-      if (lastHyphenIndex != -1 &&
-          lastHyphenIndex < selectedUniqueKey.length - 1) {
-        selectedUrl = selectedUniqueKey.substring(lastHyphenIndex + 1);
-      } else {
-        selectedUrl = selectedUniqueKey;
-      }
-
-      if (selectedUrl != null && selectedUrl.isNotEmpty) {
-        setState(() => _showSummary = true);
-
-        bottomController.setIsLoading(true);
-        bottomController.updateSummary('URL 요약 중...\n$selectedUrl');
-
-        crawlAndSummarizeUrl(selectedUrl).then((summary) {
-          if (!mounted) return;
-          bottomController.updateSummary(summary ?? '요약에 실패했거나 내용이 없습니다.');
-          bottomController.setIsLoading(false);
-          if (summary == null ||
-              summary.contains("오류") ||
-              summary.contains("실패")) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(summary ?? 'URL 요약에 실패했습니다.'),
-                backgroundColor: Colors.redAccent,
-              ),
-            );
-          }
-        });
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('유효한 URL을 찾을 수 없습니다.'),
-            backgroundColor: Colors.orangeAccent,
-          ),
-        );
-      }
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            _selectedUniqueKeys.isEmpty
-                ? '내용을 요약할 URL을 선택해주세요.'
-                : '내용을 요약할 URL은 하나만 선택할 수 있습니다.',
-          ),
-          backgroundColor: Colors.orangeAccent,
-        ),
-      );
-    }
-  }
-
-  void _createNewMemoWithSummary() {
-    // ✨ [수정] initState에서 저장해둔 provider 인스턴스를 사용합니다.
-    final summary = _bottomController.summaryText;
-
-    if (summary.isNotEmpty &&
-        !summary.contains('실패') &&
-        !summary.contains('오류')) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        // if (!mounted) return; // 콜백 내에서는 mounted 체크가 불안정할 수 있으므로 Provider 콜백 호출은 그대로 둡니다.
-        // ✨ [수정] context를 직접 사용하지 않고, 저장된 provider 인스턴스를 통해 요청합니다.
-        _noteProvider.requestNewMemoFromHistory(summary);
-      });
-    } else {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('생성할 요약 내용이 없습니다.'),
-          backgroundColor: Colors.orangeAccent,
-        ),
-      );
-    }
-  }
+  // ✨ [수정] 요약 관련 함수들 모두 제거 -> ViewModel로 이동됨
 
   @override
   Widget build(BuildContext context) {
     final viewModel = context.watch<HistoryViewModel>();
-    final bottomController = context.watch<BottomSectionController>();
     final tokenProvider = context.watch<TokenStatusProvider>();
 
     if (tokenProvider.isAuthenticated && !_wasAuthenticated) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        context.read<HistoryViewModel>().loadVisitHistory().then((_) {
+        viewModel.loadVisitHistory().then((_) {
           if (mounted) {
             _filterHistory(_searchController.text);
-            _selectedUniqueKeys.clear();
-            _showSummary = false;
+            viewModel.clearSelection();
           }
         });
       });
@@ -222,57 +126,7 @@ class _HistoryViewState extends State<HistoryView> {
 
     return Column(
       children: [
-        Container(
-          height: 45,
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          decoration: BoxDecoration(
-            color: Theme.of(context).appBarTheme.backgroundColor,
-            border: Border(
-              bottom: BorderSide(color: Theme.of(context).dividerColor),
-            ),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                '방문 기록',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-              ),
-              Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.refresh, size: 22),
-                    tooltip: '새로고침',
-                    onPressed:
-                        viewModel.isLoading || !tokenProvider.isAuthenticated
-                            ? null
-                            : () => context
-                                .read<HistoryViewModel>()
-                                .loadVisitHistory()
-                                .then((_) {
-                                  if (mounted) {
-                                    _filterHistory(_searchController.text);
-                                  }
-                                }),
-                  ),
-                  const SizedBox(width: 8),
-                  ElevatedButton.icon(
-                    icon: const Icon(Icons.summarize_outlined, size: 18),
-                    label: const Text("선택 항목 요약"),
-                    onPressed:
-                        !tokenProvider.isAuthenticated
-                            ? null
-                            : _handleSummarizeAction,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF3d98f4),
-                      foregroundColor: Colors.white,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
+        // ✨ [수정] 상단 바 UI 전체 제거
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
           child: TextField(
@@ -343,62 +197,7 @@ class _HistoryViewState extends State<HistoryView> {
                     ),
           ),
         ),
-        if (_showSummary && tokenProvider.isAuthenticated)
-          Expanded(
-            flex: 1,
-            child: Column(
-              children: [
-                Expanded(
-                  child: Container(
-                    margin: const EdgeInsets.only(
-                      top: 16.0,
-                      right: 16.0,
-                      bottom: 8.0,
-                    ),
-                    padding: const EdgeInsets.all(16.0),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).cardColor,
-                      borderRadius: BorderRadius.circular(12.0),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.grey.withOpacity(0.1),
-                          spreadRadius: 1,
-                          blurRadius: 3,
-                          offset: const Offset(0, 1),
-                        ),
-                      ],
-                    ),
-                    child: const AiSummaryWidget(),
-                  ),
-                ),
-                if (!bottomController.isLoading &&
-                    bottomController.summaryText.isNotEmpty &&
-                    !bottomController.summaryText.contains("실패"))
-                  Padding(
-                    padding: const EdgeInsets.only(right: 16.0, bottom: 16.0),
-                    child: Align(
-                      alignment: Alignment.centerRight,
-                      child: ElevatedButton.icon(
-                        icon: const Icon(Icons.note_add_outlined, size: 18),
-                        label: const Text("새 메모 작성"),
-                        onPressed: _createNewMemoWithSummary,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF27ae60),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 10,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8.0),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
+        // ✨ [수정] 하단 요약 위젯 전체 제거
       ],
     );
   }
@@ -440,18 +239,14 @@ class _HistoryViewState extends State<HistoryView> {
 
     final String uniqueKey = '$timestamp-$url';
 
-    final time = _formatTime(timestamp);
-    final bool isChecked = _selectedUniqueKeys.contains(uniqueKey);
+    // ✨ [수정] ViewModel을 통해 선택 상태 확인
+    final viewModel = context.read<HistoryViewModel>();
+    final bool isChecked = viewModel.selectedUniqueKeys.contains(uniqueKey);
 
     return InkWell(
       onTap: () {
-        setState(() {
-          if (isChecked) {
-            _selectedUniqueKeys.remove(uniqueKey);
-          } else {
-            _selectedUniqueKeys.add(uniqueKey);
-          }
-        });
+        // ✨ [수정] ViewModel의 메서드 호출
+        viewModel.toggleItemSelection(uniqueKey);
       },
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 8.0),
@@ -469,13 +264,8 @@ class _HistoryViewState extends State<HistoryView> {
               child: Checkbox(
                 value: isChecked,
                 onChanged: (bool? checked) {
-                  setState(() {
-                    if (checked == true) {
-                      _selectedUniqueKeys.add(uniqueKey);
-                    } else {
-                      _selectedUniqueKeys.remove(uniqueKey);
-                    }
-                  });
+                  // ✨ [수정] ViewModel의 메서드 호출
+                  viewModel.toggleItemSelection(uniqueKey);
                 },
                 activeColor: Theme.of(context).primaryColor,
               ),
@@ -524,7 +314,7 @@ class _HistoryViewState extends State<HistoryView> {
             ),
             const SizedBox(width: 8),
             Text(
-              time,
+              _formatTime(timestamp),
               style: const TextStyle(fontSize: 12, color: Colors.grey),
             ),
             const SizedBox(width: 8),

@@ -1,3 +1,5 @@
+// lib/main.dart
+
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
@@ -23,7 +25,8 @@ import 'providers/token_status_provider.dart';
 import 'features/chatbot_page.dart';
 import 'providers/note_provider.dart';
 import 'providers/scratchpad_provider.dart';
-import 'providers/tab_provider.dart'; // TabProvider 임포트 추가
+import 'providers/tab_provider.dart';
+import 'viewmodels/history_viewmodel.dart'; // ✨ [추가] HistoryViewModel 임포트
 
 // macOS에서만 사용할 백엔드 서버 프로세스 변수
 Process? _macOSBackendProcess;
@@ -42,7 +45,6 @@ Future<void> main(List<String> args) async {
     WidgetsFlutterBinding.ensureInitialized();
     await windowManager.ensureInitialized();
 
-    // ✨ [수정] 앱 시작 로직을 main 함수에서 분리하여 관리합니다.
     await _startBackendServer();
 
     WindowOptions windowOptions = const WindowOptions(
@@ -74,6 +76,8 @@ Future<void> main(List<String> args) async {
           ChangeNotifierProvider(create: (context) => NoteProvider()),
           ChangeNotifierProvider(create: (context) => ScratchpadProvider()),
           ChangeNotifierProvider(create: (context) => TabProvider()),
+          // ✨ [수정] HistoryViewModel을 MultiProvider에 추가
+          ChangeNotifierProvider(create: (context) => HistoryViewModel()),
         ],
         child: const MyApp(),
       ),
@@ -100,7 +104,6 @@ Future<void> _startBackendServer() async {
       File backendFile = File(resourcesPath);
       if (await backendFile.exists()) {
         debugPrint('macOS 백엔드 서버를 시작합니다: $resourcesPath');
-        // ✨ [수정] 'detached: true'를 'mode: ProcessStartMode.detached'로 변경
         _macOSBackendProcess = await Process.start(
           resourcesPath,
           [],
@@ -170,7 +173,6 @@ class MyApp extends StatelessWidget {
   }
 }
 
-// ✨ [수정] WindowListener를 mixin하여 창 닫기 이벤트를 감지합니다.
 class MainLayoutWrapper extends StatefulWidget {
   const MainLayoutWrapper({super.key});
 
@@ -186,7 +188,6 @@ class _MainLayoutWrapperState extends State<MainLayoutWrapper>
   @override
   void initState() {
     super.initState();
-    // 창 이벤트 리스너를 등록합니다.
     windowManager.addListener(this);
     _configureWindowCloseHandler();
 
@@ -201,22 +202,18 @@ class _MainLayoutWrapperState extends State<MainLayoutWrapper>
     };
   }
 
-  // 비동기 작업을 위해 별도 함수로 분리
   void _configureWindowCloseHandler() async {
     await windowManager.setPreventClose(true);
   }
 
   @override
   void dispose() {
-    // 위젯이 소멸될 때 리스너를 제거합니다.
     windowManager.removeListener(this);
     super.dispose();
   }
 
-  /// ✨ [추가] 창을 닫으려고 할 때 호출되는 콜백 메서드
   @override
   Future<void> onWindowClose() async {
-    // 사용자에게 종료 여부를 확인하는 대화상자를 띄웁니다.
     bool isConfirmed =
         await showDialog(
           context: context,
@@ -240,8 +237,8 @@ class _MainLayoutWrapperState extends State<MainLayoutWrapper>
         false;
 
     if (isConfirmed) {
-      await _stopBackendServer(); // 백엔드 서버를 종료하고
-      await windowManager.destroy(); // 실제 창을 닫습니다.
+      await _stopBackendServer();
+      await windowManager.destroy();
     }
   }
 

@@ -1,29 +1,51 @@
 // lib/viewmodels/history_viewmodel.dart
 
-import 'dart:convert'; // lib/viewmodels/history_viewmodel.dart
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:provider/provider.dart';
 import '../services/auth_token.dart';
+import '../layout/bottom_section_controller.dart';
+import '../utils/ai_service.dart';
 
 class HistoryViewModel with ChangeNotifier {
   List<Map<String, dynamic>> _visitHistory = [];
   String _status = '방문 기록을 불러오세요.';
   bool _isLoading = false;
+  // ✨ [추가] 선택된 항목들을 관리하는 Set
+  final Set<String> _selectedUniqueKeys = {};
 
   List<Map<String, dynamic>> get visitHistory => _visitHistory;
   String get status => _status;
   bool get isLoading => _isLoading;
+  // ✨ [추가] 외부에서 선택된 항목에 접근하기 위한 getter
+  Set<String> get selectedUniqueKeys => _selectedUniqueKeys;
 
-  // ✨ [수정] 생성자에서 자동 로딩을 제거합니다.
-  // View의 initState에서 명시적으로 호출하는 것이 더 안정적입니다.
   HistoryViewModel();
 
+  // ✨ [추가] 항목 선택/해제 메서드
+  void toggleItemSelection(String uniqueKey) {
+    if (_selectedUniqueKeys.contains(uniqueKey)) {
+      _selectedUniqueKeys.remove(uniqueKey);
+    } else {
+      _selectedUniqueKeys.add(uniqueKey);
+    }
+    notifyListeners();
+  }
+
+  // ✨ [추가] 모든 선택 해제 메서드
+  void clearSelection() {
+    _selectedUniqueKeys.clear();
+    notifyListeners();
+  }
+
   Future<void> loadVisitHistory() async {
-    // 이미 로딩 중이면 다시 실행하지 않도록 방어 코드 추가
     if (_isLoading) return;
 
     _isLoading = true;
     _status = '방문 기록 불러오는 중...';
+    // ✨ [수정] 새로고침 시 기존 선택 항목 초기화
+    _selectedUniqueKeys.clear();
     notifyListeners();
 
     try {
@@ -37,7 +59,6 @@ class HistoryViewModel with ChangeNotifier {
       if (folderId == null) {
         _visitHistory = [];
         _status = "'memordo' 폴더를 찾을 수 없습니다. 확장 프로그램에서 폴더를 생성해주세요.";
-        // throw Exception("'memordo' 폴더를 찾을 수 없습니다."); // 오류를 던지는 대신 상태 메시지로 처리
       } else {
         final url = Uri.parse(
           'https://www.googleapis.com/drive/v3/files?q=%27$folderId%27+in+parents+and+name+contains+%27.jsonl%27&orderBy=createdTime+desc&fields=nextPageToken,files(id,name,createdTime,modifiedTime)',
@@ -60,7 +81,6 @@ class HistoryViewModel with ChangeNotifier {
             }),
           );
 
-          // ✨ [추가] 모든 기록을 합친 후 중복을 제거하는 로직
           final uniqueKeys = <String>{};
           final List<Map<String, dynamic>> uniqueHistory = [];
           for (var item in allHistory) {
@@ -70,20 +90,17 @@ class HistoryViewModel with ChangeNotifier {
             final uniqueKey = '$timestamp-$url';
 
             if (uniqueKeys.add(uniqueKey)) {
-              // Set에 키 추가 성공 시 (처음 보는 키일 때)
               uniqueHistory.add(item);
             }
           }
-          // --- 중복 제거 로직 끝 ---
 
-          // 중복이 제거된 리스트를 시간순으로 정렬
           uniqueHistory.sort((a, b) {
             final at = a['timestamp'] ?? a['visitTime']?.toString() ?? '';
             final bt = b['timestamp'] ?? b['visitTime']?.toString() ?? '';
             return bt.compareTo(at);
           });
 
-          _visitHistory = uniqueHistory; // 중복 제거된 리스트로 교체
+          _visitHistory = uniqueHistory;
           _status =
               _visitHistory.isEmpty
                   ? '방문 기록이 없습니다.'
@@ -96,6 +113,68 @@ class HistoryViewModel with ChangeNotifier {
     } finally {
       _isLoading = false;
       notifyListeners();
+    }
+  }
+
+  // ✨ [추가] 요약 로직을 처리하는 메서드
+  Future<void> summarizeSelection(BuildContext context) async {
+    final bottomController = context.read<BottomSectionController>();
+
+    if (bottomController.isLoading) return;
+
+    if (_selectedUniqueKeys.length == 1) {
+      final selectedUniqueKey = _selectedUniqueKeys.first;
+      final lastHyphenIndex = selectedUniqueKey.lastIndexOf('-');
+
+      String? selectedUrl;
+      if (lastHyphenIndex != -1 &&
+          lastHyphenIndex < selectedUniqueKey.length - 1) {
+        selectedUrl = selectedUniqueKey.substring(lastHyphenIndex + 1);
+      } else {
+        selectedUrl = selectedUniqueKey;
+      }
+
+      if (selectedUrl != null && selectedUrl.isNotEmpty) {
+        bottomController.setActiveTab(2); // AI 요약 탭으로 이동
+
+        bottomController.setIsLoading(true);
+        bottomController.updateSummary('URL 요약 중...\n$selectedUrl');
+
+        final summary = await crawlAndSummarizeUrl(selectedUrl);
+        if (!context.mounted) return;
+
+        bottomController.updateSummary(summary ?? '요약에 실패했거나 내용이 없습니다.');
+        bottomController.setIsLoading(false);
+
+        if (summary == null ||
+            summary.contains("오류") ||
+            summary.contains("실패")) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(summary ?? 'URL 요약에 실패했습니다.'),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('유효한 URL을 찾을 수 없습니다.'),
+            backgroundColor: Colors.orangeAccent,
+          ),
+        );
+      }
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _selectedUniqueKeys.isEmpty
+                ? '내용을 요약할 URL을 선택해주세요.'
+                : '내용을 요약할 URL은 하나만 선택할 수 있습니다.',
+          ),
+          backgroundColor: Colors.orangeAccent,
+        ),
+      );
     }
   }
 
@@ -176,7 +255,6 @@ class HistoryViewModel with ChangeNotifier {
     );
 
     if (res.statusCode != 200) {
-      // 파일이 없을 때 404가 발생할 수 있으므로, 오류 대신 빈 리스트 반환
       if (res.statusCode == 404) {
         print('⚠️ 파일을 찾을 수 없습니다 (404): $fileId');
         return [];

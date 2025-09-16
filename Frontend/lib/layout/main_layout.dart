@@ -20,6 +20,7 @@ import '../providers/token_status_provider.dart';
 import '../layout/bottom_section_controller.dart';
 import '../auth/login_page.dart';
 import '../providers/tab_provider.dart';
+import '../viewmodels/history_viewmodel.dart';
 
 class MainLayout extends StatefulWidget {
   final PageType activePage;
@@ -88,69 +89,51 @@ class _MainLayoutState extends State<MainLayout> {
 
   bool get _showRightSidebar => widget.activePage == PageType.home;
 
-  Widget _buildTabBar(TabProvider tabProvider) {
+  Widget _buildTabList(TabProvider tabProvider) {
     final theme = Theme.of(context);
+    if (tabProvider.openTabs.isEmpty) {
+      return const SizedBox.shrink(); // 탭이 없으면 빈 공간
+    }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const double defaultTabWidth = 160.0;
+        const double minTabWidth = 80.0;
+        final double totalWidth = constraints.maxWidth;
+        final int tabCount = tabProvider.openTabs.length;
+        double tabWidth = defaultTabWidth;
 
-    return Container(
-      height: 40,
-      child: Row(
-        children: [
-          Expanded(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                if (tabProvider.openTabs.isEmpty) {
-                  return const SizedBox.shrink(); // 탭이 없으면 빈 공간
-                }
-                const double defaultTabWidth = 160.0;
-                const double minTabWidth = 80.0;
-                final double totalWidth = constraints.maxWidth;
-                final int tabCount = tabProvider.openTabs.length;
-                double tabWidth = defaultTabWidth;
+        if (tabCount * defaultTabWidth > totalWidth) {
+          tabWidth = totalWidth / tabCount;
+          if (tabWidth < minTabWidth) {
+            tabWidth = minTabWidth;
+          }
+        }
 
-                if (tabCount * defaultTabWidth > totalWidth) {
-                  tabWidth = totalWidth / tabCount;
-                  if (tabWidth < minTabWidth) {
-                    tabWidth = minTabWidth;
-                  }
-                }
-
-                return SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: List.generate(tabCount, (index) {
-                      return Row(
-                        children: [
-                          _TabItem(
-                            tab: tabProvider.openTabs[index],
-                            isActive: index == tabProvider.activeTabIndex,
-                            onTap: () => tabProvider.setActiveTab(index),
-                            onClose: () => tabProvider.closeTab(index),
-                            width: tabWidth,
-                          ),
-                          if (index < tabCount - 1)
-                            VerticalDivider(
-                              width: 1,
-                              thickness: 1,
-                              color: theme.dividerColor,
-                            ),
-                        ],
-                      );
-                    }),
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: List.generate(tabCount, (index) {
+              return Row(
+                children: [
+                  _TabItem(
+                    tab: tabProvider.openTabs[index],
+                    isActive: index == tabProvider.activeTabIndex,
+                    onTap: () => tabProvider.setActiveTab(index),
+                    onClose: () => tabProvider.closeTab(index),
+                    width: tabWidth,
                   ),
-                );
-              },
-            ),
+                  if (index < tabCount - 1)
+                    VerticalDivider(
+                      width: 1,
+                      thickness: 1,
+                      color: theme.dividerColor,
+                    ),
+                ],
+              );
+            }),
           ),
-          // '+' 버튼
-          IconButton(
-            icon: const Icon(Icons.add, size: 18),
-            onPressed: () => tabProvider.openNewTab(),
-            tooltip: '새 메모',
-            splashRadius: 18,
-            constraints: const BoxConstraints(maxWidth: 36, maxHeight: 36),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -274,7 +257,6 @@ class _MainLayoutState extends State<MainLayout> {
                 DragToMoveArea(
                   child: Container(
                     height: 40.0,
-                    // ✨ [수정] color 속성을 decoration 내부로 이동
                     decoration: BoxDecoration(
                       color: Theme.of(context).cardColor,
                       border: Border(
@@ -287,11 +269,78 @@ class _MainLayoutState extends State<MainLayout> {
                           Expanded(
                             child: Consumer<TabProvider>(
                               builder: (context, tabProvider, child) {
-                                return _buildTabBar(tabProvider);
+                                return _buildTabList(tabProvider);
                               },
                             ),
                           ),
+                        if (widget.activePage == PageType.history)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 16.0),
+                            child: Text(
+                              '방문 기록',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color:
+                                    Theme.of(
+                                      context,
+                                    ).textTheme.bodyLarge?.color,
+                              ),
+                            ),
+                          ),
                         if (widget.activePage != PageType.home) const Spacer(),
+                        if (widget.activePage == PageType.home)
+                          Consumer<TabProvider>(
+                            builder:
+                                (context, tabProvider, child) => IconButton(
+                                  icon: const Icon(Icons.add, size: 18),
+                                  onPressed: () => tabProvider.openNewTab(),
+                                  tooltip: '새 메모',
+                                  splashRadius: 18,
+                                  constraints: const BoxConstraints(
+                                    maxWidth: 36,
+                                    maxHeight: 36,
+                                  ),
+                                ),
+                          ),
+                        if (widget.activePage == PageType.history)
+                          Consumer<HistoryViewModel>(
+                            builder: (context, viewModel, child) {
+                              final tokenProvider =
+                                  context.watch<TokenStatusProvider>();
+                              return Row(
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.refresh, size: 20),
+                                    tooltip: '새로고침',
+                                    color: const Color(0xFF475569),
+                                    onPressed:
+                                        viewModel.isLoading ||
+                                                !tokenProvider.isAuthenticated
+                                            ? null
+                                            : () =>
+                                                viewModel.loadVisitHistory(),
+                                  ),
+                                  // ✨ [수정] ElevatedButton.icon을 IconButton으로 변경
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.auto_awesome_outlined,
+                                      size: 20,
+                                    ),
+                                    tooltip: '선택 항목 요약',
+                                    color: const Color(0xFF475569),
+                                    onPressed:
+                                        viewModel.isLoading ||
+                                                !tokenProvider.isAuthenticated
+                                            ? null
+                                            : () => viewModel
+                                                .summarizeSelection(context),
+                                  ),
+                                  const SizedBox(width: 8),
+                                ],
+                              );
+                            },
+                          ),
                         IconButton(
                           icon: const Icon(
                             Icons.smart_toy_outlined,
