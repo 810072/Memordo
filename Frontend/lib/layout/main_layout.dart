@@ -19,7 +19,6 @@ import '../providers/file_system_provider.dart';
 import '../providers/token_status_provider.dart';
 import '../layout/bottom_section_controller.dart';
 import '../auth/login_page.dart';
-import '../services/auth_token.dart';
 
 class MainLayout extends StatefulWidget {
   final PageType activePage;
@@ -39,6 +38,8 @@ class MainLayout extends StatefulWidget {
 
 class _MainLayoutState extends State<MainLayout> {
   bool _isRightExpanded = true;
+  double _rightSidebarWidth = 160.0;
+  bool _isResizing = false;
 
   @override
   void initState() {
@@ -97,123 +98,159 @@ class _MainLayoutState extends State<MainLayout> {
     final pages =
         PageType.values.map((pageType) => _getPageWidget(pageType)).toList();
     final bool showRightPanelButton = _showRightSidebar;
+    final dividerColor = Theme.of(context).dividerColor;
 
     return Scaffold(
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(35.0),
-        child: DragToMoveArea(
-          child: AppBar(
-            elevation: 0,
-            shape: Border(
-              bottom: BorderSide(
-                color: Theme.of(context).dividerColor,
-                width: 1,
-              ),
-            ),
-            titleSpacing: 0,
-            title: Padding(
-              padding: const EdgeInsets.only(left: 16.0),
-              child: Row(
-                children: [
-                  const Icon(Icons.note_alt_rounded, color: Color(0xFF3d98f4)),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Memordo',
-                    style: TextStyle(
-                      color: Theme.of(context).appBarTheme.foregroundColor,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 18,
-                      fontFamily: 'Work Sans',
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              IconButton(
-                icon: const Icon(
-                  Icons.smart_toy_outlined,
-                  color: Color(0xFF475569),
-                ),
-                onPressed: _openChatbotWindow,
-                tooltip: '챗봇 열기',
-              ),
-              const SizedBox(width: 4),
-              if (showRightPanelButton)
-                IconButton(
-                  icon: const Icon(
-                    Icons.menu_open_outlined,
-                    color: Color(0xFF475569),
-                  ),
-                  onPressed: _toggleRightPanel,
-                  tooltip: 'Toggle Memos',
-                ),
-              _buildUserProfileIcon(context),
-              const WindowButtons(),
-              const SizedBox(width: 10),
-            ],
-          ),
-        ),
-      ),
       body: Row(
         children: [
+          // --- 1. 좌측 고정 사이드바 ---
           Container(
-            width: 42,
-            decoration: BoxDecoration(
-              color: Theme.of(context).cardColor,
-              border: Border(
-                right: BorderSide(color: Theme.of(context).dividerColor),
-              ),
-            ),
-            child: LeftSidebarContent(
-              isExpanded: false,
-              activePage: widget.activePage,
-              onPageSelected: widget.onPageSelected,
+            width: 40,
+            color: Theme.of(context).cardColor,
+            child: Column(
+              children: [
+                // ✨ [삭제] AppBar 높이만큼 있던 공간을 제거합니다.
+                Expanded(
+                  child: LeftSidebarContent(
+                    isExpanded: false,
+                    activePage: widget.activePage,
+                    onPageSelected: widget.onPageSelected,
+                  ),
+                ),
+              ],
             ),
           ),
-          if (_showRightSidebar)
-            ResizableRightSidebar(
-              isVisible: _isRightExpanded,
-              child: Consumer<FileSystemProvider>(
-                builder: (context, fileSystemProvider, child) {
-                  return RightSidebarContent(
-                    isLoading: fileSystemProvider.isLoading,
-                    fileSystemEntries: fileSystemProvider.fileSystemEntries,
-                    onEntryTap: (entry) {
-                      if (entry.isDirectory) {
-                        debugPrint('폴더는 로드할 수 없습니다: ${entry.name}');
-                        return;
-                      }
-                      context.read<BottomSectionController>().setActiveTab(0);
-                      widget.onPageSelected(PageType.home);
-                      fileSystemProvider.setSelectedFileForMeetingScreen(entry);
-                    },
-                    onRefresh: fileSystemProvider.scanForFileSystem,
-                    onRenameEntry: (entry) async {
-                      String? newName = await _showTextInputDialog(
-                        context,
-                        '이름 변경',
-                        '새 이름을 입력하세요.',
-                        initialValue: entry.name,
+          VerticalDivider(thickness: 1, width: 1, color: dividerColor),
+
+          // --- 2. 우측 리사이즈 가능 사이드바 (조건부 표시) ---
+          if (_showRightSidebar && _isRightExpanded)
+            Row(
+              children: [
+                Container(
+                  width: _rightSidebarWidth,
+                  color: Theme.of(context).cardColor,
+                  child: Column(
+                    children: [
+                      // ✨ [삭제] AppBar 높이만큼 있던 공간을 제거합니다.
+                      Expanded(
+                        child: Consumer<FileSystemProvider>(
+                          builder: (context, fileSystemProvider, child) {
+                            return RightSidebarContent(
+                              isLoading: fileSystemProvider.isLoading,
+                              fileSystemEntries:
+                                  fileSystemProvider.fileSystemEntries,
+                              onEntryTap: (entry) {
+                                if (entry.isDirectory) {
+                                  debugPrint('폴더는 로드할 수 없습니다: ${entry.name}');
+                                  return;
+                                }
+                                context
+                                    .read<BottomSectionController>()
+                                    .setActiveTab(0);
+                                widget.onPageSelected(PageType.home);
+                                fileSystemProvider
+                                    .setSelectedFileForMeetingScreen(entry);
+                              },
+                              onRefresh: fileSystemProvider.scanForFileSystem,
+                              onRenameEntry: (entry) async {
+                                String? newName = await _showTextInputDialog(
+                                  context,
+                                  '이름 변경',
+                                  '새 이름을 입력하세요.',
+                                  initialValue: entry.name,
+                                );
+                                if (newName != null &&
+                                    newName.isNotEmpty &&
+                                    newName != entry.name) {
+                                  fileSystemProvider.renameEntry(
+                                    context,
+                                    entry,
+                                    newName,
+                                  );
+                                }
+                              },
+                              onDeleteEntry:
+                                  (entry) => fileSystemProvider.deleteEntry(
+                                    context,
+                                    entry,
+                                  ),
+                              sidebarIsExpanded: _isRightExpanded,
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // --- 리사이즈 핸들러 ---
+                GestureDetector(
+                  onHorizontalDragStart:
+                      (_) => setState(() => _isResizing = true),
+                  onHorizontalDragUpdate: (details) {
+                    setState(() {
+                      _rightSidebarWidth += details.delta.dx;
+                      _rightSidebarWidth = _rightSidebarWidth.clamp(
+                        160.0,
+                        500.0,
                       );
-                      if (newName != null &&
-                          newName.isNotEmpty &&
-                          newName != entry.name) {
-                        fileSystemProvider.renameEntry(context, entry, newName);
-                      }
-                    },
-                    onDeleteEntry:
-                        (entry) =>
-                            fileSystemProvider.deleteEntry(context, entry),
-                    sidebarIsExpanded: _isRightExpanded,
-                  );
-                },
-              ),
+                    });
+                  },
+                  onHorizontalDragEnd:
+                      (_) => setState(() => _isResizing = false),
+                  child: MouseRegion(
+                    cursor: SystemMouseCursors.resizeLeftRight,
+                    child: Container(
+                      width: 8,
+                      color: Colors.transparent,
+                      alignment: Alignment.center,
+                      child: Container(
+                        width: 1,
+                        color:
+                            _isResizing
+                                ? Theme.of(context).primaryColor
+                                : dividerColor,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
+
+          // --- 3. 메인 콘텐츠 영역 ---
           Expanded(
-            child: IndexedStack(
-              index: widget.activePage.index,
-              children: pages,
+            child: Column(
+              children: [
+                // --- 커스텀 AppBar ---
+                DragToMoveArea(
+                  child: Container(
+                    height: 40.0,
+                    padding: const EdgeInsets.only(left: 16.0),
+                    child: Row(
+                      children: [
+                        const Spacer(),
+                        IconButton(
+                          icon: const Icon(
+                            Icons.smart_toy_outlined,
+                            color: Color(0xFF475569),
+                          ),
+                          onPressed: _openChatbotWindow,
+                          tooltip: '챗봇 열기',
+                        ),
+                        _buildUserProfileIcon(context),
+                        const WindowButtons(),
+                      ],
+                    ),
+                  ),
+                ),
+                Divider(thickness: 1, height: 1, color: dividerColor),
+                // --- 페이지 콘텐츠 ---
+                Expanded(
+                  child: IndexedStack(
+                    index: widget.activePage.index,
+                    children: pages,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -428,77 +465,6 @@ class WindowButtons extends StatelessWidget {
           color: const Color(0xFF475569),
           hoverColor: Colors.red.withOpacity(0.1),
         ),
-      ],
-    );
-  }
-}
-
-class ResizableRightSidebar extends StatefulWidget {
-  final Widget child;
-  final bool isVisible;
-
-  const ResizableRightSidebar({
-    Key? key,
-    required this.child,
-    required this.isVisible,
-  }) : super(key: key);
-
-  @override
-  _ResizableRightSidebarState createState() => _ResizableRightSidebarState();
-}
-
-class _ResizableRightSidebarState extends State<ResizableRightSidebar> {
-  // ✨ [수정 1] 기본 너비와 최소 너비를 180.0으로 복원
-  double _width = 160.0;
-  bool _isResizing = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final sidebarContent = Container(
-      decoration: BoxDecoration(color: Theme.of(context).cardColor),
-      child: ClipRect(child: widget.child),
-    );
-
-    final resizableContainer =
-        _isResizing
-            ? Container(width: _width, child: sidebarContent)
-            : AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
-              curve: Curves.easeInOut,
-              width: widget.isVisible ? _width : 0,
-              child: sidebarContent,
-            );
-
-    return Row(
-      children: [
-        resizableContainer,
-        if (widget.isVisible)
-          GestureDetector(
-            onHorizontalDragStart: (_) => setState(() => _isResizing = true),
-            onHorizontalDragUpdate: (details) {
-              setState(() {
-                _width += details.delta.dx;
-                // ✨ [수정 2] 최소 너비를 180.0으로 제한
-                _width = _width.clamp(160.0, 500.0);
-              });
-            },
-            onHorizontalDragEnd: (_) => setState(() => _isResizing = false),
-            child: MouseRegion(
-              cursor: SystemMouseCursors.resizeLeftRight,
-              child: Container(
-                width: 8,
-                color: Colors.transparent,
-                alignment: Alignment.center,
-                child: Container(
-                  width: 1,
-                  color:
-                      _isResizing
-                          ? Theme.of(context).primaryColor
-                          : Theme.of(context).dividerColor,
-                ),
-              ),
-            ),
-          ),
       ],
     );
   }

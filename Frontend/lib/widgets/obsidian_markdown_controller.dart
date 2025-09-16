@@ -181,6 +181,8 @@ class ObsidianMarkdownController extends TextEditingController {
   void indentList(bool isIndent) {
     _runProgrammaticChange(() {
       final currentSelection = selection;
+      // ✨ 커서가 맨 앞일 경우, 들여쓰기를 실행하지 않도록 수정
+      if (currentSelection.start == 0) return;
       final startOfLine =
           text.lastIndexOf('\n', currentSelection.start - 1) + 1;
       final endOfLine = text.indexOf('\n', startOfLine);
