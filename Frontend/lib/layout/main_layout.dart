@@ -1,4 +1,4 @@
-// Frontend/lib/layout/main_layout.dart
+// lib/layout/main_layout.dart
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -19,6 +19,7 @@ import '../providers/file_system_provider.dart';
 import '../providers/token_status_provider.dart';
 import '../layout/bottom_section_controller.dart';
 import '../auth/login_page.dart';
+import '../providers/tab_provider.dart';
 
 class MainLayout extends StatefulWidget {
   final PageType activePage;
@@ -87,29 +88,86 @@ class _MainLayoutState extends State<MainLayout> {
 
   bool get _showRightSidebar => widget.activePage == PageType.home;
 
-  void _toggleRightPanel() {
-    setState(() {
-      _isRightExpanded = !_isRightExpanded;
-    });
+  Widget _buildTabBar(TabProvider tabProvider) {
+    final theme = Theme.of(context);
+
+    return Container(
+      height: 40,
+      child: Row(
+        children: [
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                if (tabProvider.openTabs.isEmpty) {
+                  return const SizedBox.shrink(); // 탭이 없으면 빈 공간
+                }
+                const double defaultTabWidth = 160.0;
+                const double minTabWidth = 80.0;
+                final double totalWidth = constraints.maxWidth;
+                final int tabCount = tabProvider.openTabs.length;
+                double tabWidth = defaultTabWidth;
+
+                if (tabCount * defaultTabWidth > totalWidth) {
+                  tabWidth = totalWidth / tabCount;
+                  if (tabWidth < minTabWidth) {
+                    tabWidth = minTabWidth;
+                  }
+                }
+
+                return SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: List.generate(tabCount, (index) {
+                      return Row(
+                        children: [
+                          _TabItem(
+                            tab: tabProvider.openTabs[index],
+                            isActive: index == tabProvider.activeTabIndex,
+                            onTap: () => tabProvider.setActiveTab(index),
+                            onClose: () => tabProvider.closeTab(index),
+                            width: tabWidth,
+                          ),
+                          if (index < tabCount - 1)
+                            VerticalDivider(
+                              width: 1,
+                              thickness: 1,
+                              color: theme.dividerColor,
+                            ),
+                        ],
+                      );
+                    }),
+                  ),
+                );
+              },
+            ),
+          ),
+          // '+' 버튼
+          IconButton(
+            icon: const Icon(Icons.add, size: 18),
+            onPressed: () => tabProvider.openNewTab(),
+            tooltip: '새 메모',
+            splashRadius: 18,
+            constraints: const BoxConstraints(maxWidth: 36, maxHeight: 36),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final pages =
         PageType.values.map((pageType) => _getPageWidget(pageType)).toList();
-    final bool showRightPanelButton = _showRightSidebar;
     final dividerColor = Theme.of(context).dividerColor;
 
     return Scaffold(
       body: Row(
         children: [
-          // --- 1. 좌측 고정 사이드바 ---
           Container(
             width: 40,
             color: Theme.of(context).cardColor,
             child: Column(
               children: [
-                // ✨ [삭제] AppBar 높이만큼 있던 공간을 제거합니다.
                 Expanded(
                   child: LeftSidebarContent(
                     isExpanded: false,
@@ -122,7 +180,6 @@ class _MainLayoutState extends State<MainLayout> {
           ),
           VerticalDivider(thickness: 1, width: 1, color: dividerColor),
 
-          // --- 2. 우측 리사이즈 가능 사이드바 (조건부 표시) ---
           if (_showRightSidebar && _isRightExpanded)
             Row(
               children: [
@@ -131,7 +188,6 @@ class _MainLayoutState extends State<MainLayout> {
                   color: Theme.of(context).cardColor,
                   child: Column(
                     children: [
-                      // ✨ [삭제] AppBar 높이만큼 있던 공간을 제거합니다.
                       Expanded(
                         child: Consumer<FileSystemProvider>(
                           builder: (context, fileSystemProvider, child) {
@@ -145,10 +201,7 @@ class _MainLayoutState extends State<MainLayout> {
                                   return;
                                 }
                                 context
-                                    .read<BottomSectionController>()
-                                    .setActiveTab(0);
-                                widget.onPageSelected(PageType.home);
-                                fileSystemProvider
+                                    .read<FileSystemProvider>()
                                     .setSelectedFileForMeetingScreen(entry);
                               },
                               onRefresh: fileSystemProvider.scanForFileSystem,
@@ -182,7 +235,6 @@ class _MainLayoutState extends State<MainLayout> {
                     ],
                   ),
                 ),
-                // --- 리사이즈 핸들러 ---
                 GestureDetector(
                   onHorizontalDragStart:
                       (_) => setState(() => _isResizing = true),
@@ -216,18 +268,30 @@ class _MainLayoutState extends State<MainLayout> {
               ],
             ),
 
-          // --- 3. 메인 콘텐츠 영역 ---
           Expanded(
             child: Column(
               children: [
-                // --- 커스텀 AppBar ---
                 DragToMoveArea(
                   child: Container(
                     height: 40.0,
-                    padding: const EdgeInsets.only(left: 16.0),
+                    // ✨ [수정] color 속성을 decoration 내부로 이동
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).cardColor,
+                      border: Border(
+                        bottom: BorderSide(color: dividerColor, width: 1),
+                      ),
+                    ),
                     child: Row(
                       children: [
-                        const Spacer(),
+                        if (widget.activePage == PageType.home)
+                          Expanded(
+                            child: Consumer<TabProvider>(
+                              builder: (context, tabProvider, child) {
+                                return _buildTabBar(tabProvider);
+                              },
+                            ),
+                          ),
+                        if (widget.activePage != PageType.home) const Spacer(),
                         IconButton(
                           icon: const Icon(
                             Icons.smart_toy_outlined,
@@ -242,8 +306,6 @@ class _MainLayoutState extends State<MainLayout> {
                     ),
                   ),
                 ),
-                Divider(thickness: 1, height: 1, color: dividerColor),
-                // --- 페이지 콘텐츠 ---
                 Expanded(
                   child: IndexedStack(
                     index: widget.activePage.index,
@@ -466,6 +528,104 @@ class WindowButtons extends StatelessWidget {
           hoverColor: Colors.red.withOpacity(0.1),
         ),
       ],
+    );
+  }
+}
+
+class _TabItem extends StatefulWidget {
+  final dynamic tab;
+  final bool isActive;
+  final VoidCallback onTap;
+  final VoidCallback onClose;
+  final double width;
+
+  const _TabItem({
+    required this.tab,
+    required this.isActive,
+    required this.onTap,
+    required this.onClose,
+    required this.width,
+  });
+
+  @override
+  __TabItemState createState() => __TabItemState();
+}
+
+class __TabItemState extends State<_TabItem> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: InkWell(
+        onTap: widget.onTap,
+        child: Container(
+          width: widget.width,
+          height: 40,
+          padding: const EdgeInsets.only(left: 12, right: 8),
+          transform:
+              widget.isActive ? Matrix4.translationValues(0, 1, 0) : null,
+          decoration: BoxDecoration(
+            color:
+                widget.isActive
+                    ? theme.scaffoldBackgroundColor
+                    : Colors.transparent,
+            border:
+                widget.isActive
+                    ? Border(
+                      top: BorderSide(color: theme.primaryColor, width: 2),
+                    )
+                    : null,
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  widget.tab.title,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color:
+                        widget.isActive
+                            ? theme.textTheme.bodyLarge?.color
+                            : theme.textTheme.bodyMedium?.color?.withOpacity(
+                              0.7,
+                            ),
+                    fontSize: 13,
+                    fontWeight:
+                        widget.isActive ? FontWeight.w500 : FontWeight.normal,
+                  ),
+                ),
+              ),
+              SizedBox(
+                width: 24,
+                child:
+                    (widget.isActive || _isHovered)
+                        ? InkWell(
+                          onTap: widget.onClose,
+                          borderRadius: BorderRadius.circular(20),
+                          child: Padding(
+                            padding: const EdgeInsets.all(4.0),
+                            child: Icon(
+                              Icons.close,
+                              size: 15,
+                              color:
+                                  widget.isActive
+                                      ? theme.textTheme.bodyLarge?.color
+                                      : theme.textTheme.bodyMedium?.color
+                                          ?.withOpacity(0.7),
+                            ),
+                          ),
+                        )
+                        : const SizedBox.shrink(),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

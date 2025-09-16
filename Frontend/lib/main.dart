@@ -23,6 +23,7 @@ import 'providers/token_status_provider.dart';
 import 'features/chatbot_page.dart';
 import 'providers/note_provider.dart';
 import 'providers/scratchpad_provider.dart';
+import 'providers/tab_provider.dart'; // TabProvider 임포트 추가
 
 // macOS에서만 사용할 백엔드 서버 프로세스 변수
 Process? _macOSBackendProcess;
@@ -72,6 +73,7 @@ Future<void> main(List<String> args) async {
           ChangeNotifierProvider(create: (context) => TokenStatusProvider()),
           ChangeNotifierProvider(create: (context) => NoteProvider()),
           ChangeNotifierProvider(create: (context) => ScratchpadProvider()),
+          ChangeNotifierProvider(create: (context) => TabProvider()),
         ],
         child: const MyApp(),
       ),

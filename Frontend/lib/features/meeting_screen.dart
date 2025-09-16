@@ -15,8 +15,12 @@ import '../utils/web_helper.dart' as web_helper;
 import '../model/file_system_entry.dart';
 import '../providers/file_system_provider.dart';
 import '../providers/note_provider.dart';
+import '../providers/tab_provider.dart';
+import '../model/note_model.dart';
 
-// 단축키 Intent 및 Action 클래스
+// ✨ 단축키 Intent 클래스 추가
+class SaveIntent extends Intent {}
+
 class ToggleBoldIntent extends Intent {}
 
 class ToggleItalicIntent extends Intent {}
@@ -24,6 +28,17 @@ class ToggleItalicIntent extends Intent {}
 class IndentIntent extends Intent {}
 
 class OutdentIntent extends Intent {}
+
+// ✨ 단축키 Action 클래스 추가
+class SaveAction extends Action<SaveIntent> {
+  final _MeetingScreenState screenState;
+  SaveAction(this.screenState);
+  @override
+  Object? invoke(SaveIntent intent) {
+    screenState._saveMarkdown();
+    return null;
+  }
+}
 
 class ToggleBoldAction extends Action<ToggleBoldIntent> {
   final ObsidianMarkdownController controller;
@@ -75,12 +90,6 @@ class MeetingScreen extends StatefulWidget {
 }
 
 class _MeetingScreenState extends State<MeetingScreen> {
-  late final ObsidianMarkdownController _controller;
-  final FocusNode _focusNode = FocusNode();
-
-  String? _currentEditingFilePath;
-  String _currentEditingFileName = '새 메모';
-
   bool _isEditingTitle = false;
   late final TextEditingController _titleController;
   final FocusNode _titleFocusNode = FocusNode();
@@ -88,21 +97,65 @@ class _MeetingScreenState extends State<MeetingScreen> {
   @override
   void initState() {
     super.initState();
-    _initializeController(); // 컨트롤러 초기화
-    _initializeState();
-    _titleController = TextEditingController(text: _currentEditingFileName);
-  }
-
-  // ✨ [수정] 컨트롤러 초기화 시, 임시로 라이트 모드 스타일을 사용합니다.
-  // build 메서드에서 현재 테마에 맞는 스타일로 즉시 업데이트됩니다.
-  void _initializeController() {
-    _controller = ObsidianMarkdownController(
-      text: widget.initialText,
-      styleMap: _getMarkdownStyles(false), // isDarkMode: false
+    final tabProvider = context.read<TabProvider>();
+    _titleController = TextEditingController(
+      text: tabProvider.activeTab?.title ?? '',
     );
+    tabProvider.addListener(_onTabChange);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (tabProvider.openTabs.isEmpty) {
+        tabProvider.openNewTab(
+          filePath: widget.filePath,
+          content: widget.initialText,
+        );
+      }
+      final fileProvider = Provider.of<FileSystemProvider>(
+        context,
+        listen: false,
+      );
+      fileProvider.addListener(_onSelectedFileChanged);
+    });
   }
 
-  // ✨ [추가] 테마에 따라 동적으로 스타일 맵을 생성하는 메서드
+  void _onTabChange() {
+    final tabProvider = context.read<TabProvider>();
+    final activeTab = tabProvider.activeTab;
+    if (activeTab != null && _titleController.text != activeTab.title) {
+      _titleController.text = activeTab.title;
+    }
+    if (activeTab == null && _titleController.text.isNotEmpty) {
+      _titleController.clear();
+    }
+  }
+
+  void _onSelectedFileChanged() async {
+    final fileProvider = Provider.of<FileSystemProvider>(
+      context,
+      listen: false,
+    );
+    final selectedEntry = fileProvider.selectedFileForMeetingScreen;
+    if (selectedEntry != null) {
+      final content = await File(selectedEntry.path).readAsString();
+      context.read<TabProvider>().openNewTab(
+        filePath: selectedEntry.path,
+        content: content,
+      );
+      fileProvider.setSelectedFileForMeetingScreen(null);
+    }
+  }
+
+  @override
+  void dispose() {
+    context.read<TabProvider>().removeListener(_onTabChange);
+    Provider.of<FileSystemProvider>(
+      context,
+      listen: false,
+    ).removeListener(_onSelectedFileChanged);
+    _titleController.dispose();
+    _titleFocusNode.dispose();
+    super.dispose();
+  }
+
   Map<String, TextStyle> _getMarkdownStyles(bool isDarkMode) {
     final Color h1Color = isDarkMode ? Colors.white : const Color(0xFF1a1a1a);
     final Color h2Color = isDarkMode ? Colors.white : const Color(0xFF2a2a2a);
@@ -161,83 +214,53 @@ class _MeetingScreenState extends State<MeetingScreen> {
     };
   }
 
-  void _initializeState() {
-    _currentEditingFilePath = widget.filePath;
-    _currentEditingFileName =
-        widget.filePath != null
-            ? p.basenameWithoutExtension(widget.filePath!)
-            : '새 메모';
+  @override
+  Widget build(BuildContext context) {
+    final tabProvider = context.watch<TabProvider>();
+    final activeTab = tabProvider.activeTab;
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final fileProvider = Provider.of<FileSystemProvider>(
-        context,
-        listen: false,
-      );
-      fileProvider.scanForFileSystem();
-      fileProvider.addListener(_onSelectedFileChanged);
-
-      final bottomController = Provider.of<BottomSectionController>(
-        context,
-        listen: false,
-      );
-      bottomController.clearSummary();
-
+    if (activeTab != null) {
       Provider.of<NoteProvider>(
         context,
         listen: false,
-      ).register(_controller, _focusNode);
-    });
-  }
-
-  void _onSelectedFileChanged() {
-    final fileProvider = Provider.of<FileSystemProvider>(
-      context,
-      listen: false,
-    );
-    final selectedEntry = fileProvider.selectedFileForMeetingScreen;
-    if (selectedEntry != null &&
-        selectedEntry.path != _currentEditingFilePath) {
-      _loadMemoFromFileSystemEntry(selectedEntry);
-      fileProvider.setSelectedFileForMeetingScreen(null);
+      ).register(activeTab.controller, activeTab.focusNode);
     }
-  }
 
-  @override
-  void dispose() {
-    Provider.of<FileSystemProvider>(
-      context,
-      listen: false,
-    ).removeListener(_onSelectedFileChanged);
-    _controller.dispose();
-    _focusNode.dispose();
-    _titleController.dispose();
-    _titleFocusNode.dispose();
-    super.dispose();
-  }
+    // ✨ 단축키 맵에 저장(Ctrl+S) 추가
+    final Map<ShortcutActivator, Intent> shortcuts =
+        activeTab != null
+            ? {
+              const SingleActivator(LogicalKeyboardKey.keyS, control: true):
+                  SaveIntent(),
+              const SingleActivator(LogicalKeyboardKey.keyB, control: true):
+                  ToggleBoldIntent(),
+              const SingleActivator(LogicalKeyboardKey.keyI, control: true):
+                  ToggleItalicIntent(),
+              const SingleActivator(LogicalKeyboardKey.tab): IndentIntent(),
+              const SingleActivator(LogicalKeyboardKey.tab, shift: true):
+                  OutdentIntent(),
+            }
+            : {};
 
-  @override
-  Widget build(BuildContext context) {
-    // ✨ [추가] build 메서드 내에서 현재 테마를 확인하고 스타일을 업데이트합니다.
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    final markdownStyles = _getMarkdownStyles(isDarkMode);
-    _controller.updateStyles(markdownStyles);
-
-    final Map<ShortcutActivator, Intent> shortcuts = {
-      const SingleActivator(LogicalKeyboardKey.keyB, control: true):
-          ToggleBoldIntent(),
-      const SingleActivator(LogicalKeyboardKey.keyI, control: true):
-          ToggleItalicIntent(),
-      const SingleActivator(LogicalKeyboardKey.tab): IndentIntent(),
-      const SingleActivator(LogicalKeyboardKey.tab, shift: true):
-          OutdentIntent(),
-    };
-
-    final Map<Type, Action<Intent>> actions = {
-      ToggleBoldIntent: ToggleBoldAction(_controller),
-      ToggleItalicIntent: ToggleItalicAction(_controller),
-      IndentIntent: IndentAction(_controller),
-      OutdentIntent: OutdentAction(_controller),
-    };
+    // ✨ 액션 맵에 저장 액션 추가
+    final Map<Type, Action<Intent>> actions =
+        activeTab != null
+            ? {
+              SaveIntent: SaveAction(this),
+              ToggleBoldIntent: ToggleBoldAction(
+                activeTab.controller as ObsidianMarkdownController,
+              ),
+              ToggleItalicIntent: ToggleItalicAction(
+                activeTab.controller as ObsidianMarkdownController,
+              ),
+              IndentIntent: IndentAction(
+                activeTab.controller as ObsidianMarkdownController,
+              ),
+              OutdentIntent: OutdentAction(
+                activeTab.controller as ObsidianMarkdownController,
+              ),
+            }
+            : {};
 
     return Shortcuts(
       shortcuts: shortcuts,
@@ -245,14 +268,17 @@ class _MeetingScreenState extends State<MeetingScreen> {
         actions: actions,
         child: Column(
           children: [
-            _buildNewHeader(),
+            _buildNewHeader(tabProvider),
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 20.0,
                   vertical: 8.0,
                 ),
-                child: _buildMarkdownEditor(),
+                child:
+                    activeTab != null
+                        ? _buildMarkdownEditor(activeTab)
+                        : _buildEmptyScreen(),
               ),
             ),
           ],
@@ -261,149 +287,169 @@ class _MeetingScreenState extends State<MeetingScreen> {
     );
   }
 
-  Widget _buildNewHeader() {
-    return Container(
-      height: 45,
-      padding: const EdgeInsets.only(left: 20.0, right: 8.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+  Widget _buildEmptyScreen() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Expanded(
-            child:
-                _isEditingTitle
-                    ? TextField(
-                      controller: _titleController,
-                      focusNode: _titleFocusNode,
-                      autofocus: true,
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      decoration: const InputDecoration(
-                        border: InputBorder.none,
-                        contentPadding: EdgeInsets.only(bottom: 2),
-                      ),
-                      onSubmitted: (newName) {
-                        _renameCurrentFile(newName.trim());
-                        setState(() {
-                          _isEditingTitle = false;
-                        });
-                      },
-                      onTapOutside: (_) {
-                        _renameCurrentFile(_titleController.text.trim());
-                        setState(() {
-                          _isEditingTitle = false;
-                        });
-                      },
-                    )
-                    : InkWell(
-                      onTap: () {
-                        setState(() {
-                          _isEditingTitle = true;
-                        });
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                          _titleFocusNode.requestFocus();
-                        });
-                      },
-                      borderRadius: BorderRadius.circular(8.0),
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          _currentEditingFileName,
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ),
+          const Icon(Icons.note_add_outlined, size: 80, color: Colors.grey),
+          const SizedBox(height: 20),
+          const Text(
+            '열려있는 메모가 없습니다.',
+            style: TextStyle(fontSize: 18, color: Colors.grey),
           ),
-          Consumer<BottomSectionController>(
-            builder: (context, bottomController, child) {
-              // ✨ [수정] PopupMenuButton 디자인 변경
-              return PopupMenuButton<String>(
-                icon: const Icon(Icons.more_vert),
-                tooltip: '더보기',
-                // ✨ [추가] 둥근 모서리와 그림자 효과
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12.0),
-                ),
-                // ✨ [수정] 메뉴 크기 조절
-                constraints: const BoxConstraints(maxWidth: 180.0),
-                elevation: 4.0,
-                color: Theme.of(context).cardColor,
-                onSelected: (value) {
-                  switch (value) {
-                    case 'new_memo':
-                      _startNewMemo();
-                      break;
-                    case 'save':
-                      _saveMarkdown();
-                      break;
-                    case 'load':
-                      _loadMarkdownFromFilePicker();
-                      break;
-
-                    case 'summarize':
-                      _summarizeContent();
-                      break;
-                  }
-                },
-                itemBuilder:
-                    (BuildContext context) => <PopupMenuEntry<String>>[
-                      const PopupMenuItem<String>(
-                        value: 'new_memo',
-                        child: ListTile(
-                          leading: Icon(Icons.add_box_outlined),
-                          title: Text('새 메모'),
-                        ),
-                      ),
-                      const PopupMenuItem<String>(
-                        value: 'save',
-                        child: ListTile(
-                          leading: Icon(Icons.save_outlined),
-                          title: Text('저장'),
-                        ),
-                      ),
-                      const PopupMenuItem<String>(
-                        value: 'load',
-                        child: ListTile(
-                          leading: Icon(Icons.file_upload_outlined),
-                          title: Text('불러오기'),
-                        ),
-                      ),
-                      const PopupMenuDivider(),
-                      PopupMenuItem<String>(
-                        value: 'summarize',
-                        child: ListTile(
-                          leading: Icon(
-                            bottomController.isLoading
-                                ? Icons.hourglass_empty
-                                : Icons.auto_awesome_outlined,
-                          ),
-                          title: Text(
-                            bottomController.isLoading ? '요약 중...' : 'AI 요약 실행',
-                          ),
-                        ),
-                      ),
-                    ],
-              );
-            },
+          const SizedBox(height: 10),
+          ElevatedButton.icon(
+            icon: const Icon(Icons.add),
+            label: const Text('새 메모 작성'),
+            onPressed: () => context.read<TabProvider>().openNewTab(),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildMarkdownEditor() {
-    // ✨ [수정] TextField의 기본 스타일이 테마를 따르도록 수정합니다.
+  Widget _buildNewHeader(TabProvider tabProvider) {
+    final activeTab = tabProvider.activeTab;
+    return Container(
+      height: 45,
+      padding: const EdgeInsets.only(left: 20.0, right: 8.0),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          _isEditingTitle && activeTab != null
+              ? TextField(
+                controller: _titleController,
+                focusNode: _titleFocusNode,
+                autofocus: true,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+                decoration: const InputDecoration(
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.only(bottom: 2),
+                ),
+                onSubmitted: (newName) {
+                  _renameCurrentFile(newName.trim());
+                  setState(() {
+                    _isEditingTitle = false;
+                  });
+                },
+                onTapOutside: (_) {
+                  _renameCurrentFile(_titleController.text.trim());
+                  setState(() {
+                    _isEditingTitle = false;
+                  });
+                },
+              )
+              : InkWell(
+                onTap:
+                    activeTab == null
+                        ? null
+                        : () {
+                          setState(() {
+                            _isEditingTitle = true;
+                          });
+                          WidgetsBinding.instance.addPostFrameCallback(
+                            (_) => _titleFocusNode.requestFocus(),
+                          );
+                        },
+                borderRadius: BorderRadius.circular(8.0),
+                child: Align(
+                  alignment: Alignment.center,
+                  child: Text(
+                    activeTab?.title ?? '메모',
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: Consumer<BottomSectionController>(
+              builder: (context, bottomController, child) {
+                return PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_vert),
+                  tooltip: '더보기',
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12.0),
+                  ),
+                  constraints: const BoxConstraints(maxWidth: 180.0),
+                  elevation: 4.0,
+                  color: Theme.of(context).cardColor,
+                  onSelected: (value) {
+                    switch (value) {
+                      case 'save':
+                        _saveMarkdown();
+                        break;
+                      case 'load':
+                        _loadMarkdownFromFilePicker();
+                        break;
+                      case 'summarize':
+                        _summarizeContent();
+                        break;
+                    }
+                  },
+                  itemBuilder:
+                      (BuildContext context) => <PopupMenuEntry<String>>[
+                        const PopupMenuItem<String>(
+                          value: 'save',
+                          child: ListTile(
+                            leading: Icon(Icons.save_outlined),
+                            title: Text('저장'),
+                          ),
+                        ),
+                        const PopupMenuItem<String>(
+                          value: 'load',
+                          child: ListTile(
+                            leading: Icon(Icons.file_upload_outlined),
+                            title: Text('불러오기'),
+                          ),
+                        ),
+                        const PopupMenuDivider(),
+                        PopupMenuItem<String>(
+                          value: 'summarize',
+                          enabled: activeTab != null,
+                          child: ListTile(
+                            leading: Icon(
+                              bottomController.isLoading
+                                  ? Icons.hourglass_empty
+                                  : Icons.auto_awesome_outlined,
+                            ),
+                            title: Text(
+                              bottomController.isLoading
+                                  ? '요약 중...'
+                                  : 'AI 요약 실행',
+                            ),
+                          ),
+                        ),
+                      ],
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMarkdownEditor(NoteTab activeTab) {
     final theme = Theme.of(context);
     final isDarkMode = theme.brightness == Brightness.dark;
+    final markdownStyles = _getMarkdownStyles(isDarkMode);
+
+    (activeTab.controller as ObsidianMarkdownController).updateStyles(
+      markdownStyles,
+    );
 
     return TextField(
-      controller: _controller,
-      focusNode: _focusNode,
+      controller: activeTab.controller,
+      focusNode: activeTab.focusNode,
       style: TextStyle(
         fontSize: 16,
         color: isDarkMode ? Colors.white : const Color(0xFF2c3e50),
@@ -414,18 +460,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
       expands: true,
       textAlignVertical: TextAlignVertical.top,
       decoration: const InputDecoration.collapsed(
-        hintText:
-            "# 제목1\n"
-            "## 제목2\n"
-            "### 제목3\n\n"
-            "- 목록을 만들 수 있습니다.\n"
-            "  - Tab을 눌러 들여쓰기\n"
-            "> 인용문을 작성하세요.\n\n"
-            "**굵게** (Ctrl+B)\n"
-            "*기울임* (Ctrl+I)\n"
-            "~~취소선~~\n"
-            "`인라인 코드`\n"
-            "[링크](https://www.google.com)",
+        hintText: "메모를 시작하세요...",
         hintStyle: TextStyle(
           color: Color(0xFFbdc3c7),
           fontSize: 15,
@@ -436,21 +471,23 @@ class _MeetingScreenState extends State<MeetingScreen> {
   }
 
   Future<void> _renameCurrentFile(String newName) async {
-    if (newName.isEmpty || newName == _currentEditingFileName) {
-      _titleController.text = _currentEditingFileName;
+    final tabProvider = context.read<TabProvider>();
+    final activeTab = tabProvider.activeTab;
+    if (activeTab == null || newName.isEmpty || newName == activeTab.title) {
+      _titleController.text = activeTab?.title ?? '';
       return;
     }
-    if (_currentEditingFilePath == null) {
-      setState(() {
-        _currentEditingFileName = newName;
-        _titleController.text = newName;
-      });
+    if (activeTab.filePath == null) {
+      activeTab.title = newName;
+      _titleController.text = newName;
+      tabProvider.notifyListeners();
       return;
     }
+
     final fileProvider = context.read<FileSystemProvider>();
     final entry = FileSystemEntry(
-      name: p.basename(_currentEditingFilePath!),
-      path: _currentEditingFilePath!,
+      name: p.basename(activeTab.filePath!),
+      path: activeTab.filePath!,
       isDirectory: false,
     );
     final success = await fileProvider.renameEntry(
@@ -458,49 +495,37 @@ class _MeetingScreenState extends State<MeetingScreen> {
       entry,
       newName + '.md',
     );
+
     if (success) {
-      setState(() {
-        _currentEditingFileName = newName;
-        _currentEditingFilePath = p.join(
-          p.dirname(_currentEditingFilePath!),
-          newName + '.md',
-        );
-        _titleController.text = newName;
-      });
+      final newPath = p.join(p.dirname(activeTab.filePath!), newName + '.md');
+      tabProvider.updateTabInfo(tabProvider.activeTabIndex, newPath);
+      _titleController.text = newName;
     } else {
-      _titleController.text = _currentEditingFileName;
+      _titleController.text = activeTab.title;
     }
   }
 
-  void _startNewMemo() {
-    setState(() {
-      _controller.clear();
-      _currentEditingFilePath = null;
-      _currentEditingFileName = '새 메모';
-      _titleController.text = '새 메모';
-    });
-    context.read<BottomSectionController>().setActiveTab(0);
-    context.read<BottomSectionController>().clearSummary();
-    _focusNode.requestFocus();
-  }
-
   Future<void> _saveMarkdown() async {
-    final content = _controller.text;
+    final tabProvider = context.read<TabProvider>();
+    final activeTab = tabProvider.activeTab;
+    if (activeTab == null) return;
+
+    final content = activeTab.controller.text;
     if (content.isEmpty) {
       _showSnackBar("저장할 내용이 없습니다.", isError: true);
       return;
     }
     final fileProvider = context.read<FileSystemProvider>();
     if (kIsWeb) {
-      final fileName = '$_currentEditingFileName.md';
+      final fileName = '${activeTab.title}.md';
       web_helper.downloadMarkdownWeb(content, fileName);
       return;
     }
-    String? path = _currentEditingFilePath;
+    String? path = activeTab.filePath;
     if (path == null) {
       path = await FilePicker.platform.saveFile(
         dialogTitle: '노트 저장',
-        fileName: '$_currentEditingFileName.md',
+        fileName: '${activeTab.title}.md',
         initialDirectory:
             fileProvider.lastSavedDirectoryPath ??
             await _getNotesDirectoryPath(),
@@ -511,11 +536,9 @@ class _MeetingScreenState extends State<MeetingScreen> {
       try {
         await File(path).writeAsString(content);
         fileProvider.updateLastSavedDirectoryPath(p.dirname(path));
-        setState(() {
-          _currentEditingFilePath = path;
-          _currentEditingFileName = p.basenameWithoutExtension(path!);
-          _titleController.text = _currentEditingFileName;
-        });
+
+        tabProvider.updateTabInfo(tabProvider.activeTabIndex, path);
+
         fileProvider.scanForFileSystem();
         _showSnackBar("저장 완료: ${p.basename(path)} ✅");
       } catch (e) {
@@ -536,42 +559,33 @@ class _MeetingScreenState extends State<MeetingScreen> {
       return;
     }
     String content;
-    String fileName;
     String? filePath;
     if (kIsWeb) {
       final fileBytes = result.files.single.bytes;
       if (fileBytes == null) return;
       content = String.fromCharCodes(fileBytes);
-      fileName = result.files.single.name;
     } else {
       filePath = result.files.single.path!;
       content = await File(filePath).readAsString();
-      fileName = p.basenameWithoutExtension(filePath);
       context.read<FileSystemProvider>().updateLastSavedDirectoryPath(
         p.dirname(filePath),
       );
     }
-    _updateEditorContent(content, fileName, filePath);
-  }
 
-  Future<void> _loadMemoFromFileSystemEntry(FileSystemEntry entry) async {
-    try {
-      final content = await File(entry.path).readAsString();
-      _updateEditorContent(
-        content,
-        p.basenameWithoutExtension(entry.name),
-        entry.path,
-      );
-      context.read<FileSystemProvider>().updateLastSavedDirectoryPath(
-        p.dirname(entry.path),
-      );
-    } catch (e) {
-      _showSnackBar("메모 로드 중 오류 발생: $e", isError: true);
-    }
+    context.read<TabProvider>().openNewTab(
+      filePath: filePath,
+      content: content,
+    );
+    _showSnackBar(
+      "파일 불러오기 완료: ${p.basename(filePath ?? result.files.single.name)} ✅",
+    );
   }
 
   Future<void> _summarizeContent() async {
-    final content = _controller.text.trim();
+    final activeTab = context.read<TabProvider>().activeTab;
+    if (activeTab == null) return;
+
+    final content = activeTab.controller.text.trim();
     if (content.length < 50) {
       _showSnackBar('요약할 내용이 너무 짧습니다 (최소 50자 필요).', isError: true);
       return;
@@ -579,7 +593,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
     final bottomController = context.read<BottomSectionController>();
     bottomController.setIsLoading(true);
     bottomController.updateSummary('AI가 텍스트를 요약 중입니다...');
-    bottomController.setActiveTab(2); // AI 요약 탭으로 이동
+    bottomController.setActiveTab(2);
     try {
       final summary = await callBackendTask(
         taskType: "summarize",
@@ -592,18 +606,6 @@ class _MeetingScreenState extends State<MeetingScreen> {
     } finally {
       bottomController.setIsLoading(false);
     }
-  }
-
-  void _updateEditorContent(String content, String fileName, String? filePath) {
-    setState(() {
-      _controller.text = content;
-      _currentEditingFilePath = filePath;
-      _currentEditingFileName = fileName;
-      _titleController.text = fileName;
-    });
-    _showSnackBar("파일 불러오기 완료: $fileName ✅");
-    context.read<BottomSectionController>().setActiveTab(0);
-    context.read<BottomSectionController>().clearSummary();
   }
 
   void _showSnackBar(String message, {bool isError = false}) {
