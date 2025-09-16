@@ -21,7 +21,8 @@ import '../layout/bottom_section_controller.dart';
 import '../auth/login_page.dart';
 import '../providers/tab_provider.dart';
 import '../viewmodels/history_viewmodel.dart';
-import '../viewmodels/calendar_viewmodel.dart'; // ✨ [추가] CalendarViewModel 임포트
+import '../viewmodels/calendar_viewmodel.dart';
+import '../viewmodels/graph_viewmodel.dart';
 
 class MainLayout extends StatefulWidget {
   final PageType activePage;
@@ -289,12 +290,26 @@ class _MainLayoutState extends State<MainLayout> {
                               ),
                             ),
                           ),
-                        // ✨ [추가] 캘린더 페이지 제목
                         if (widget.activePage == PageType.calendar)
                           Padding(
                             padding: const EdgeInsets.only(left: 16.0),
                             child: Text(
                               'Calendar',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color:
+                                    Theme.of(
+                                      context,
+                                    ).textTheme.bodyLarge?.color,
+                              ),
+                            ),
+                          ),
+                        if (widget.activePage == PageType.graph)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 16.0),
+                            child: Text(
+                              'AI 노트 관계도',
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
@@ -357,7 +372,6 @@ class _MainLayoutState extends State<MainLayout> {
                               );
                             },
                           ),
-                        // ✨ [추가] 캘린더 페이지 액션 버튼 (Today)
                         if (widget.activePage == PageType.calendar)
                           Padding(
                             padding: const EdgeInsets.only(right: 8.0),
@@ -386,9 +400,54 @@ class _MainLayoutState extends State<MainLayout> {
                               },
                             ),
                           ),
+                        if (widget.activePage == PageType.graph)
+                          Consumer<GraphViewModel>(
+                            builder: (context, viewModel, child) {
+                              return Row(
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.hub_outlined,
+                                      size: 20,
+                                    ),
+                                    tooltip: '임베딩 생성 및 새로고침',
+                                    color: const Color(0xFF475569),
+                                    onPressed:
+                                        viewModel.isLoading
+                                            ? null
+                                            : () => viewModel
+                                                .triggerEmbeddingProcess(
+                                                  context,
+                                                ),
+                                  ),
+                                  IconButton(
+                                    // ✨ [수정] 아이콘 크기 통일
+                                    icon: Icon(
+                                      viewModel.showUserGraph
+                                          ? Icons.person_outline
+                                          : Icons.smart_toy_outlined,
+                                      size: 20,
+                                    ),
+                                    tooltip:
+                                        viewModel.showUserGraph
+                                            ? '사용자 정의 링크 보기'
+                                            : 'AI 추천 관계 보기',
+                                    color: const Color(0xFF475569),
+                                    onPressed:
+                                        viewModel.isLoading
+                                            ? null
+                                            : () => viewModel.toggleGraphView(),
+                                  ),
+                                  const SizedBox(width: 8),
+                                ],
+                              );
+                            },
+                          ),
+                        // ✨ [수정] 챗봇 아이콘 변경 및 크기 지정
                         IconButton(
                           icon: const Icon(
-                            Icons.smart_toy_outlined,
+                            Icons.forum_outlined,
+                            size: 20,
                             color: Color(0xFF475569),
                           ),
                           onPressed: _openChatbotWindow,
