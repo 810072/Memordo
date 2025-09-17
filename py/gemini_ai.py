@@ -13,7 +13,7 @@ LLM_CLIENT = None # 생성 모델 클라이언트를 저장하여 재사용하�
 
 # 기본 모델명은 상수로 유지합니다.
 DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
-EMBEDDING_MODEL = "gemini-embedding-001"
+EMBEDDING_MODEL = "models/text-embedding-004"
 
 
 def initialize_ai_client(api_key: str) -> bool:
