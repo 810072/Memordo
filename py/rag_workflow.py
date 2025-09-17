@@ -12,6 +12,8 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.schema.output_parser import StrOutputParser
 from langchain.schema.document import Document
 
+from gemini_ai import EMBEDDING_MODEL
+
 from typing import TypedDict, List
 from langgraph.graph import StateGraph, END
 
@@ -123,7 +125,7 @@ def prepare_retrieval(state: GraphState) -> dict:
     if notes_to_embed:
         print(f"    - {len(notes_to_embed)}개의 신규 메모를 발견하여 임베딩을 생성합니다.")
         # --- 수정: google_api_key 인자 제거 ---
-        embedding_function_doc = GoogleGenerativeAIEmbeddings(model="models/embedding-001", task_type="retrieval_document")
+        embedding_function_doc = GoogleGenerativeAIEmbeddings(model=EMBEDDING_MODEL, task_type="retrieval_document")
         
         contents_to_embed = [note['content'] for note in notes_to_embed]
         new_embeddings = embedding_function_doc.embed_documents(contents_to_embed)
@@ -151,7 +153,7 @@ def prepare_retrieval(state: GraphState) -> dict:
             metadatas_for_db.append({'source': file_name})
 
     # --- 수정: google_api_key 인자 제거 ---
-    embedding_function_query = GoogleGenerativeAIEmbeddings(model="models/embedding-001", task_type="retrieval_query")
+    embedding_function_query = GoogleGenerativeAIEmbeddings(model=EMBEDDING_MODEL, task_type="retrieval_query")
     vectorstore = Chroma(embedding_function=embedding_function_query)
     
     if texts_for_db:
