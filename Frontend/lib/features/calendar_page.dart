@@ -4,10 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
+import 'dart:convert'; // ✨ [수정] 'dart.convert' -> 'dart:convert'로 변경
 import 'dart:io';
 import 'package:path/path.dart' as p;
-import '../viewmodels/calendar_viewmodel.dart'; // ✨ [추가] CalendarViewModel 임포트
+import '../viewmodels/calendar_viewmodel.dart';
 
 class CalendarPage extends StatefulWidget {
   const CalendarPage({super.key});
@@ -17,9 +17,6 @@ class CalendarPage extends StatefulWidget {
 }
 
 class _CalendarPageState extends State<CalendarPage> {
-  // ✨ [수정] 로컬 상태를 ViewModel로 이전
-  // DateTime _focusedDay = DateTime.now();
-  // DateTime? _selectedDay;
   CalendarFormat _calendarFormat = CalendarFormat.month;
 
   final Map<DateTime, String> _memoData = {};
@@ -129,69 +126,56 @@ class _CalendarPageState extends State<CalendarPage> {
 
   @override
   Widget build(BuildContext context) {
-    // ✨ [수정] ViewModel을 watch하여 UI를 최신 상태로 유지
     final calendarViewModel = context.watch<CalendarViewModel>();
 
-    // ✨ [수정] _buildTopBar() 호출 및 Column 제거
     return _buildCalendarWithMemo(calendarViewModel);
   }
 
-  // ✨ [수정] _buildTopBar() 메서드 전체 삭제
-
-  // ✨ [수정] ViewModel을 인자로 받도록 변경
   Widget _buildCalendarWithMemo(CalendarViewModel viewModel) {
-    return Expanded(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              decoration: BoxDecoration(
-                color: Theme.of(context).cardColor,
-                borderRadius: BorderRadius.circular(12.0),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.grey.withOpacity(0.1),
-                    spreadRadius: 1,
-                    blurRadius: 3,
-                    offset: const Offset(0, 1),
-                  ),
-                ],
-              ),
-              padding: const EdgeInsets.all(16.0),
-              // ✨ [수정] ViewModel을 인자로 전달
-              child: _buildCalendarView(viewModel),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              color: Theme.of(context).cardColor,
+              borderRadius: BorderRadius.circular(12.0),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.grey.withOpacity(0.1),
+                  spreadRadius: 1,
+                  blurRadius: 3,
+                  offset: const Offset(0, 1),
+                ),
+              ],
             ),
-            const SizedBox(height: 24),
-            // ✨ [수정] ViewModel의 상태를 사용
-            if (viewModel.selectedDay != null) ...[
-              _buildCreatedFilesList(viewModel.selectedDay!),
-              const SizedBox(height: 16),
-              _buildMemoSection(viewModel.selectedDay!),
-            ],
+            padding: const EdgeInsets.all(16.0),
+            child: _buildCalendarView(viewModel),
+          ),
+          const SizedBox(height: 24),
+          if (viewModel.selectedDay != null) ...[
+            _buildCreatedFilesList(viewModel.selectedDay!),
+            const SizedBox(height: 16),
+            _buildMemoSection(viewModel.selectedDay!),
           ],
-        ),
+        ],
       ),
     );
   }
 
-  // ✨ [수정] ViewModel을 인자로 받도록 변경
   Widget _buildCalendarView(CalendarViewModel viewModel) {
     return TableCalendar(
       firstDay: DateTime.utc(2010, 1, 1),
       lastDay: DateTime.utc(2030, 12, 31),
-      // ✨ [수정] ViewModel의 상태를 사용
       focusedDay: viewModel.focusedDay,
       calendarFormat: _calendarFormat,
       selectedDayPredicate: (day) => isSameDay(viewModel.selectedDay, day),
       onDaySelected: (selectedDay, focusedDay) {
-        // ✨ [수정] ViewModel의 메서드 호출
         viewModel.onDaySelected(selectedDay, focusedDay);
         _memoController.text = _memoData[_pureDate(selectedDay)] ?? '';
       },
       onPageChanged: (focusedDay) {
-        // ✨ [추가] 페이지 변경 시 ViewModel 업데이트
         viewModel.setFocusedDay(focusedDay);
       },
       eventLoader: (day) {
@@ -244,7 +228,6 @@ class _CalendarPageState extends State<CalendarPage> {
     );
   }
 
-  // ✨ [수정] 선택된 날짜를 인자로 받도록 변경
   Widget _buildMemoSection(DateTime selectedDay) {
     return Container(
       decoration: BoxDecoration(
@@ -295,7 +278,6 @@ class _CalendarPageState extends State<CalendarPage> {
     );
   }
 
-  // ✨ [수정] 선택된 날짜를 인자로 받도록 변경
   Widget _buildCreatedFilesList(DateTime selectedDay) {
     final pureSelectedDay = _pureDate(selectedDay);
     final files = _createdFilesData[pureSelectedDay];
