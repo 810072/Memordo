@@ -9,8 +9,11 @@ import '../layout/bottom_section_controller.dart';
 import '../widgets/ai_summary_widget.dart';
 import '../widgets/note_outline_view.dart';
 import '../widgets/scratchpad_view.dart';
+import '../features/page_type.dart'; // ✨ [추가] PageType을 사용하기 위해 임포트
 
 class RightSidebarContent extends StatefulWidget {
+  // ✨ [추가] activePage를 전달받기 위한 변수
+  final PageType activePage;
   final bool isLoading;
   final List<FileSystemEntry> fileSystemEntries;
   final Function(FileSystemEntry) onEntryTap;
@@ -21,6 +24,8 @@ class RightSidebarContent extends StatefulWidget {
 
   const RightSidebarContent({
     Key? key,
+    // ✨ [추가] activePage를 required 파라미터로 추가
+    required this.activePage,
     required this.isLoading,
     required this.fileSystemEntries,
     required this.onEntryTap,
@@ -253,8 +258,28 @@ class _RightSidebarContentState extends State<RightSidebarContent>
     });
   }
 
+  // ✨ [수정] build 메서드 구조 변경
   @override
   Widget build(BuildContext context) {
+    // 현재 페이지 타입에 따라 다른 사이드바 UI를 반환합니다.
+    switch (widget.activePage) {
+      case PageType.home:
+        return _buildMemoSidebar(context); // 메모 페이지용 사이드바
+      case PageType.history:
+        return _buildHistorySidebar(context); // 방문 기록용 사이드바
+      case PageType.graph:
+        return _buildGraphSidebar(context); // 그래프용 사이드바
+      case PageType.calendar:
+        return _buildCalendarSidebar(context); // 캘린더용 사이드바
+      default:
+        return const SizedBox.shrink(); // 그 외에는 빈 공간
+    }
+  }
+
+  // --- 페이지별 사이드바 빌더 메서드들 ---
+
+  // 1. 기존 build 메서드의 내용을 그대로 이곳으로 옮겨옵니다.
+  Widget _buildMemoSidebar(BuildContext context) {
     final bottomCtrl = Provider.of<BottomSectionController>(context);
 
     return Column(
@@ -265,7 +290,6 @@ class _RightSidebarContentState extends State<RightSidebarContent>
           child: Row(
             mainAxisAlignment: MainAxisAlignment.start,
             children: [
-              // ✨ [수정 1] TabBar를 Flexible로 감싸 오버플로우를 방지합니다.
               Flexible(
                 child: TabBar(
                   controller: _tabController,
@@ -275,7 +299,6 @@ class _RightSidebarContentState extends State<RightSidebarContent>
                   indicatorColor: Theme.of(context).primaryColor,
                   indicatorWeight: 2.5,
                   tabAlignment: TabAlignment.start,
-                  // ✨ [수정 2] 아이콘 간 좌우 간격을 줄이기 위해 labelPadding을 추가합니다.
                   labelPadding: const EdgeInsets.symmetric(horizontal: 12.0),
                   onTap: (index) {
                     bottomCtrl.setActiveTab(index);
@@ -311,8 +334,8 @@ class _RightSidebarContentState extends State<RightSidebarContent>
             children: [
               _buildFileListView(),
               const NoteOutlineView(),
-              Padding(
-                padding: const EdgeInsets.all(12.0),
+              const Padding(
+                padding: EdgeInsets.all(12.0),
                 child: AiSummaryWidget(),
               ),
               const ScratchpadView(),
@@ -320,6 +343,29 @@ class _RightSidebarContentState extends State<RightSidebarContent>
           ),
         ),
       ],
+    );
+  }
+
+  // 2. 방문 기록 페이지를 위한 사이드바
+  Widget _buildHistorySidebar(BuildContext context) {
+    // 예시: AI 요약 위젯만 단독으로 보여주기
+    return const Padding(
+      padding: EdgeInsets.all(12.0),
+      child: AiSummaryWidget(),
+    );
+  }
+
+  // 3. 그래프 페이지를 위한 사이드바 (추후 기능 구현)
+  Widget _buildGraphSidebar(BuildContext context) {
+    return const Center(
+      child: Text('그래프 정보 표시 영역', style: TextStyle(color: Colors.grey)),
+    );
+  }
+
+  // 4. 캘린더 페이지를 위한 사이드바 (추후 기능 구현)
+  Widget _buildCalendarSidebar(BuildContext context) {
+    return const Center(
+      child: Text('선택한 날짜의 노트 목록', style: TextStyle(color: Colors.grey)),
     );
   }
 

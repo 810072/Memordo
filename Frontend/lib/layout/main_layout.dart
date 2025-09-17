@@ -89,7 +89,12 @@ class _MainLayoutState extends State<MainLayout> {
       ..show();
   }
 
-  bool get _showRightSidebar => widget.activePage == PageType.home;
+  // ✨ [수정] 오른쪽 사이드바가 표시될 페이지 조건을 확장합니다.
+  bool get _showRightSidebar =>
+      widget.activePage == PageType.home ||
+      widget.activePage == PageType.history ||
+      widget.activePage == PageType.graph ||
+      widget.activePage == PageType.calendar;
 
   Widget _buildTabList(TabProvider tabProvider) {
     final theme = Theme.of(context);
@@ -176,7 +181,9 @@ class _MainLayoutState extends State<MainLayout> {
                       Expanded(
                         child: Consumer<FileSystemProvider>(
                           builder: (context, fileSystemProvider, child) {
+                            // ✨ [수정] RightSidebarContent에 activePage를 전달합니다.
                             return RightSidebarContent(
+                              activePage: widget.activePage,
                               isLoading: fileSystemProvider.isLoading,
                               fileSystemEntries:
                                   fileSystemProvider.fileSystemEntries,
@@ -421,7 +428,6 @@ class _MainLayoutState extends State<MainLayout> {
                                                 ),
                                   ),
                                   IconButton(
-                                    // ✨ [수정] 아이콘 크기 통일
                                     icon: Icon(
                                       viewModel.showUserGraph
                                           ? Icons.person_outline
@@ -443,7 +449,6 @@ class _MainLayoutState extends State<MainLayout> {
                               );
                             },
                           ),
-                        // ✨ [수정] 챗봇 아이콘 변경 및 크기 지정
                         IconButton(
                           icon: const Icon(
                             Icons.forum_outlined,

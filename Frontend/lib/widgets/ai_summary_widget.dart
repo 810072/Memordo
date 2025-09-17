@@ -12,19 +12,19 @@ class AiSummaryWidget extends StatelessWidget {
       builder: (context, controller, child) {
         // 로딩 중일 때 UI
         if (controller.isLoading) {
+          // ✨ [수정] Text 위젯을 Flexible로 감싸 오버플로우를 방지합니다.
           return const Center(
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 CircularProgressIndicator(strokeWidth: 2.5),
                 SizedBox(width: 16),
-                Text("AI가 요약 중입니다..."),
+                Flexible(child: Text("AI가 요약 중입니다...")),
               ],
             ),
           );
         }
 
-        // ✨ [수정] 챗봇 스타일로 디자인을 변경합니다.
         return SingleChildScrollView(
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
