@@ -1,5 +1,6 @@
 // lib/layout/main_layout.dart
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:convert';
@@ -45,6 +46,8 @@ class _MainLayoutState extends State<MainLayout> {
   double _rightSidebarWidth = 160.0;
   bool _isResizing = false;
 
+  final ScrollController _tabScrollController = ScrollController();
+
   @override
   void initState() {
     super.initState();
@@ -54,6 +57,12 @@ class _MainLayoutState extends State<MainLayout> {
         listen: false,
       ).loadStatus(context);
     });
+  }
+
+  @override
+  void dispose() {
+    _tabScrollController.dispose();
+    super.dispose();
   }
 
   Widget _getPageWidget(PageType pageType) {
@@ -89,7 +98,6 @@ class _MainLayoutState extends State<MainLayout> {
       ..show();
   }
 
-  // ✨ [수정] 오른쪽 사이드바가 표시될 페이지 조건을 확장합니다.
   bool get _showRightSidebar =>
       widget.activePage == PageType.home ||
       widget.activePage == PageType.history ||
@@ -99,48 +107,81 @@ class _MainLayoutState extends State<MainLayout> {
   Widget _buildTabList(TabProvider tabProvider) {
     final theme = Theme.of(context);
     if (tabProvider.openTabs.isEmpty) {
-      return const SizedBox.shrink(); // 탭이 없으면 빈 공간
+      return const SizedBox.shrink();
     }
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        const double defaultTabWidth = 160.0;
-        const double minTabWidth = 80.0;
-        final double totalWidth = constraints.maxWidth;
-        final int tabCount = tabProvider.openTabs.length;
-        double tabWidth = defaultTabWidth;
-
-        if (tabCount * defaultTabWidth > totalWidth) {
-          tabWidth = totalWidth / tabCount;
-          if (tabWidth < minTabWidth) {
-            tabWidth = minTabWidth;
-          }
+    return Listener(
+      onPointerSignal: (pointerSignal) {
+        if (pointerSignal is PointerScrollEvent) {
+          final newOffset =
+              _tabScrollController.offset + pointerSignal.scrollDelta.dy;
+          final clampedOffset = newOffset.clamp(
+            _tabScrollController.position.minScrollExtent,
+            _tabScrollController.position.maxScrollExtent,
+          );
+          _tabScrollController.jumpTo(clampedOffset);
         }
-
-        return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: List.generate(tabCount, (index) {
-              return Row(
-                children: [
-                  _TabItem(
-                    tab: tabProvider.openTabs[index],
-                    isActive: index == tabProvider.activeTabIndex,
-                    onTap: () => tabProvider.setActiveTab(index),
-                    onClose: () => tabProvider.closeTab(index),
-                    width: tabWidth,
-                  ),
-                  if (index < tabCount - 1)
-                    VerticalDivider(
-                      width: 1,
-                      thickness: 1,
-                      color: theme.dividerColor,
-                    ),
-                ],
-              );
-            }),
-          ),
-        );
       },
+      child: ScrollbarTheme(
+        data: ScrollbarTheme.of(context).copyWith(crossAxisMargin: 0),
+        child: Scrollbar(
+          controller: _tabScrollController,
+          thumbVisibility: false,
+          trackVisibility: false,
+          thickness: 2.5,
+          radius: const Radius.circular(4.0),
+          child: SingleChildScrollView(
+            controller: _tabScrollController,
+            scrollDirection: Axis.horizontal,
+            physics: const ClampingScrollPhysics(),
+            child: Row(
+              children: List.generate(tabProvider.openTabs.length, (index) {
+                return DragTarget<int>(
+                  builder: (context, candidateData, rejectedData) {
+                    return Draggable<int>(
+                      data: index,
+                      feedback: Material(
+                        elevation: 4.0,
+                        child: _TabItem(
+                          tab: tabProvider.openTabs[index],
+                          isActive: true,
+                          onTap: () {},
+                          onClose: () {},
+                        ),
+                      ),
+                      childWhenDragging: Container(
+                        height: 40,
+                        width: 160,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.withOpacity(0.1),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          _TabItem(
+                            tab: tabProvider.openTabs[index],
+                            isActive: index == tabProvider.activeTabIndex,
+                            onTap: () => tabProvider.setActiveTab(index),
+                            onClose: () => tabProvider.closeTab(index),
+                          ),
+                          if (index < tabProvider.openTabs.length - 1)
+                            VerticalDivider(
+                              width: 1,
+                              thickness: 1,
+                              color: theme.dividerColor,
+                            ),
+                        ],
+                      ),
+                    );
+                  },
+                  onAccept: (draggedIndex) {
+                    tabProvider.reorderTab(draggedIndex, index);
+                  },
+                );
+              }),
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -181,7 +222,6 @@ class _MainLayoutState extends State<MainLayout> {
                       Expanded(
                         child: Consumer<FileSystemProvider>(
                           builder: (context, fileSystemProvider, child) {
-                            // ✨ [수정] RightSidebarContent에 activePage를 전달합니다.
                             return RightSidebarContent(
                               activePage: widget.activePage,
                               isLoading: fileSystemProvider.isLoading,
@@ -695,14 +735,14 @@ class _TabItem extends StatefulWidget {
   final bool isActive;
   final VoidCallback onTap;
   final VoidCallback onClose;
-  final double width;
+  final double? width;
 
   const _TabItem({
     required this.tab,
     required this.isActive,
     required this.onTap,
     required this.onClose,
-    required this.width,
+    this.width,
   });
 
   @override
@@ -711,6 +751,8 @@ class _TabItem extends StatefulWidget {
 
 class __TabItemState extends State<_TabItem> {
   bool _isHovered = false;
+  // ✨ [추가] 닫기 버튼의 호버 상태를 관리할 변수
+  bool _isCloseButtonHovered = false;
 
   @override
   Widget build(BuildContext context) {
@@ -724,7 +766,7 @@ class __TabItemState extends State<_TabItem> {
         child: Container(
           width: widget.width,
           height: 40,
-          padding: const EdgeInsets.only(left: 12, right: 8),
+          padding: const EdgeInsets.only(left: 12, right: 4),
           transform:
               widget.isActive ? Matrix4.translationValues(0, 1, 0) : null,
           decoration: BoxDecoration(
@@ -740,11 +782,12 @@ class __TabItemState extends State<_TabItem> {
                     : null,
           ),
           child: Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Expanded(
+              Flexible(
                 child: Text(
                   widget.tab.title,
-                  overflow: TextOverflow.ellipsis,
+                  softWrap: false,
                   style: TextStyle(
                     color:
                         widget.isActive
@@ -758,23 +801,42 @@ class __TabItemState extends State<_TabItem> {
                   ),
                 ),
               ),
+              const SizedBox(width: 8),
+              // ✨ [수정] 닫기 버튼 UI 개선
               SizedBox(
                 width: 24,
+                height: 24,
                 child:
                     (widget.isActive || _isHovered)
-                        ? InkWell(
-                          onTap: widget.onClose,
-                          borderRadius: BorderRadius.circular(20),
-                          child: Padding(
-                            padding: const EdgeInsets.all(4.0),
-                            child: Icon(
-                              Icons.close,
-                              size: 15,
-                              color:
-                                  widget.isActive
-                                      ? theme.textTheme.bodyLarge?.color
-                                      : theme.textTheme.bodyMedium?.color
-                                          ?.withOpacity(0.7),
+                        ? MouseRegion(
+                          onEnter:
+                              (_) =>
+                                  setState(() => _isCloseButtonHovered = true),
+                          onExit:
+                              (_) =>
+                                  setState(() => _isCloseButtonHovered = false),
+                          child: InkWell(
+                            onTap: widget.onClose,
+                            borderRadius: BorderRadius.circular(4.0),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color:
+                                    _isCloseButtonHovered
+                                        ? theme.hoverColor
+                                        : Colors.transparent,
+                                borderRadius: BorderRadius.circular(4.0),
+                              ),
+                              child: Center(
+                                child: Icon(
+                                  Icons.close,
+                                  size: 15,
+                                  color:
+                                      widget.isActive
+                                          ? theme.textTheme.bodyLarge?.color
+                                          : theme.textTheme.bodyMedium?.color
+                                              ?.withOpacity(0.7),
+                                ),
+                              ),
                             ),
                           ),
                         )

@@ -47,6 +47,29 @@ class TabProvider with ChangeNotifier {
     super.dispose();
   }
 
+  // ✨ [추가] 탭 순서 변경 메서드
+  void reorderTab(int oldIndex, int newIndex) {
+    // newIndex가 oldIndex 이후의 위치로 이동하는 경우,
+    // 리스트에서 oldIndex의 아이템이 삭제되면 newIndex가 하나 줄어들기 때문에 조정이 필요합니다.
+    if (newIndex > oldIndex) {
+      newIndex -= 1;
+    }
+
+    final NoteTab item = _openTabs.removeAt(oldIndex);
+    _openTabs.insert(newIndex, item);
+
+    // 활성 탭의 인덱스를 업데이트합니다.
+    if (_activeTabIndex == oldIndex) {
+      _activeTabIndex = newIndex;
+    } else if (_activeTabIndex >= newIndex && _activeTabIndex < oldIndex) {
+      _activeTabIndex += 1;
+    } else if (_activeTabIndex <= newIndex && _activeTabIndex > oldIndex) {
+      _activeTabIndex -= 1;
+    }
+
+    notifyListeners();
+  }
+
   void openNewTab({String? filePath, String? content}) {
     if (filePath != null) {
       final existingTabIndex = _openTabs.indexWhere(
