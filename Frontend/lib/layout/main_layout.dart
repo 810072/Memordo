@@ -498,7 +498,7 @@ class _MainLayoutState extends State<MainLayout> {
                           onPressed: _openChatbotWindow,
                           tooltip: '챗봇 열기',
                         ),
-                        _buildUserProfileIcon(context),
+                        // ✨ [수정] 사용자 프로필 아이콘 호출 제거
                         const WindowButtons(),
                       ],
                     ),
@@ -518,147 +518,7 @@ class _MainLayoutState extends State<MainLayout> {
     );
   }
 
-  Widget _buildUserProfileIcon(BuildContext context) {
-    return Consumer<TokenStatusProvider>(
-      builder: (context, tokenProvider, child) {
-        return PopupMenuButton<String>(
-          tooltip: '사용자 프로필',
-          offset: const Offset(0, 45),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12.0),
-          ),
-          elevation: 8.0,
-          color: Theme.of(context).cardColor,
-          itemBuilder: (BuildContext context) {
-            return _buildUserProfileMenuItems(context, tokenProvider);
-          },
-          child: Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: CircleAvatar(
-              backgroundColor:
-                  tokenProvider.isAuthenticated
-                      ? Colors.deepPurple.shade100
-                      : Colors.grey.shade300,
-              child: Icon(
-                Icons.person_outline,
-                color:
-                    tokenProvider.isAuthenticated
-                        ? Colors.deepPurple.shade700
-                        : Colors.grey.shade700,
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  List<PopupMenuEntry<String>> _buildUserProfileMenuItems(
-    BuildContext context,
-    TokenStatusProvider provider,
-  ) {
-    if (provider.isAuthenticated) {
-      return [
-        PopupMenuItem(
-          enabled: false,
-          child: Container(
-            width: 200,
-            padding: const EdgeInsets.symmetric(
-              vertical: 8.0,
-              horizontal: 16.0,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                CircleAvatar(
-                  radius: 24,
-                  backgroundColor: Colors.deepPurple.shade100,
-                  child: Icon(
-                    Icons.person,
-                    size: 28,
-                    color: Colors.deepPurple.shade700,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  provider.userEmail ?? '이메일 정보 없음',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 15,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          ),
-        ),
-        const PopupMenuDivider(),
-        PopupMenuItem(
-          value: 'logout',
-          onTap: () {
-            final tokenProvider = Provider.of<TokenStatusProvider>(
-              context,
-              listen: false,
-            );
-            tokenProvider.forceLogout(context);
-          },
-          child: const ListTile(
-            leading: Icon(Icons.logout),
-            title: Text('로그아웃'),
-          ),
-        ),
-      ];
-    } else {
-      return [
-        PopupMenuItem(
-          enabled: false,
-          child: SizedBox(
-            width: 200,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Guest',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '로그인이 필요합니다.',
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
-                ),
-                const SizedBox(height: 12),
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.login, size: 16),
-                  label: const Text('로그인/회원가입'),
-                  onPressed: () {
-                    final tokenProvider = Provider.of<TokenStatusProvider>(
-                      context,
-                      listen: false,
-                    );
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => LoginPage()),
-                    ).then((_) {
-                      tokenProvider.loadStatus(context);
-                    });
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.deepPurple,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8.0),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ];
-    }
-  }
+  // ✨ [수정] 사용자 프로필 아이콘 관련 메서드 전체를 잘라내어 left_sidebar_content.dart로 이동시킴
 
   Future<String?> _showTextInputDialog(
     BuildContext context,
@@ -751,7 +611,6 @@ class _TabItem extends StatefulWidget {
 
 class __TabItemState extends State<_TabItem> {
   bool _isHovered = false;
-  // ✨ [추가] 닫기 버튼의 호버 상태를 관리할 변수
   bool _isCloseButtonHovered = false;
 
   @override
@@ -802,7 +661,6 @@ class __TabItemState extends State<_TabItem> {
                 ),
               ),
               const SizedBox(width: 8),
-              // ✨ [수정] 닫기 버튼 UI 개선
               SizedBox(
                 width: 24,
                 height: 24,

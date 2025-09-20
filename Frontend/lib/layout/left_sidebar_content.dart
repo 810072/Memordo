@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../features/page_type.dart';
 import '../providers/token_status_provider.dart';
 import 'package:provider/provider.dart';
+import '../auth/login_page.dart';
 
 class LeftSidebarContent extends StatelessWidget {
   final bool isExpanded;
@@ -65,6 +66,7 @@ class LeftSidebarContent extends StatelessWidget {
               () => onPageSelected(PageType.search),
             ),
             const Spacer(),
+            _buildUserProfileIcon(context),
             _sideBarItem(
               context,
               Icons.settings_outlined,
@@ -72,24 +74,144 @@ class LeftSidebarContent extends StatelessWidget {
               PageType.settings,
               () => onPageSelected(PageType.settings),
             ),
-            // _sideBarItem(
-            //   context,
-            //   Icons.logout_outlined,
-            //   '로그아웃',
-            //   PageType.home,
-            //   () async {
-            //     await Provider.of<TokenStatusProvider>(
-            //       context,
-            //       listen: false,
-            //     ).forceLogout(context);
-            //   },
-            //   alwaysEnabled: true,
-            // ), 사용자 프로필 기능추가로인한 로그아웃 기능 주석 처리
-            // const SizedBox(height: 5),
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildUserProfileIcon(BuildContext context) {
+    return Consumer<TokenStatusProvider>(
+      builder: (context, tokenProvider, child) {
+        return PopupMenuButton<String>(
+          tooltip: '사용자 프로필',
+          offset: const Offset(40, 0),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12.0),
+          ),
+          elevation: 8.0,
+          color: Theme.of(context).cardColor,
+          itemBuilder: (BuildContext context) {
+            return _buildUserProfileMenuItems(context, tokenProvider);
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12.0),
+            child: Icon(
+              Icons.person_outline,
+              color: const Color(0xFF475569),
+              size: 20,
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  List<PopupMenuEntry<String>> _buildUserProfileMenuItems(
+    BuildContext context,
+    TokenStatusProvider provider,
+  ) {
+    if (provider.isAuthenticated) {
+      return [
+        PopupMenuItem(
+          enabled: false,
+          child: Container(
+            width: 200,
+            padding: const EdgeInsets.symmetric(
+              vertical: 8.0,
+              horizontal: 16.0,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                CircleAvatar(
+                  radius: 24,
+                  backgroundColor: Colors.deepPurple.shade100,
+                  child: Icon(
+                    Icons.person,
+                    size: 28,
+                    color: Colors.deepPurple.shade700,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  provider.userEmail ?? '이메일 정보 없음',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        ),
+        const PopupMenuDivider(),
+        PopupMenuItem(
+          value: 'logout',
+          onTap: () {
+            final tokenProvider = Provider.of<TokenStatusProvider>(
+              context,
+              listen: false,
+            );
+            tokenProvider.forceLogout(context);
+          },
+          child: const ListTile(
+            leading: Icon(Icons.logout),
+            title: Text('로그아웃'),
+          ),
+        ),
+      ];
+    } else {
+      return [
+        PopupMenuItem(
+          enabled: false,
+          child: SizedBox(
+            // ✨ [수정] 고정 너비(width: 200) 속성 제거
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Guest',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '로그인이 필요합니다.',
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+                ),
+                const SizedBox(height: 12),
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.login, size: 16),
+                  label: const Text('로그인/회원가입'),
+                  onPressed: () {
+                    final tokenProvider = Provider.of<TokenStatusProvider>(
+                      context,
+                      listen: false,
+                    );
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => LoginPage()),
+                    ).then((_) {
+                      tokenProvider.loadStatus(context);
+                    });
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.deepPurple,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8.0),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ];
+    }
   }
 
   Widget _sideBarItem(
@@ -110,11 +232,10 @@ class LeftSidebarContent extends StatelessWidget {
         isCurrentPage && !alwaysEnabled ? activeColor : inactiveColor;
     final Color iconColor = isEnabled ? textColor : Colors.grey.shade400;
 
-    // ✨ [수정] 활성화된 아이템의 배경색을 scaffoldBackgroundColor(흰색)로 변경
     final Color bgColor =
         isCurrentPage && !alwaysEnabled
             ? Theme.of(context).scaffoldBackgroundColor
-            : Colors.transparent; // 비활성 아이템은 배경색 없음
+            : Colors.transparent;
 
     final String resolvedTooltip = tooltipMessage ?? text;
 
@@ -132,7 +253,6 @@ class LeftSidebarContent extends StatelessWidget {
           child: InkWell(
             onTap: isEnabled ? onPressed : null,
             borderRadius: BorderRadius.circular(8.0),
-            // ✨ [수정] hoverColor를 좀 더 연하게 조정
             hoverColor: Colors.black.withOpacity(0.04),
             child: Padding(
               padding: EdgeInsets.symmetric(

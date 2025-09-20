@@ -17,8 +17,8 @@ import '../providers/file_system_provider.dart';
 import '../providers/note_provider.dart';
 import '../providers/tab_provider.dart';
 import '../model/note_model.dart';
+import '../widgets/custom_popup_menu.dart'; // ✨ [추가] 공통 메뉴 위젯 임포트
 
-// ✨ 단축키 Intent 클래스 추가
 class SaveIntent extends Intent {}
 
 class ToggleBoldIntent extends Intent {}
@@ -29,7 +29,6 @@ class IndentIntent extends Intent {}
 
 class OutdentIntent extends Intent {}
 
-// ✨ 단축키 Action 클래스 추가
 class SaveAction extends Action<SaveIntent> {
   final _MeetingScreenState screenState;
   SaveAction(this.screenState);
@@ -226,7 +225,6 @@ class _MeetingScreenState extends State<MeetingScreen> {
       ).register(activeTab.controller, activeTab.focusNode);
     }
 
-    // ✨ 단축키 맵에 저장(Ctrl+S) 추가
     final Map<ShortcutActivator, Intent> shortcuts =
         activeTab != null
             ? {
@@ -242,7 +240,6 @@ class _MeetingScreenState extends State<MeetingScreen> {
             }
             : {};
 
-    // ✨ 액션 맵에 저장 액션 추가
     final Map<Type, Action<Intent>> actions =
         activeTab != null
             ? {
@@ -250,7 +247,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
               ToggleBoldIntent: ToggleBoldAction(
                 activeTab.controller as ObsidianMarkdownController,
               ),
-              ToggleItalicIntent: ToggleItalicAction(
+              ToggleItalicAction: ToggleItalicAction(
                 activeTab.controller as ObsidianMarkdownController,
               ),
               IndentIntent: IndentAction(
@@ -311,6 +308,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
 
   Widget _buildNewHeader(TabProvider tabProvider) {
     final activeTab = tabProvider.activeTab;
+
     return Container(
       height: 45,
       padding: const EdgeInsets.only(left: 20.0, right: 8.0),
@@ -373,13 +371,13 @@ class _MeetingScreenState extends State<MeetingScreen> {
             alignment: Alignment.centerRight,
             child: Consumer<BottomSectionController>(
               builder: (context, bottomController, child) {
+                // ✨ [수정] 공통 위젯 CompactPopupMenuItem 사용 및 분류선 제거
                 return PopupMenuButton<String>(
                   icon: const Icon(Icons.more_vert),
                   tooltip: '더보기',
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12.0),
+                    borderRadius: BorderRadius.circular(8.0),
                   ),
-                  constraints: const BoxConstraints(maxWidth: 180.0),
                   elevation: 4.0,
                   color: Theme.of(context).cardColor,
                   onSelected: (value) {
@@ -397,35 +395,19 @@ class _MeetingScreenState extends State<MeetingScreen> {
                   },
                   itemBuilder:
                       (BuildContext context) => <PopupMenuEntry<String>>[
-                        const PopupMenuItem<String>(
+                        CompactPopupMenuItem<String>(
                           value: 'save',
-                          child: ListTile(
-                            leading: Icon(Icons.save_outlined),
-                            title: Text('저장'),
-                          ),
+                          child: const Text('저장'),
                         ),
-                        const PopupMenuItem<String>(
+                        CompactPopupMenuItem<String>(
                           value: 'load',
-                          child: ListTile(
-                            leading: Icon(Icons.file_upload_outlined),
-                            title: Text('불러오기'),
-                          ),
+                          child: const Text('불러오기'),
                         ),
-                        const PopupMenuDivider(),
-                        PopupMenuItem<String>(
+                        CompactPopupMenuItem<String>(
                           value: 'summarize',
                           enabled: activeTab != null,
-                          child: ListTile(
-                            leading: Icon(
-                              bottomController.isLoading
-                                  ? Icons.hourglass_empty
-                                  : Icons.auto_awesome_outlined,
-                            ),
-                            title: Text(
-                              bottomController.isLoading
-                                  ? '요약 중...'
-                                  : 'AI 요약 실행',
-                            ),
+                          child: Text(
+                            bottomController.isLoading ? '요약 중...' : 'AI 요약 실행',
                           ),
                         ),
                       ],
