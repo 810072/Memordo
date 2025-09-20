@@ -60,28 +60,21 @@ body {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
-/* ======================================== */
-/* <<<<<<< 스위치 튀어나옴 문제 해결 >>>>>>> */
-/* ======================================== */
 .tracking-card {
-  align-items: center; /* 내부 요소들을 수직 중앙 정렬 */
+  align-items: center; 
 }
 
-/* 텍스트 영역이 공간을 유연하게 차지하도록 설정 */
 .tracking-info {
-  flex-grow: 1; /* 남는 공간을 모두 차지 */
-  margin-right: 12px; /* 스위치와의 간격 */
+  flex-grow: 1;
+  margin-right: 12px;
 }
 
-/* 스위치가 줄어들지 않도록 고정 */
 .tracking-card .switch {
   flex-shrink: 0;
 }
-/* ======================================== */
-
 
 .user-card {
-  align-items: center; /* 사용자 카드는 중앙 정렬 유지 */
+  align-items: center;
   background-color: var(--light-gray);
   border: none;
 }
@@ -105,7 +98,6 @@ body {
   font-size: 12px;
   color: var(--subtitle-color);
   margin: 0;
-  /* 한국어 줄바꿈 최적화 */
   word-break: keep-all; 
 }
 
@@ -283,4 +275,29 @@ input:checked + .slider:after {
     padding-top: 5px;
     font-size: 12px;
     color: #d9534f;
+}
+
+/* 알림창(토스트) 스타일 */
+.toast-notification {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background-color: rgba(28, 28, 30, 0.85);
+  color: white;
+  padding: 10px 20px;
+  border-radius: 20px;
+  font-size: 14px;
+  z-index: 1000;
+  opacity: 0;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+  backdrop-filter: blur(5px);
+  /* <<<<<<< 이 줄을 추가하여 줄바꿈을 방지합니다 >>>>>>> */
+  white-space: nowrap; 
+}
+
+.toast-notification.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
 }
