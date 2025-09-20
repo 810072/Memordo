@@ -1,4 +1,6 @@
 // Frontend/lib/layout/left_sidebar_content.dart
+import 'dart:convert';
+import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:flutter/material.dart';
 import '../features/page_type.dart';
 import '../providers/token_status_provider.dart';
@@ -17,18 +19,25 @@ class LeftSidebarContent extends StatelessWidget {
     required this.onPageSelected,
   }) : super(key: key);
 
+  void _openChatbotWindow() async {
+    final window = await DesktopMultiWindow.createWindow(
+      jsonEncode({'arg1': 'value1', 'arg2': 'value2'}),
+    );
+    window
+      ..setFrame(const Offset(100, 100) & const Size(560, 960))
+      ..center()
+      ..setTitle('Memordo 챗봇')
+      ..show();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Material(
       color: Colors.transparent,
       child: Container(
-        padding: EdgeInsets.symmetric(
-          vertical: 0.0,
-          horizontal: isExpanded ? 3.0 : 5.0,
-        ),
+        padding: EdgeInsets.zero,
         child: Column(
-          crossAxisAlignment:
-              isExpanded ? CrossAxisAlignment.start : CrossAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             _sideBarItem(
               context,
@@ -58,12 +67,21 @@ class LeftSidebarContent extends StatelessWidget {
               PageType.graph,
               () => onPageSelected(PageType.graph),
             ),
+            // ✨ [수정] 검색 아이콘과 챗봇 아이콘 위치 변경
             _sideBarItem(
               context,
               Icons.search_outlined,
               '검색',
               PageType.search,
               () => onPageSelected(PageType.search),
+            ),
+            _sideBarItem(
+              context,
+              Icons.forum_outlined,
+              '챗봇',
+              null, // PageType이 없으므로 null 전달
+              _openChatbotWindow,
+              alwaysEnabled: true, // 항상 활성화되도록 설정
             ),
             const Spacer(),
             _buildUserProfileIcon(context),
@@ -85,7 +103,8 @@ class LeftSidebarContent extends StatelessWidget {
       builder: (context, tokenProvider, child) {
         return PopupMenuButton<String>(
           tooltip: '사용자 프로필',
-          offset: const Offset(40, 0),
+          padding: EdgeInsets.zero,
+          offset: const Offset(50, 0),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12.0),
           ),
@@ -94,12 +113,20 @@ class LeftSidebarContent extends StatelessWidget {
           itemBuilder: (BuildContext context) {
             return _buildUserProfileMenuItems(context, tokenProvider);
           },
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12.0),
-            child: Icon(
-              Icons.person_outline,
-              color: const Color(0xFF475569),
-              size: 20,
+          child: Container(
+            height: 48,
+            width: 50,
+            decoration: const BoxDecoration(
+              border: Border(
+                left: BorderSide(color: Colors.transparent, width: 2),
+              ),
+            ),
+            child: const Center(
+              child: Icon(
+                Icons.person_outline,
+                color: Color(0xFF475569),
+                size: 24,
+              ),
             ),
           ),
         );
@@ -168,7 +195,6 @@ class LeftSidebarContent extends StatelessWidget {
         PopupMenuItem(
           enabled: false,
           child: SizedBox(
-            // ✨ [수정] 고정 너비(width: 200) 속성 제거
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -218,73 +244,35 @@ class LeftSidebarContent extends StatelessWidget {
     BuildContext context,
     IconData icon,
     String text,
-    PageType pageType,
+    PageType? pageType,
     VoidCallback? onPressed, {
     bool alwaysEnabled = false,
     String? tooltipMessage,
   }) {
-    final bool isCurrentPage = activePage == pageType;
+    final bool isCurrentPage = pageType != null && activePage == pageType;
     final bool isEnabled = alwaysEnabled || !isCurrentPage;
 
     final Color activeColor = const Color(0xFF3d98f4);
     final Color inactiveColor = const Color(0xFF475569);
-    final Color textColor =
-        isCurrentPage && !alwaysEnabled ? activeColor : inactiveColor;
-    final Color iconColor = isEnabled ? textColor : Colors.grey.shade400;
-
-    final Color bgColor =
-        isCurrentPage && !alwaysEnabled
-            ? Theme.of(context).scaffoldBackgroundColor
-            : Colors.transparent;
-
-    final String resolvedTooltip = tooltipMessage ?? text;
+    final Color iconColor = isCurrentPage ? activeColor : inactiveColor;
 
     return Tooltip(
-      message: isExpanded ? '' : resolvedTooltip,
+      message: tooltipMessage ?? text,
       waitDuration: const Duration(milliseconds: 300),
       child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 2.0),
+        height: 48,
+        width: 50,
         decoration: BoxDecoration(
-          color: bgColor,
-          borderRadius: BorderRadius.circular(8.0),
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: isEnabled ? onPressed : null,
-            borderRadius: BorderRadius.circular(8.0),
-            hoverColor: Colors.black.withOpacity(0.04),
-            child: Padding(
-              padding: EdgeInsets.symmetric(
-                vertical: 12.0,
-                horizontal: isExpanded ? 12.0 : 0.0,
-              ),
-              child: Row(
-                mainAxisAlignment:
-                    isExpanded
-                        ? MainAxisAlignment.start
-                        : MainAxisAlignment.center,
-                children: [
-                  Flexible(child: Icon(icon, color: iconColor, size: 20)),
-                  if (isExpanded) ...[
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Text(
-                        text,
-                        style: TextStyle(
-                          color: textColor,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          fontFamily: 'Work Sans',
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
+          border: Border(
+            left: BorderSide(
+              color: isCurrentPage ? activeColor : Colors.transparent,
+              width: 2,
             ),
           ),
+        ),
+        child: InkWell(
+          onTap: isEnabled ? onPressed : null,
+          child: Center(child: Icon(icon, color: iconColor, size: 22)),
         ),
       ),
     );

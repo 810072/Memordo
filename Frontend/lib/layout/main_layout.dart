@@ -87,16 +87,7 @@ class _MainLayoutState extends State<MainLayout> {
     }
   }
 
-  void _openChatbotWindow() async {
-    final window = await DesktopMultiWindow.createWindow(
-      jsonEncode({'arg1': 'value1', 'arg2': 'value2'}),
-    );
-    window
-      ..setFrame(const Offset(100, 100) & const Size(560, 960))
-      ..center()
-      ..setTitle('Memordo 챗봇')
-      ..show();
-  }
+  // ✨ [수정] _openChatbotWindow 메서드를 잘라내어 left_sidebar_content.dart로 이동
 
   bool get _showRightSidebar =>
       widget.activePage == PageType.home ||
@@ -195,7 +186,7 @@ class _MainLayoutState extends State<MainLayout> {
       body: Row(
         children: [
           Container(
-            width: 40,
+            width: 48,
             color: Theme.of(context).cardColor,
             child: Column(
               children: [
@@ -489,16 +480,7 @@ class _MainLayoutState extends State<MainLayout> {
                               );
                             },
                           ),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.forum_outlined,
-                            size: 20,
-                            color: Color(0xFF475569),
-                          ),
-                          onPressed: _openChatbotWindow,
-                          tooltip: '챗봇 열기',
-                        ),
-                        // ✨ [수정] 사용자 프로필 아이콘 호출 제거
+                        // ✨ [수정] 챗봇 아이콘 버튼 제거
                         const WindowButtons(),
                       ],
                     ),
@@ -517,8 +499,6 @@ class _MainLayoutState extends State<MainLayout> {
       ),
     );
   }
-
-  // ✨ [수정] 사용자 프로필 아이콘 관련 메서드 전체를 잘라내어 left_sidebar_content.dart로 이동시킴
 
   Future<String?> _showTextInputDialog(
     BuildContext context,
