@@ -335,7 +335,19 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // ✨ [수정] body가 AppBar 뒤로 확장되도록 설정
+      extendBodyBehindAppBar: true,
       backgroundColor: Colors.grey[100],
+      // ✨ [추가] 뒤로가기 버튼을 포함하는 AppBar 추가
+      appBar: AppBar(
+        backgroundColor: Colors.transparent, // 배경 투명
+        elevation: 0, // 그림자 제거
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back_ios_new, color: Colors.black87, size: 20),
+          onPressed: () => Navigator.of(context).pop(),
+          tooltip: '뒤로가기',
+        ),
+      ),
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
