@@ -87,8 +87,6 @@ class _MainLayoutState extends State<MainLayout> {
     }
   }
 
-  // ✨ [수정] _openChatbotWindow 메서드를 잘라내어 left_sidebar_content.dart로 이동
-
   bool get _showRightSidebar =>
       widget.activePage == PageType.home ||
       widget.activePage == PageType.history ||
@@ -358,6 +356,21 @@ class _MainLayoutState extends State<MainLayout> {
                               ),
                             ),
                           ),
+                        if (widget.activePage == PageType.settings)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 16.0),
+                            child: Text(
+                              'Settings',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color:
+                                    Theme.of(
+                                      context,
+                                    ).textTheme.bodyLarge?.color,
+                              ),
+                            ),
+                          ),
                         if (widget.activePage != PageType.home) const Spacer(),
                         if (widget.activePage == PageType.home)
                           Consumer<TabProvider>(
@@ -480,7 +493,6 @@ class _MainLayoutState extends State<MainLayout> {
                               );
                             },
                           ),
-                        // ✨ [수정] 챗봇 아이콘 버튼 제거
                         const WindowButtons(),
                       ],
                     ),
