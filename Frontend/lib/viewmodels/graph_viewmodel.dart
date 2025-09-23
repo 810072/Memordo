@@ -46,27 +46,13 @@ class GraphViewModel with ChangeNotifier {
   Future<void> triggerEmbeddingProcess(BuildContext context) async {
     if (_isLoading) return;
     _isLoading = true;
-    _statusMessage = '로컬 노트 파일 변경 사항 확인 중...';
+    _statusMessage = '로컬 노트 파일 스캔 중...';
     notifyListeners();
 
     try {
       final notesDir = await getNotesDirectory();
-      final embeddingsFile = File(p.join(notesDir, 'embeddings.json'));
-
-      Map<String, dynamic> cacheData = {};
-      Map<String, dynamic> cachedEmbeddings = {};
-      if (await embeddingsFile.exists()) {
-        try {
-          cacheData = jsonDecode(await embeddingsFile.readAsString());
-          cachedEmbeddings = cacheData['embeddings'] ?? {};
-        } catch (e) {
-          print("embeddings.json 파싱 오류: $e");
-        }
-      }
-
-      _statusMessage = '로컬 파일 스캔 중...';
-      notifyListeners();
       final localFiles = await _getAllMarkdownFiles(Directory(notesDir));
+
       if (localFiles.isEmpty) {
         _showSnackBar(context, '노트 폴더에 분석할 .md 파일이 없습니다.');
         _isLoading = false;
@@ -74,64 +60,8 @@ class GraphViewModel with ChangeNotifier {
         return;
       }
 
-      List<Map<String, String>> filesToEmbed = [];
-      for (var file in localFiles) {
-        final fileName = p.relative(file.path, from: notesDir);
-        final fileLastModified = (await file.lastModified()).toIso8601String();
-        final cachedItem = cachedEmbeddings[fileName];
-
-        if (cachedItem == null ||
-            cachedItem['last_modified'] != fileLastModified) {
-          filesToEmbed.add({
-            'fileName': fileName,
-            'content': await file.readAsString(),
-            'last_modified': fileLastModified,
-          });
-        }
-      }
-
-      if (filesToEmbed.isNotEmpty) {
-        _statusMessage = 'AI 서버에 ${filesToEmbed.length}개 파일 임베딩 요청 중...';
-        notifyListeners();
-
-        final newEmbeddingsData = await ai_service.getEmbeddingsForFiles(
-          filesToEmbed,
-        );
-
-        if (newEmbeddingsData != null) {
-          for (var item in filesToEmbed) {
-            final fileName = item['fileName']!;
-            if (newEmbeddingsData.containsKey(fileName)) {
-              cachedEmbeddings[fileName] = {
-                "vector": newEmbeddingsData[fileName],
-                "last_modified": item['last_modified'],
-              };
-            }
-          }
-        }
-      } else {
-        _statusMessage = '변경 사항 없음. 기존 데이터로 그래프를 구성합니다.';
-        notifyListeners();
-      }
-
-      final allFileNames =
-          localFiles.map((f) => p.relative(f.path, from: notesDir)).toList();
-
-      final finalEmbeddings = Map<String, List<double>>.fromEntries(
-        allFileNames
-            .map((name) {
-              final vectorData = cachedEmbeddings[name]?['vector'];
-              final vectorAsList =
-                  vectorData is List ? List.from(vectorData) : <num>[];
-              return MapEntry(
-                name,
-                vectorAsList.map((e) => (e as num).toDouble()).toList(),
-              );
-            })
-            .where((entry) => entry.value.isNotEmpty),
-      );
-
-      final calculatedEdges = _calculateSimilarityAndEdges(finalEmbeddings);
+      _statusMessage = '${localFiles.length}개 노트의 관계 분석을 AI 서버에 요청합니다...';
+      notifyListeners();
 
       List<Map<String, String>> notesData = [];
       for (var file in localFiles) {
@@ -140,22 +70,24 @@ class GraphViewModel with ChangeNotifier {
           'content': await file.readAsString(),
         });
       }
+
+      // 백엔드에 그래프 데이터 생성을 요청
+      final graphData = await ai_service.generateGraphData(notesData);
+
+      if (graphData == null || graphData.containsKey('error')) {
+        final errorMessage = graphData?['error'] ?? '알 수 없는 오류';
+        throw Exception('백엔드 API 오류: $errorMessage');
+      }
+
+      // 사용자 정의 엣지 및 토픽 추출
       final userDefinedResult = await _extractUserDefinedEdgesAndTopics(
         notesData,
       );
 
+      // 최종 데이터 합치기
       final finalData = {
-        "nodes": finalEmbeddings.keys.map((id) => {"id": id}).toList(),
-        "edges":
-            calculatedEdges
-                .map(
-                  (e) => {
-                    "from": e.from,
-                    "to": e.to,
-                    "similarity": e.similarity,
-                  },
-                )
-                .toList(),
+        "nodes": graphData['nodes'],
+        "edges": graphData['edges'],
         "userEdges":
             userDefinedResult.userEdges
                 .map(
@@ -167,11 +99,13 @@ class GraphViewModel with ChangeNotifier {
                 )
                 .toList(),
         "userTopics": userDefinedResult.topicNodes.toList(),
-        "embeddings": cachedEmbeddings,
       };
 
+      // `embeddings.json` 파일에 최종 결과 저장 (캐시/초기 로딩용)
+      final embeddingsFile = File(p.join(notesDir, 'embeddings.json'));
       await embeddingsFile.writeAsString(jsonEncode(finalData));
-      _showSnackBar(context, '그래프 생성 완료');
+
+      _showSnackBar(context, '그래프 생성 완료!');
       _buildGraphFromData(finalData);
     } catch (e) {
       _showSnackBar(context, '오류 발생: ${e.toString()}');
@@ -180,51 +114,6 @@ class GraphViewModel with ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     }
-  }
-
-  List<GraphEdgeData> _calculateSimilarityAndEdges(
-    Map<String, List<double>> embeddings,
-  ) {
-    _statusMessage = '문서 간 유사도 계산 중...';
-    notifyListeners();
-
-    final edges = <GraphEdgeData>[];
-    final fileNames = embeddings.keys.toList();
-
-    double dotProduct(List<double> v1, List<double> v2) {
-      double result = 0.0;
-      for (int i = 0; i < v1.length; i++) {
-        result += v1[i] * v2[i];
-      }
-      return result;
-    }
-
-    double magnitude(List<double> v) {
-      double result = 0.0;
-      for (int i = 0; i < v.length; i++) {
-        result += v[i] * v[i];
-      }
-      return sqrt(result);
-    }
-
-    for (int i = 0; i < fileNames.length; i++) {
-      for (int j = i + 1; j < fileNames.length; j++) {
-        final fileA = fileNames[i];
-        final fileB = fileNames[j];
-        final vectorA = embeddings[fileA]!;
-        final vectorB = embeddings[fileB]!;
-        final magA = magnitude(vectorA);
-        final magB = magnitude(vectorB);
-        if (magA == 0.0 || magB == 0.0) continue;
-        final similarity = dotProduct(vectorA, vectorB) / (magA * magB);
-        if (similarity > _similarityThreshold) {
-          edges.add(
-            GraphEdgeData(from: fileA, to: fileB, similarity: similarity),
-          );
-        }
-      }
-    }
-    return edges;
   }
 
   void _setAlgorithm() {

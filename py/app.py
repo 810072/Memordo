@@ -149,7 +149,10 @@ def api_execute_task():
             return jsonify({"error": f"지원하지 않는 task_type: {task_type}"}), 400
         return jsonify({"result": result_text})
     except Exception as e:
-        return jsonify({"error": "서버 내부 오류 발생"}), 500
+        import traceback
+        print(f"'/api/execute_task'에서 에러 발생: {e}") # 어떤 에러인지 출력
+        traceback.print_exc() # 에러의 전체 호출 스택을 출력
+    return jsonify({"error": "서버 내부 오류 발생"}), 500
 
 @app.route('/api/generate-graph-data', methods=['POST'])
 def generate_graph_data():

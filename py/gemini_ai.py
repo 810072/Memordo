@@ -50,10 +50,12 @@ def get_embedding_for_text(text: str, task_type: str = "retrieval_document") -> 
     """
     하나의 텍스트를 임베딩 벡터로 변환합니다.
     """
-    # [통합] 실행 전 클라이언트 초기화 여부 확인 로직을 유지합니다.
+    global GEMINI_API_KEY
+    if not GEMINI_API_KEY:
+        GEMINI_API_KEY = os.getenv("GOOGLE_API_KEY")
+
     if not GEMINI_API_KEY:
         print("[오류] 임베딩 실패: AI 클라이언트가 초기화되지 않았습니다.")
-        # AI가 초기화되지 않았을 때의 에러를 명확히 하기 위해 None을 반환합니다.
         raise ValueError("AI client has not been initialized. Call initialize_ai_client(api_key) first.")
 
     if not text or not isinstance(text, str) or not text.strip():
@@ -76,7 +78,10 @@ def get_embeddings_batch(texts: list[str], model_name: str = EMBEDDING_MODEL, ta
     """
     여러 텍스트를 한 번의 API 호출로 임베딩합니다.
     """
-    # [통합] 실행 전 클라이언트 초기화 여부 확인 로직을 유지합니다.
+    global GEMINI_API_KEY
+    if not GEMINI_API_KEY:
+        GEMINI_API_KEY = os.getenv("GOOGLE_API_KEY")
+        
     if not GEMINI_API_KEY:
         print("[오류] 배치 임베딩 실패: AI 클라이언트가 초기화되지 않았습니다.")
         raise ValueError("AI client has not been initialized. Call initialize_ai_client(api_key) first.")
@@ -97,11 +102,18 @@ def query_gemini(prompt: str, model_name: str = DEFAULT_GEMINI_MODEL) -> str:
     """
     초기화된 전역 생성 모델 클라이언트를 사용하여 프롬프트를 보내고 응답을 받습니다.
     """
-    global LLM_CLIENT
-    # [통합] 실행 전 클라이언트 초기화 여부 확인 로직을 유지합니다.
+    global LLM_CLIENT, GEMINI_API_KEY
+    # [수정] 멀티 프로세스 환경을 위해 LLM_CLIENT가 없으면 재초기화 시도
     if not LLM_CLIENT:
-        # 이 에러 메시지는 app.py에서 사용자에게 직접 전달될 수 있습니다.
-        raise ValueError("AI client has not been initialized. Call initialize_ai_client(api_key) first.")
+        api_key = GEMINI_API_KEY or os.getenv("GOOGLE_API_KEY")
+        if api_key:
+            print("[정보] LLM_CLIENT가 없어 재초기화를 시도합니다.")
+            initialize_ai_client(api_key)
+        else:
+            raise ValueError("AI client has not been initialized and no API key found.")
+
+    if not LLM_CLIENT:
+        raise ValueError("AI client could not be initialized.")
 
     try:
         # [통합] 매번 모델을 생성하는 대신, 초기화 때 만들어 둔 LLM_CLIENT를 사용합니다. (효율성 증대)

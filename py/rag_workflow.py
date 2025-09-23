@@ -3,50 +3,37 @@
 import os
 import json
 import platform
+import hashlib
 from pathlib import Path
-# from dotenv import load_dotenv # --- 삭제 ---
+from typing import TypedDict, List
+
 from langchain_community.vectorstores import Chroma
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain.prompts import ChatPromptTemplate
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
 from langchain.schema.output_parser import StrOutputParser
 from langchain.schema.document import Document
-
-from gemini_ai import EMBEDDING_MODEL, DEFAULT_GEMINI_MODEL
-
-from typing import TypedDict, List
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langgraph.graph import StateGraph, END
 
-# --- 삭제 ---
-# load_dotenv()
-# GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-# --- 삭제 ---
+from gemini_ai import EMBEDDING_MODEL, DEFAULT_GEMINI_MODEL
 
 
 def _get_db_path() -> str:
     """실행 중인 OS를 감지하여 ChromaDB 저장소의 동적 경로를 반환합니다."""
     home_dir = Path.home()
     system = platform.system()
-    if system == "Darwin": # macOS
+    if system == "Darwin":  # macOS
         notes_dir = home_dir / "Memordo_Notes"
-    else: # Windows, Linux 등
+    else:  # Windows, Linux 등
         notes_dir = home_dir / "Documents" / "Memordo_Notes"
     
     db_path = notes_dir / "chroma_db"
     os.makedirs(db_path, exist_ok=True)
     return str(db_path)
 
-def _get_json_path() -> str:
-    """실행 중인 OS를 감지하여 embeddings.json 파일의 동적 경로를 반환합니다."""
-    home_dir = Path.home()
-    system = platform.system()
-    if system == "Darwin": # macOS
-        notes_dir = home_dir / "Memordo_Notes"
-    else: # Windows, Linux 등
-        notes_dir = home_dir / "Documents" / "Memordo_Notes"
-    
-    os.makedirs(notes_dir, exist_ok=True)
-    return str(notes_dir / "embeddings.json")
+def _get_content_hash(content: str) -> str:
+    """주어진 내용의 SHA-256 해시를 계산합니다."""
+    return hashlib.sha256(content.encode('utf-8')).hexdigest()
 
 class GraphState(TypedDict):
     question: str
@@ -102,26 +89,23 @@ def expand_short_notes(state: GraphState) -> dict:
     notes = state['notes']
     MIN_CHARS_FOR_EXPANSION = 100
     updated_notes = []
-    # --- 수정: google_api_key 인자 제거 ---
     llm = ChatGoogleGenerativeAI(model=DEFAULT_GEMINI_MODEL, temperature=0.5)
     prompt = PROMPT_TEMPLATES["expand_note"]
     chain = prompt | llm | StrOutputParser()
     for note in notes:
-        # [수정] 원본 보존: 'retrieval_content'를 새로 만들어 검색용으로 사용하고, 'content'는 수정하지 않음
         if len(note['content']) < MIN_CHARS_FOR_EXPANSION:
             print(f"    - '{note['fileName']}' 보강 필요 (현재 {len(note['content'])}자)")
             expanded_content = chain.invoke({"original_content": note['content']})
             note['retrieval_content'] = expanded_content
             print(f"    - 보강 완료: {expanded_content[:50]}...")
         else:
-            note['retrieval_content'] = note['content'] # 내용이 충분한 노트는 원본을 그대로 사용
+            note['retrieval_content'] = note['content']
         updated_notes.append(note)
     return {"notes": updated_notes}
 
 def expand_question(state: GraphState) -> dict:
     print("--- (Node 1) 질문 확장 시작 ---")
     original_question = state['question']
-    # --- 수정: google_api_key 인자 제거 ---
     llm = ChatGoogleGenerativeAI(model=DEFAULT_GEMINI_MODEL, temperature=0)
     prompt = PROMPT_TEMPLATES["expand_question"]
     chain = prompt | llm | StrOutputParser()
@@ -131,66 +115,97 @@ def expand_question(state: GraphState) -> dict:
     return {"question": expanded_question}
 
 def prepare_retrieval(state: GraphState) -> dict:
-    """[REFACTORED] ChromaDB를 기본 저장소로 사용하고, graph_page 호환성을 위해 embeddings.json도 함께 업데이트합니다."""
-    print("--- (Node 2) 검색 준비, 벡터 저장소 로드 및 업데이트 ---")
+    """[REFACTORED] 해시 비교를 통해 노트의 추가, 수정, 삭제를 감지하고 DB를 동기화합니다."""
+    with open("sync_test.log", "a", encoding="utf-8") as f:
+        f.write("--- (Node 2) SYNC START ---\n")
+
+    print("--- (Node 2) 검색 준비, 벡터 저장소 동기화 ---")
     notes = state['notes']
     edges = state['edges']
     db_path = _get_db_path()
-    json_path = _get_json_path()
 
-    # [JSON 로직 복원] 1. 하위 호환성을 위해 기존 embeddings.json 파일 로드
-    embedding_data_wrapper = {}
-    try:
-        if os.path.exists(json_path) and os.path.getsize(json_path) > 0:
-            with open(json_path, 'r', encoding='utf-8') as f:
-                embedding_data_wrapper = json.load(f)
-    except Exception as e:
-        print(f"    - 경고: '{json_path}' 파일을 읽는 중 오류 발생: {e}")
-    embedding_map = embedding_data_wrapper.get("embeddings", {})
-
-    # [ChromaDB 로직] 2. 영구 저장소를 사용하는 ChromaDB 인스턴스 생성 및 로드
     embedding_function = GoogleGenerativeAIEmbeddings(model=EMBEDDING_MODEL, task_type="retrieval_document")
     vectorstore = Chroma(persist_directory=db_path, embedding_function=embedding_function)
+
+    local_notes_state = {note['fileName']: _get_content_hash(note['content']) for note in notes}
     
-    # 3. DB에 이미 저장된 노트 ID 목록과 새로 추가해야 할 노트 식별
-    existing_ids_in_db = set(vectorstore.get()['ids'])
-    all_note_ids = {note['fileName'] for note in notes}
-    notes_to_add_ids = all_note_ids - existing_ids_in_db
+    db_docs = vectorstore.get(include=["metadatas"])
+    db_notes_state = {}
+    db_chunks_map = {}
+    for i, metadata in enumerate(db_docs['metadatas']):
+        source = metadata.get('source')
+        content_hash = metadata.get('content_hash')
+        if source and content_hash:
+            if source not in db_notes_state:
+                db_notes_state[source] = content_hash
+            if source not in db_chunks_map:
+                db_chunks_map[source] = []
+            db_chunks_map[source].append(db_docs['ids'][i])
+
+    local_files = set(local_notes_state.keys())
+    db_files = set(db_notes_state.keys())
     
-    if notes_to_add_ids:
-        notes_to_add = [note for note in notes if note['fileName'] in notes_to_add_ids]
-        print(f"    - {len(notes_to_add)}개의 신규 메모를 발견하여 DB와 JSON에 추가합니다.")
+    files_to_add = local_files - db_files
+    files_to_delete = db_files - local_files
+    files_to_check = local_files.intersection(db_files)
+    
+    files_to_update = {
+        f for f in files_to_check if local_notes_state[f] != db_notes_state[f]
+    }
+    
+    ids_to_delete = []
+    files_for_resync = files_to_delete.union(files_to_update)
+    if files_for_resync:
+        for file_name in files_for_resync:
+            ids_to_delete.extend(db_chunks_map.get(file_name, []))
+        if ids_to_delete:
+            log_msg = f"    - DELETING {len(ids_to_delete)} chunks from {len(files_for_resync)} notes.\n"
+            with open("sync_test.log", "a", encoding="utf-8") as f: f.write(log_msg)
+            print(f"    - 삭제/수정된 {len(files_for_resync)}개 노트의 기존 청크 {len(ids_to_delete)}개를 삭제합니다.")
+            vectorstore.delete(ids=ids_to_delete)
 
-        # 4. 신규 노트 임베딩 생성
-        contents_to_embed = [note['retrieval_content'] for note in notes_to_add]
-        new_embeddings = embedding_function.embed_documents(contents_to_embed)
+    notes_to_process = files_to_add.union(files_to_update)
+    if notes_to_process:
+        log_msg = f"    - PROCESSING {len(notes_to_process)} new/modified notes.\n"
+        with open("sync_test.log", "a", encoding="utf-8") as f: f.write(log_msg)
+        print(f"    - 신규/수정된 {len(notes_to_process)}개 노트를 처리합니다.")
+        notes_to_add_data = [n for n in notes if n['fileName'] in notes_to_process]
         
-        # 5. ChromaDB에 신규 노트 추가
-        metadatas_to_add = [{'source': note['fileName']} for note in notes_to_add]
-        ids_to_add = [note['fileName'] for note in notes_to_add]
-        if contents_to_embed:
-            vectorstore.add_embeddings(texts=contents_to_embed, embeddings=new_embeddings, metadatas=metadatas_to_add, ids=ids_to_add)
-            print(f"    - 신규 메모 {len(ids_to_add)}개를 ChromaDB에 추가했습니다.")
-
-        # [JSON 로직 복원] 6. embeddings.json 데이터 업데이트 및 저장
-        for i, note in enumerate(notes_to_add):
-            embedding_map[note['fileName']] = {"vector": new_embeddings[i]}
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
         
-        try:
-            with open(json_path, 'w', encoding='utf-8') as f:
-                json.dump({"embeddings": embedding_map}, f, ensure_ascii=False, indent=4)
-            print(f"    - '{json_path}'에 {len(notes_to_add)}개의 신규 임베딩을 추가하여 저장했습니다.")
-        except Exception as e:
-            print(f"    - 에러: '{json_path}' 파일 저장에 실패했습니다: {e}")
+        all_new_chunks = []
+        for note in notes_to_add_data:
+            content_hash = local_notes_state[note['fileName']]
+            chunks = text_splitter.split_text(note['retrieval_content'])
+            for i, chunk_text in enumerate(chunks):
+                chunk_doc = Document(
+                    page_content=chunk_text,
+                    metadata={
+                        'source': note['fileName'],
+                        'original_content': note['content'],
+                        'content_hash': content_hash
+                    }
+                )
+                chunk_id = f"{note['fileName']}_{i}"
+                all_new_chunks.append((chunk_id, chunk_doc))
 
-    # 7. 최종 답변 생성을 위한 Document 객체 리스트 준비
+        if all_new_chunks:
+            ids_to_add = [c[0] for c in all_new_chunks]
+            docs_to_add = [c[1] for c in all_new_chunks]
+            
+            log_msg = f"    - ADDING {len(all_new_chunks)} new chunks to DB.\n"
+            with open("sync_test.log", "a", encoding="utf-8") as f: f.write(log_msg)
+            vectorstore.add_documents(documents=docs_to_add, ids=ids_to_add)
+            print(f"    - 총 {len(all_new_chunks)}개의 신규 청크를 DB에 추가했습니다.")
+
+    if not files_to_add and not files_for_resync:
+        print("    - DB와 동기화 완료. 변경 사항 없음.")
+
     documents = [Document(page_content=note['content'], metadata={'source': note['fileName']}) for note in notes]
-    
-    # 8. 연결 정보 계산
     connected_nodes = {edge['from'] for edge in edges} | {edge['to'] for edge in edges}
-    isolated_nodes = all_note_ids - connected_nodes
+    isolated_nodes = set(local_notes_state.keys()) - connected_nodes
     
-    print(f"    - 연결된 노드: {len(connected_nodes)}개, 고립된 노드: {len(isolated_nodes)}개")
+    print(f"    - 동기화 후 노드: {len(local_notes_state)}개 (연결: {len(connected_nodes)}, 고립: {len(isolated_nodes)})")
     
     return {"documents": documents, "vectorstore": vectorstore, "connected_nodes": connected_nodes, "isolated_nodes": isolated_nodes}
 
@@ -199,7 +214,6 @@ def first_pass_retrieval(state: GraphState) -> dict:
     question = state['question']
     db_path = _get_db_path()
 
-    # [수정] 검색 시에는 'retrieval_query'용 임베딩 함수를 사용하는 것이 성능에 유리함
     query_embedding_function = GoogleGenerativeAIEmbeddings(model=EMBEDDING_MODEL, task_type="retrieval_query")
     vectorstore = Chroma(
         persist_directory=db_path,
@@ -207,18 +221,18 @@ def first_pass_retrieval(state: GraphState) -> dict:
     )
 
     if vectorstore._collection.count() == 0:
-         print("    - 벡터 저장소가 비어있어 검색을 건너<binary data, 2 bytes>니다.")
+         print("    - 벡터 저장소가 비어있어 검색을 건너뜁니다.")
          return {"top_docs": []}
 
-    retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
+    retriever = vectorstore.as_retriever(search_kwargs={"k": 10})
     top_docs = retriever.invoke(question)
     
-    print(f"    - 1차 검색 결과 (상위 3개): {[doc.metadata['source'] for doc in top_docs]}")
+    print(f"    - 1차 검색 결과 (상위 {len(top_docs)}개): {[doc.metadata['source'] for doc in top_docs]}")
     return {"top_docs": top_docs}
 
 def analyze_and_branch(state: GraphState) -> str:
     print("--- (Node 4) 분기 결정 ---")
-    if not state['top_docs']:
+    if not state.get('top_docs'):
         print("    -> 1차 검색 결과 없음. 바로 답변 생성으로 이동합니다.")
         return "generate_answer_direct"
 
@@ -239,7 +253,6 @@ def second_pass_retrieval(state: GraphState) -> dict:
     edges = state['edges']
     db_path = _get_db_path()
 
-    # [수정] 검색 시에는 'retrieval_query'용 임베딩 함수를 사용
     query_embedding_function = GoogleGenerativeAIEmbeddings(model=EMBEDDING_MODEL, task_type="retrieval_query")
     vectorstore = Chroma(
         persist_directory=db_path,
@@ -265,31 +278,39 @@ def second_pass_retrieval(state: GraphState) -> dict:
 def generate_answer(state: GraphState) -> dict:
     print("--- (Node 6) 최종 답변 생성 ---")
     question = state['question']
-    top_docs = state.get('top_docs', [])
-    expanded_docs = state.get('expanded_docs', [])
+    top_docs = state.get('top_docs') or []
+    expanded_docs = state.get('expanded_docs') or []
 
-    final_docs_map = {doc.metadata['source']: doc for doc in top_docs}
-    for doc in expanded_docs:
-        final_docs_map[doc.metadata['source']] = doc
-    
-    final_docs = list(final_docs_map.values())
+    combined_docs = top_docs + expanded_docs
+    unique_docs_map = { (doc.metadata['source'], doc.page_content): doc for doc in combined_docs }
+    final_docs = list(unique_docs_map.values())
 
     if not final_docs:
-        return {"answer": "죄송합니다, 관련 정보를 노트에서 찾을 수 없습니다."}
+        return {"answer": "죄송합니다, 관련 정보를 노트에서 찾을 수 없습니다.", "sources": []}
 
-    context_text = "\n\n---\n\n".join(
-        [f"문서명: {doc.metadata['source']}\n내용:\n{doc.page_content}" for doc in final_docs]
-    )
+    context_parts = []
+    for doc in final_docs:
+        source_file = doc.metadata.get('source', '알 수 없는 출처')
+        original_content = doc.metadata.get('original_content', doc.page_content)
+        
+        context_part = (
+            f"문서명: {source_file}\n"
+            f"--- 전체 내용 ---\n{original_content}\n"
+            f"--- 검색된 관련 부분 ---\n{doc.page_content}"
+        )
+        context_parts.append(context_part)
+        
+    context_text = "\n\n---\n\n".join(context_parts)
     
     prompt_template = PROMPT_TEMPLATES["generate_answer"]
     
-    # --- 수정: google_api_key 인자 제거 ---
     llm = ChatGoogleGenerativeAI(model=DEFAULT_GEMINI_MODEL, temperature=0.3)
     
     chain = prompt_template | llm | StrOutputParser()
     answer = chain.invoke({"context": context_text, "question": question})
     
-    source_names = [doc.metadata['source'] for doc in final_docs]
+    source_names = sorted(list(set([doc.metadata['source'] for doc in final_docs])))
+    
     print(f"--- 답변 생성 완료 (참조: {source_names}) ---")
     return {"final_context": context_text, "answer": answer, "sources": source_names}
 
