@@ -10,16 +10,43 @@ document.addEventListener('DOMContentLoaded', () => {
   const userEmailEl = document.getElementById('user-email');
 
   const uploadBtn = document.getElementById('upload-button');
-  const statusEl = document.getElementById('upload-status');
   const historyBtn = document.getElementById('view-history-button');
   const toggle = document.getElementById('tracking-toggle');
+  
+  // 토스트 알림 함수
+  function showToast(message) {
+    const existingToast = document.querySelector('.toast-notification');
+    if (existingToast) {
+      existingToast.remove();
+    }
+
+    const toast = document.createElement('div');
+    toast.className = 'toast-notification';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+
+    setTimeout(() => {
+      toast.classList.add('visible');
+    }, 10);
+
+    setTimeout(() => {
+      toast.classList.remove('visible');
+      toast.addEventListener('transitionend', () => toast.remove());
+    }, 3000);
+  }
 
   // 로그인 상태에 따라 UI 업데이트하는 함수
   function updateUI(isLoggedIn, email = '') {
     if (isLoggedIn) {
       loginSection.style.display = 'none';
       mainSection.style.display = 'block';
-      userEmailEl.textContent = email;
+      
+      if (email) {
+        userEmailEl.textContent = email.split('@')[0];
+      } else {
+        userEmailEl.textContent = '';
+      }
+
     } else {
       loginSection.style.display = 'block';
       mainSection.style.display = 'none';
@@ -49,7 +76,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     loginStatus.textContent = '로그인 중...';
 
-    // background 스크립트에 로그인 요청
     chrome.runtime.sendMessage({
       action: 'login',
       data: { email, password }
@@ -68,6 +94,17 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  // 엔터 키로 로그인하는 기능
+  function handleEnterLogin(event) {
+    if (event.key === 'Enter') {
+      event.preventDefault(); 
+      loginButton.click();
+    }
+  }
+
+  emailInput.addEventListener('keydown', handleEnterLogin);
+  passwordInput.addEventListener('keydown', handleEnterLogin);
+
   // 로그아웃 버튼 클릭 이벤트
   logoutButton.addEventListener('click', () => {
       chrome.runtime.sendMessage({ action: 'logout' }, (response) => {
@@ -79,11 +116,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Drive 업로드 버튼 이벤트
   uploadBtn.addEventListener('click', () => {
-    statusEl.textContent = '업로드 중...';
+    showToast('업로드 중...');
     chrome.storage.local.get(['visitedUrls'], (data) => {
       chrome.runtime.sendMessage({ action: 'uploadToDrive', data: data.visitedUrls || [] }, (response) => {
-        statusEl.textContent = (chrome.runtime.lastError || !response.success) ? '업로드 실패 ❌' : '업로드 완료 ✔️';
-        setTimeout(() => statusEl.textContent = '', 3000);
+        // <<<<<<< 이 부분이 수정되었습니다 >>>>>>>
+        // 일반 공백 대신 Non-breaking space(\u00A0)를 사용하여 줄바꿈 방지
+        const uploadMessage = (chrome.runtime.lastError || !response.success) ? '업로드 실패\u00A0❌' : '업로드 완료\u00A0✔️';
+        showToast(uploadMessage);
       });
     });
   });

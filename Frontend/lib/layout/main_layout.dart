@@ -1,5 +1,6 @@
 // lib/layout/main_layout.dart
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:convert';
@@ -45,6 +46,8 @@ class _MainLayoutState extends State<MainLayout> {
   double _rightSidebarWidth = 160.0;
   bool _isResizing = false;
 
+  final ScrollController _tabScrollController = ScrollController();
+
   @override
   void initState() {
     super.initState();
@@ -54,6 +57,12 @@ class _MainLayoutState extends State<MainLayout> {
         listen: false,
       ).loadStatus(context);
     });
+  }
+
+  @override
+  void dispose() {
+    _tabScrollController.dispose();
+    super.dispose();
   }
 
   Widget _getPageWidget(PageType pageType) {
@@ -78,18 +87,6 @@ class _MainLayoutState extends State<MainLayout> {
     }
   }
 
-  void _openChatbotWindow() async {
-    final window = await DesktopMultiWindow.createWindow(
-      jsonEncode({'arg1': 'value1', 'arg2': 'value2'}),
-    );
-    window
-      ..setFrame(const Offset(100, 100) & const Size(560, 960))
-      ..center()
-      ..setTitle('Memordo 챗봇')
-      ..show();
-  }
-
-  // ✨ [수정] 오른쪽 사이드바가 표시될 페이지 조건을 확장합니다.
   bool get _showRightSidebar =>
       widget.activePage == PageType.home ||
       widget.activePage == PageType.history ||
@@ -99,48 +96,81 @@ class _MainLayoutState extends State<MainLayout> {
   Widget _buildTabList(TabProvider tabProvider) {
     final theme = Theme.of(context);
     if (tabProvider.openTabs.isEmpty) {
-      return const SizedBox.shrink(); // 탭이 없으면 빈 공간
+      return const SizedBox.shrink();
     }
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        const double defaultTabWidth = 160.0;
-        const double minTabWidth = 80.0;
-        final double totalWidth = constraints.maxWidth;
-        final int tabCount = tabProvider.openTabs.length;
-        double tabWidth = defaultTabWidth;
-
-        if (tabCount * defaultTabWidth > totalWidth) {
-          tabWidth = totalWidth / tabCount;
-          if (tabWidth < minTabWidth) {
-            tabWidth = minTabWidth;
-          }
+    return Listener(
+      onPointerSignal: (pointerSignal) {
+        if (pointerSignal is PointerScrollEvent) {
+          final newOffset =
+              _tabScrollController.offset + pointerSignal.scrollDelta.dy;
+          final clampedOffset = newOffset.clamp(
+            _tabScrollController.position.minScrollExtent,
+            _tabScrollController.position.maxScrollExtent,
+          );
+          _tabScrollController.jumpTo(clampedOffset);
         }
-
-        return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: List.generate(tabCount, (index) {
-              return Row(
-                children: [
-                  _TabItem(
-                    tab: tabProvider.openTabs[index],
-                    isActive: index == tabProvider.activeTabIndex,
-                    onTap: () => tabProvider.setActiveTab(index),
-                    onClose: () => tabProvider.closeTab(index),
-                    width: tabWidth,
-                  ),
-                  if (index < tabCount - 1)
-                    VerticalDivider(
-                      width: 1,
-                      thickness: 1,
-                      color: theme.dividerColor,
-                    ),
-                ],
-              );
-            }),
-          ),
-        );
       },
+      child: ScrollbarTheme(
+        data: ScrollbarTheme.of(context).copyWith(crossAxisMargin: 0),
+        child: Scrollbar(
+          controller: _tabScrollController,
+          thumbVisibility: false,
+          trackVisibility: false,
+          thickness: 2.5,
+          radius: const Radius.circular(4.0),
+          child: SingleChildScrollView(
+            controller: _tabScrollController,
+            scrollDirection: Axis.horizontal,
+            physics: const ClampingScrollPhysics(),
+            child: Row(
+              children: List.generate(tabProvider.openTabs.length, (index) {
+                return DragTarget<int>(
+                  builder: (context, candidateData, rejectedData) {
+                    return Draggable<int>(
+                      data: index,
+                      feedback: Material(
+                        elevation: 4.0,
+                        child: _TabItem(
+                          tab: tabProvider.openTabs[index],
+                          isActive: true,
+                          onTap: () {},
+                          onClose: () {},
+                        ),
+                      ),
+                      childWhenDragging: Container(
+                        height: 40,
+                        width: 160,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.withOpacity(0.1),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          _TabItem(
+                            tab: tabProvider.openTabs[index],
+                            isActive: index == tabProvider.activeTabIndex,
+                            onTap: () => tabProvider.setActiveTab(index),
+                            onClose: () => tabProvider.closeTab(index),
+                          ),
+                          if (index < tabProvider.openTabs.length - 1)
+                            VerticalDivider(
+                              width: 1,
+                              thickness: 1,
+                              color: theme.dividerColor,
+                            ),
+                        ],
+                      ),
+                    );
+                  },
+                  onAccept: (draggedIndex) {
+                    tabProvider.reorderTab(draggedIndex, index);
+                  },
+                );
+              }),
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -154,7 +184,7 @@ class _MainLayoutState extends State<MainLayout> {
       body: Row(
         children: [
           Container(
-            width: 40,
+            width: 48,
             color: Theme.of(context).cardColor,
             child: Column(
               children: [
@@ -181,7 +211,6 @@ class _MainLayoutState extends State<MainLayout> {
                       Expanded(
                         child: Consumer<FileSystemProvider>(
                           builder: (context, fileSystemProvider, child) {
-                            // ✨ [수정] RightSidebarContent에 activePage를 전달합니다.
                             return RightSidebarContent(
                               activePage: widget.activePage,
                               isLoading: fileSystemProvider.isLoading,
@@ -327,6 +356,21 @@ class _MainLayoutState extends State<MainLayout> {
                               ),
                             ),
                           ),
+                        if (widget.activePage == PageType.settings)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 16.0),
+                            child: Text(
+                              'Settings',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color:
+                                    Theme.of(
+                                      context,
+                                    ).textTheme.bodyLarge?.color,
+                              ),
+                            ),
+                          ),
                         if (widget.activePage != PageType.home) const Spacer(),
                         if (widget.activePage == PageType.home)
                           Consumer<TabProvider>(
@@ -449,16 +493,6 @@ class _MainLayoutState extends State<MainLayout> {
                               );
                             },
                           ),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.forum_outlined,
-                            size: 20,
-                            color: Color(0xFF475569),
-                          ),
-                          onPressed: _openChatbotWindow,
-                          tooltip: '챗봇 열기',
-                        ),
-                        _buildUserProfileIcon(context),
                         const WindowButtons(),
                       ],
                     ),
@@ -476,148 +510,6 @@ class _MainLayoutState extends State<MainLayout> {
         ],
       ),
     );
-  }
-
-  Widget _buildUserProfileIcon(BuildContext context) {
-    return Consumer<TokenStatusProvider>(
-      builder: (context, tokenProvider, child) {
-        return PopupMenuButton<String>(
-          tooltip: '사용자 프로필',
-          offset: const Offset(0, 45),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12.0),
-          ),
-          elevation: 8.0,
-          color: Theme.of(context).cardColor,
-          itemBuilder: (BuildContext context) {
-            return _buildUserProfileMenuItems(context, tokenProvider);
-          },
-          child: Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: CircleAvatar(
-              backgroundColor:
-                  tokenProvider.isAuthenticated
-                      ? Colors.deepPurple.shade100
-                      : Colors.grey.shade300,
-              child: Icon(
-                Icons.person_outline,
-                color:
-                    tokenProvider.isAuthenticated
-                        ? Colors.deepPurple.shade700
-                        : Colors.grey.shade700,
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  List<PopupMenuEntry<String>> _buildUserProfileMenuItems(
-    BuildContext context,
-    TokenStatusProvider provider,
-  ) {
-    if (provider.isAuthenticated) {
-      return [
-        PopupMenuItem(
-          enabled: false,
-          child: Container(
-            width: 200,
-            padding: const EdgeInsets.symmetric(
-              vertical: 8.0,
-              horizontal: 16.0,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                CircleAvatar(
-                  radius: 24,
-                  backgroundColor: Colors.deepPurple.shade100,
-                  child: Icon(
-                    Icons.person,
-                    size: 28,
-                    color: Colors.deepPurple.shade700,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  provider.userEmail ?? '이메일 정보 없음',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 15,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          ),
-        ),
-        const PopupMenuDivider(),
-        PopupMenuItem(
-          value: 'logout',
-          onTap: () {
-            final tokenProvider = Provider.of<TokenStatusProvider>(
-              context,
-              listen: false,
-            );
-            tokenProvider.forceLogout(context);
-          },
-          child: const ListTile(
-            leading: Icon(Icons.logout),
-            title: Text('로그아웃'),
-          ),
-        ),
-      ];
-    } else {
-      return [
-        PopupMenuItem(
-          enabled: false,
-          child: SizedBox(
-            width: 200,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Guest',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '로그인이 필요합니다.',
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
-                ),
-                const SizedBox(height: 12),
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.login, size: 16),
-                  label: const Text('로그인/회원가입'),
-                  onPressed: () {
-                    final tokenProvider = Provider.of<TokenStatusProvider>(
-                      context,
-                      listen: false,
-                    );
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => LoginPage()),
-                    ).then((_) {
-                      tokenProvider.loadStatus(context);
-                    });
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.deepPurple,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8.0),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ];
-    }
   }
 
   Future<String?> _showTextInputDialog(
@@ -695,14 +587,14 @@ class _TabItem extends StatefulWidget {
   final bool isActive;
   final VoidCallback onTap;
   final VoidCallback onClose;
-  final double width;
+  final double? width;
 
   const _TabItem({
     required this.tab,
     required this.isActive,
     required this.onTap,
     required this.onClose,
-    required this.width,
+    this.width,
   });
 
   @override
@@ -711,6 +603,7 @@ class _TabItem extends StatefulWidget {
 
 class __TabItemState extends State<_TabItem> {
   bool _isHovered = false;
+  bool _isCloseButtonHovered = false;
 
   @override
   Widget build(BuildContext context) {
@@ -724,7 +617,7 @@ class __TabItemState extends State<_TabItem> {
         child: Container(
           width: widget.width,
           height: 40,
-          padding: const EdgeInsets.only(left: 12, right: 8),
+          padding: const EdgeInsets.only(left: 12, right: 4),
           transform:
               widget.isActive ? Matrix4.translationValues(0, 1, 0) : null,
           decoration: BoxDecoration(
@@ -740,11 +633,12 @@ class __TabItemState extends State<_TabItem> {
                     : null,
           ),
           child: Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Expanded(
+              Flexible(
                 child: Text(
                   widget.tab.title,
-                  overflow: TextOverflow.ellipsis,
+                  softWrap: false,
                   style: TextStyle(
                     color:
                         widget.isActive
@@ -758,23 +652,41 @@ class __TabItemState extends State<_TabItem> {
                   ),
                 ),
               ),
+              const SizedBox(width: 8),
               SizedBox(
                 width: 24,
+                height: 24,
                 child:
                     (widget.isActive || _isHovered)
-                        ? InkWell(
-                          onTap: widget.onClose,
-                          borderRadius: BorderRadius.circular(20),
-                          child: Padding(
-                            padding: const EdgeInsets.all(4.0),
-                            child: Icon(
-                              Icons.close,
-                              size: 15,
-                              color:
-                                  widget.isActive
-                                      ? theme.textTheme.bodyLarge?.color
-                                      : theme.textTheme.bodyMedium?.color
-                                          ?.withOpacity(0.7),
+                        ? MouseRegion(
+                          onEnter:
+                              (_) =>
+                                  setState(() => _isCloseButtonHovered = true),
+                          onExit:
+                              (_) =>
+                                  setState(() => _isCloseButtonHovered = false),
+                          child: InkWell(
+                            onTap: widget.onClose,
+                            borderRadius: BorderRadius.circular(4.0),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color:
+                                    _isCloseButtonHovered
+                                        ? theme.hoverColor
+                                        : Colors.transparent,
+                                borderRadius: BorderRadius.circular(4.0),
+                              ),
+                              child: Center(
+                                child: Icon(
+                                  Icons.close,
+                                  size: 15,
+                                  color:
+                                      widget.isActive
+                                          ? theme.textTheme.bodyLarge?.color
+                                          : theme.textTheme.bodyMedium?.color
+                                              ?.withOpacity(0.7),
+                                ),
+                              ),
                             ),
                           ),
                         )

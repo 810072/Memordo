@@ -6,56 +6,50 @@
   <link rel="stylesheet" href="../assets/style.css" />
 </head>
 <body>
-  <div class="settings-container">
-    <h1>Memordo</h1>
+  <div class="container">
+    <header class="header">
+      <h1>Memordo</h1>
+    </header>
 
-    <div id="login-section">
-      <div class="setting-item">
+    <div id="main-section" style="display: block;">
+      <div class="card user-card">
+        <span id="user-email">2jh1230@naver.com</span>
+        <button id="logout-button" class="btn-logout">로그아웃</button>
+      </div>
+
+      <div class="card tracking-card">
+        <div class="tracking-info">
+          <span class="card-title">방문기록 추적</span>
+          <p class="card-subtitle">웹사이트 방문 기록을 자동으로 저장합니다</p>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="tracking-toggle" checked>
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="action-buttons">
+        <button id="upload-button" class="btn btn-primary">
+          <span class="icon-drive"></span>
+          Drive 업로드
+        </button>
+        <button id="view-history-button" class="btn btn-secondary">
+          <span class="icon-history">&#x1F553;</span>
+          방문 기록 보기
+        </button>
+      </div>
+    </div>
+    
+    <div id="login-section" style="display: none;">
         <input type="email" id="email-input" placeholder="이메일" class="login-input">
-      </div>
-      <div class="setting-item">
         <input type="password" id="password-input" placeholder="비밀번호" class="login-input">
-      </div>
-      <div class="setting-item">
-        <div class="setting-control">
-          <button id="login-button" class="btn-3"><span>로그인</span></button>
-        </div>
-      </div>
-      <div id="login-status" class="status-message"></div>
+        <button id="login-button" class="btn btn-primary" style="width: 100%; margin-top: 10px;">로그인</button>
+        <div id="login-status" class="status-message"></div>
     </div>
 
-    <div id="main-section" style="display: none;">
-        <div class="setting-item">
-            <span id="user-email" class="setting-label"></span>
-            <div class="setting-control">
-                <button id="logout-button" class="btn-3"><span>로그아웃</span></button>
-            </div>
-        </div>
-        <div class="setting-item">
-            <span class="setting-label">방문기록 추적</span>
-            <div class="setting-control_1">
-                <label class="switch">
-                <input type="checkbox" id="tracking-toggle">
-                <span class="slider round"></span>
-                </label>
-            </div>
-        </div>
-        <div class="setting-item">
-            <div class="setting-control">
-                <button id="upload-button" class="btn-3">
-                <span>Drive 업로드</span>
-                </button>
-                <span id="upload-status"></span>
-            </div>
-        </div>
-        <div class="setting-item">
-            <div class="setting-control">
-                <button id="view-history-button" class="btn-3">
-                <span>방문 기록 보기</span>
-                </button>
-            </div>
-        </div>
-    </div>
+    <footer class="footer">
+        버전 1.2.0
+    </footer>
   </div>
   <script type="module" src="popup.js"></script>
 </body>

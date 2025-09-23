@@ -1,257 +1,303 @@
 /* 기본 스타일 및 폰트 설정 */
+:root {
+  --primary-color: #275efe;
+  --light-gray: #f0f2f5;
+  --border-color: #e9e9e9;
+  --text-color: #333;
+  --subtitle-color: #888;
+  --background-color: #fff;
+}
+
 body {
-  font-family: 'Noto Sans KR', sans-serif; /* 기본 폰트 설정 (Noto Sans KR 우선, 없으면 시스템 기본 sans-serif) */
-  font-size: 14px; /* 기본 글자 크기 */
-  color: #333; /* 기본 글자 색상 (어두운 회색) */
-  background-color: #e8e8e8; /* 팝업 전체 배경색 (연한 회색) */
-  margin: 0; /* body 요소의 기본 마진 제거 */
-  min-width: 180px; /* 팝업 창의 최소 너비 설정 */
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 14px;
+  color: var(--text-color);
+  background-color: var(--background-color);
+  margin: 0;
+  width: 250px;
 }
 
-/* 전체 설정을 감싸는 컨테이너 */
-.settings-container {
-  padding: 15px; /* 컨테이너 내부 여백 */
+.container {
+  padding: 16px;
 }
 
-/* 팝업 제목 스타일 */
-h1 {
-  font-size: 16px; /* 제목 글자 크기 */
-  font-weight: bold; /* 제목 굵게 */
-  margin-top: 0; /* 제목 위쪽 마진 제거 */
-  margin-bottom: 15px; /* 제목 아래쪽 마진 */
-  color: #222; /* 제목 색상 (더 어두운 회색) */
-  text-align: center; /* 제목 가운데 정렬 */
-  border-bottom: 1px solid #ccc; /* 제목 아래 구분선 */
-  padding-bottom: 10px; /* 제목과 구분선 사이 여백 */
+/* 헤더 */
+.header {
+  text-align: center;
+  margin-bottom: 24px;
 }
 
-/* 개별 설정 항목 (행) 스타일 */
-.setting-item {
-  display: flex; /* Flexbox 레이아웃 사용 (자식 요소들을 가로로 배치) */
-  align-items: center; /* 자식 요소들을 수직 방향으로 가운데 정렬 */
-  justify-content: space-between; /* 자식 요소들(라벨, 컨트롤) 사이의 공간을 최대로 확보 */
-  padding: 8px 5px; /* 설정 항목 내부 상하, 좌우 여백 */
-  margin-bottom: 8px; /* 설정 항목 아래쪽 마진 (항목 간 간격) */
-  background-color: #f5f5f5; /* 설정 항목 배경색 */
-  border: 1px solid #dcdcdc; /* 설정 항목 테두리 */
-  border-radius: 3px; /* 설정 항목 모서리 약간 둥글게 */
-  min-height: 45px; /* 설정 항목의 최소 높이 (버튼 높이 등 고려) */
+.header h1 {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+  position: relative;
+  display: inline-block;
+  padding-bottom: 8px;
 }
 
-/* 설정 항목의 라벨 (왼쪽 텍스트) 스타일 */
-.setting-label {
-  flex-basis: 75%; /* Flex 아이템의 기본 너비 설정 (라벨 영역 확보) */
-  font-weight: 500; /* 글자 약간 굵게 */
-  padding-left: 5px; /* 라벨 왼쪽 여백 */
-  color: #444; /* 라벨 글자 색상 */
+.header h1::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 30px;
+  height: 3px;
+  background-color: var(--primary-color);
+  border-radius: 2px;
 }
 
-/* 설정 항목의 컨트롤 (오른쪽 요소: 버튼 등) 영역 스타일 */
-.setting-control {
-  flex-grow: 1; /* 라벨을 제외한 나머지 공간을 모두 차지하도록 설정 */
-  display: flex; /* 내부 요소(버튼, 상태 메시지) 정렬을 위해 Flexbox 사용 */
-  justify-content: center; /* 내부 요소들을 오른쪽 끝으로 정렬 */
-  align-items: center; /* 내부 요소들을 수직 방향으로 가운데 정렬 */
-  padding-right: 0px; /* 컨트롤 영역 오른쪽 여백 */
-}
-/* 설정 항목의 컨트롤 (오른쪽 요소: 라디오 버튼 등) 영역 스타일 */
-.setting-control_1 {
-  flex-grow: 0; /* 라벨을 제외한 나머지 공간을 모두 차지하도록 설정 */
-  display: flex; /* 내부 요소(버튼, 상태 메시지) 정렬을 위해 Flexbox 사용 */
-  justify-content: flex-end; /* 내부 요소들을 오른쪽 끝으로 정렬 */
-  align-items: center; /* 내부 요소들을 수직 방향으로 가운데 정렬 */
-  padding-right: 0px; /* 컨트롤 영역 오른쪽 여백 */
-  width: 44px;
+/* 카드 스타일 */
+.card {
+  display: flex;
+  justify-content: space-between;
+  padding: 14px;
+  border-radius: 12px;
+  background-color: var(--background-color);
+  margin-bottom: 12px;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
-
-
-/* --- 사용자 지정 버튼 스타일 (.btn-3) --- */
-.btn-3 {
-  background: rgb(0,172,238); /* 배경색 기본값 (구형 브라우저용) */
-  background: linear-gradient(0deg, rgba(0,172,238,1) 0%, rgba(2,126,251,1) 100%); /* 배경 그라데이션 (아래에서 위로) */
-  width: 100px; /* 버튼 너비 */
-  height: 40px; /* 버튼 높이 */
-  line-height: 42px; /* 줄 높이 (텍스트 수직 중앙 정렬에 사용, 버튼 높이보다 약간 크게 설정됨) */
-  padding: 0; /* 내부 여백 없음 */
-  border: none; /* 테두리 없음 */
-  cursor: pointer; /* 마우스 커서를 포인터(손가락) 모양으로 변경 */
-  position: relative; /* 내부 가상요소(:before, :after)의 위치 기준점 설정 */
-  color: white; /* 버튼 텍스트 색상 */
-  font-size: 13px; /* 버튼 텍스트 크기 */
-  font-weight: 500; /* 버튼 텍스트 굵기 */
-  border-radius: 3px; /* 버튼 모서리 둥글게 */
-  overflow: hidden; /* 버튼 영역을 벗어나는 내용(애니메이션 등) 숨김 */
+.tracking-card {
+  align-items: center; 
 }
 
-/* 버튼 내부의 텍스트를 감싸는 span 요소 */
-.btn-3 span {
-  position: relative; /* span 내부 가상요소(:before, :after)의 위치 기준점 */
-  display: block; /* 블록 요소로 만들어 너비/높이 적용 가능하게 함 */
-  width: 100%; /* 부모 요소(버튼) 너비 전체 차지 */
-  height: 100%; /* 부모 요소(버튼) 높이 전체 차지 */
-  z-index: 2; /* 텍스트가 호버 애니메이션(z-index: 1) 위에 오도록 설정 */
-  transition: color 0.3s ease; /* 텍스트 색상 변경 시 부드러운 전환 효과 */
+.tracking-info {
+  flex-grow: 1;
+  margin-right: 12px;
 }
 
-/* 버튼의 오른쪽 상단 모서리 애니메이션 요소 (:before, :after) */
-.btn-3:before,
-.btn-3:after {
-  position: absolute; /* 부모 요소(.btn-3) 기준 절대 위치 */
-  content: ""; /* 가상 요소는 content 속성 필수 */
-  right: 0; /* 오른쪽 끝에 위치 */
-  top: 0; /* 위쪽 끝에 위치 */
-  background: rgba(2,126,251,1); /* 애니메이션 색상 (그라데이션 상단 색상과 유사) */
-  transition: all 0.3s ease; /* 모든 속성 변경 시 부드러운 전환 효과 */
-  z-index: 1; /* 애니메이션이 텍스트(z-index: 2) 아래에 오도록 설정 */
+.tracking-card .switch {
+  flex-shrink: 0;
 }
 
-/* 버튼 오른쪽 테두리 애니메이션 (세로선) */
-.btn-3:before {
-  height: 0%; /* 초기 높이 0 */
-  width: 2px; /* 선 굵기 */
+.user-card {
+  align-items: center;
+  background-color: var(--light-gray);
+  border: none;
 }
 
-/* 버튼 위쪽 테두리 애니메이션 (가로선) */
-.btn-3:after {
-  width: 0%; /* 초기 너비 0 */
-  height: 2px; /* 선 굵기 */
+#user-email {
+  font-weight: 500;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 140px;
 }
 
-/* 버튼에 마우스 호버 시 스타일 */
-.btn-3:hover {
-  background: transparent; /* 배경 투명하게 변경 */
-  box-shadow: none; /* 기본 그림자 제거 */
+.card-title {
+  font-weight: 600;
+  display: block;
+  margin-bottom: 4px;
 }
 
-/* 버튼 호버 시 오른쪽 테두리 애니메이션 (높이 100%로 확장) */
-.btn-3:hover:before {
-  height: 100%;
+.card-subtitle {
+  font-size: 12px;
+  color: var(--subtitle-color);
+  margin: 0;
+  word-break: keep-all; 
 }
 
-/* 버튼 호버 시 위쪽 테두리 애니메이션 (너비 100%로 확장) */
-.btn-3:hover:after {
-  width: 100%;
-}
-
-/* (주석 처리됨) span 요소 자체에 호버 시 텍스트 색상 변경 - 현재는 사용 안 함 */
-/* .btn-3 span:hover {
-   color: rgba(2,126,251,1);
-} */
-
-/* 버튼(.btn-3)에 마우스 호버 시 내부 span 텍스트 색상 변경 */
-.btn-3:hover span {
-   color: rgba(2,126,251,1); /* 호버 시 텍스트 색상을 애니메이션 색상과 동일하게 변경 */
-}
-
-/* 버튼 내부 span의 왼쪽 하단 모서리 애니메이션 요소 (:before, :after) */
-.btn-3 span:before,
-.btn-3 span:after {
-  position: absolute; /* 부모 요소(span) 기준 절대 위치 */
-  content: ""; /* 가상 요소는 content 속성 필수 */
-  left: 0; /* 왼쪽 끝에 위치 */
-  bottom: 0; /* 아래쪽 끝에 위치 */
-  background: rgba(2,126,251,1); /* 애니메이션 색상 */
-  transition: all 0.3s ease; /* 모든 속성 변경 시 부드러운 전환 효과 */
-  z-index: 1; /* 애니메이션이 텍스트(z-index: 2) 아래에 오도록 설정 */
-}
-
-/* 버튼 span 왼쪽 테두리 애니메이션 (세로선) */
-.btn-3 span:before {
-  width: 2px; /* 선 굵기 */
-  height: 0%; /* 초기 높이 0 */
-}
-
-/* 버튼 span 아래쪽 테두리 애니메이션 (가로선) */
-.btn-3 span:after {
-  width: 0%; /* 초기 너비 0 */
-  height: 2px; /* 선 굵기 */
-}
-
-/* 버튼 호버 시 span 왼쪽 테두리 애니메이션 (높이 100%로 확장) */
-.btn-3:hover span:before {
-  height: 100%;
-}
-
-/* 버튼 호버 시 span 아래쪽 테두리 애니메이션 (너비 100%로 확장) */
-.btn-3:hover span:after {
-  width: 100%;
-}
-/* --- 버튼 스타일 끝 --- */
-
-
-/* 업로드 상태 메시지 스타일 */
-#upload-status {
-  font-size: 12px; /* 글자 크기 작게 */
-  color: #666; /* 글자 색상 (회색) */
-  /* margin-left는 .setting-control > *:not(:last-child) 에서 처리 */
-}
-
-/* 토글 스위치 전체 영역 스타일 */
-.switch {
-  position: relative; /* 내부 슬라이더의 위치 기준점 */
-  display: inline-block; /* 인라인 블록 요소로 배치 */
-  width: 44px; /* 스위치 너비 */
-  height: 24px; /* 스위치 높이 */
-}
-
-/* 실제 체크박스 숨기기 */
-.switch input {
-  opacity: 0; /* 투명하게 만듦 */
-  width: 0; /* 너비 0 */
-  height: 0; /* 높이 0 */
-}
-
-/* 스위치 배경 (슬라이더 트랙) 스타일 */
-.slider {
-  position: absolute; /* 부모(.switch) 기준 절대 위치 */
-  cursor: pointer; /* 마우스 커서 포인터 모양으로 변경 */
-  top: 0; left: 0; right: 0; bottom: 0; /* 부모 요소 전체 영역 차지 */
-  background-color: #ccc; /* 비활성 상태 배경색 */
-  border: 1px solid #aaa; /* 슬라이더 트랙 테두리 */
-  transition: 0.4s; /* 배경색 변경 시 부드러운 전환 효과 */
-  border-radius: 24px; /* 트랙 모서리 둥글게 (높이의 절반) */
-}
-
-/* 스위치 핸들 (동그란 부분) 스타일 */
-.slider:before {
-  position: absolute; /* 부모(.slider) 기준 절대 위치 */
-  content: ""; /* 가상 요소는 content 속성 필수 */
-  height: 18px; /* 핸들 높이 */
-  width: 18px; /* 핸들 너비 */
-  left: 2px; /* 왼쪽에서의 위치 */
-  bottom: 2px; /* 아래쪽에서의 위치 */
-  background-color: white; /* 핸들 배경색 */
-  border: 1px solid #aaa; /* 핸들 테두리 */
-  transition: 0.4s; /* 위치 변경 시 부드러운 전환 효과 */
-  border-radius: 50%; /* 원 모양으로 만듦 */
-  box-shadow: 0 1px 1px rgba(0,0,0,0.2); /* 핸들에 약간의 그림자 효과 */
-}
-
-/* 체크박스가 체크되었을 때 슬라이더 트랙 스타일 */
-input:checked + .slider {
-  background-color: #aaddaa; /* 활성 상태 배경색 (연한 녹색) */
-  border-color: #88cc88; /* 활성 상태 테두리 색상 */
-}
-
-/* 체크박스가 체크되었을 때 핸들 스타일 */
-input:checked + .slider:before {
-  background-color: #f0fff0; /* 활성 상태 핸들 배경색 */
-  transform: translateX(20px); /* 핸들을 오른쪽으로 20px 이동 */
-}
-
-/* assets/style.css 에 추가 */
-.login-input {
-  width: 100%;
-  padding: 8px;
+/* 로그아웃 버튼 */
+.btn-logout {
+  background: none;
   border: 1px solid #dcdcdc;
+  color: #555;
+  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s;
+  flex-shrink: 0;
+}
+.btn-logout:hover {
+  background-color: #e9e9e9;
+  border-color: #ccc;
+}
+
+
+/* 토글 스위치 디자인 */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 52px;
+  height: 28px;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: .4s;
+  border-radius: 4px;
+}
+
+.slider:after {
+  position: absolute;
+  content: "";
+  height: 22px;
+  width: 22px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: .4s;
   border-radius: 3px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
+
+.slider:before {
+  content: 'ON';
+  position: absolute;
+  left: 5px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: white;
+  font-size: 11px;
+  font-weight: bold;
+  opacity: 0;
+  transition: opacity 0.4s;
+}
+
+input:checked + .slider {
+  background-color: var(--primary-color);
+}
+
+input:checked + .slider:before {
+  opacity: 1;
+}
+
+input:checked + .slider:after {
+  transform: translateX(24px);
+}
+
+/* 액션 버튼 그룹 */
+.action-buttons {
+  margin-top: 24px;
+}
+
+.btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 12px;
+  margin-bottom: 12px;
+  border-radius: 10px;
+  border: 1px solid;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
   box-sizing: border-box;
+  transition: background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s;
+}
+
+.btn:last-child {
+  margin-bottom: 0;
+}
+
+.btn:hover {
+  opacity: 0.9;
+}
+
+.btn-primary {
+  background-color: var(--primary-color);
+  border-color: var(--primary-color);
+  color: white;
+}
+
+.btn-secondary {
+  background-color: var(--background-color);
+  border-color: var(--border-color);
+  color: var(--text-color);
+}
+.btn-secondary:hover {
+  background-color: var(--light-gray);
+}
+
+
+/* 버튼 아이콘 */
+.btn [class^="icon-"] {
+  margin-right: 8px;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.icon-drive {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid white;
+  border-radius: 50%;
+}
+
+.icon-history {
+  color: var(--primary-color);
+  font-family: 'Apple Symbols', 'Segoe UI Symbol', sans-serif;
+}
+.btn-secondary .icon-history {
+    color: var(--text-color);
+}
+
+
+/* 푸터 */
+.footer {
+  text-align: center;
+  margin-top: 24px;
+  font-size: 12px;
+  color: #aaa;
+}
+
+/* 로그인 화면 */
+.login-input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-sizing: border-box;
+    margin-bottom: 10px;
 }
 .status-message {
-  text-align: center;
-  width: 100%;
-  padding-top: 5px;
-  font-size: 12px;
-  color: #d9534f; /* 에러 메시지 색상 */
+    text-align: center;
+    width: 100%;
+    padding-top: 5px;
+    font-size: 12px;
+    color: #d9534f;
+}
+
+/* 알림창(토스트) 스타일 */
+.toast-notification {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background-color: rgba(28, 28, 30, 0.85);
+  color: white;
+  padding: 10px 20px;
+  border-radius: 20px;
+  font-size: 14px;
+  z-index: 1000;
+  opacity: 0;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+  backdrop-filter: blur(5px);
+  /* <<<<<<< 이 줄을 추가하여 줄바꿈을 방지합니다 >>>>>>> */
+  white-space: nowrap; 
+}
+
+.toast-notification.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
 }

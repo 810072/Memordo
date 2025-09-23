@@ -1,373 +1,230 @@
-/* history/history.css */
+/* 기본 스타일 및 폰트 설정 */
+:root {
+  --primary-color: #007AFF;
+  --text-color: #1c1c1e;
+  --secondary-text-color: #8a8a8e;
+  --border-color: #e5e5e5;
+  --background-color: #fff;
+  --hover-background: #f5f5f7;
+}
 
-/* ==========================================================================
-기본 스타일 및 폰트 설정
-========================================================================== */
 body {
-  font-family: 'Noto Sans KR', sans-serif; /* Noto Sans KR 우선, 없으면 시스템 기본 sans-serif */
-  font-size: 14px;                        /* 기본 글자 크기 */
-  color: #333;                             /* 기본 글자 색상 */
-  background-color: #f9f9f9;              /* 페이지 전체 배경색 */
-  padding: 25px;                           /* 페이지 전체 내부 여백 */
-  margin: 0;                               /* body 요소의 기본 마진 제거 */
-}
-
-/* 페이지 제목 스타일 ('방문 기록') */
-h2 {
-  font-size: 20px;       /* 제목 글자 크기 */
-  font-weight: 600;      /* 제목 굵기 */
-  color: #222;          /* 제목 글자 색상 */
-  margin-top: 0;         /* 제목 위쪽 마진 제거 */
-  margin-bottom: 25px;   /* 제목 아래쪽 여백 */
-  text-align: center;    /* 제목 가운데 정렬 */
-}
-
-/* ==========================================================================
-  액션 바 (상단 컨트롤 영역) 스타일
-  ========================================================================== */
-.action-bar {
-  display: flex;                   /* 자식 요소(버튼, 메시지)를 가로로 배치 */
-  align-items: center;             /* 자식 요소 수직 가운데 정렬 */
-
-  /* 애니메이션 및 초기 숨김 상태 설정 (max-height 기법) */
-  max-height: 0;                   /* 초기 높이 0 (숨김 상태) */
-  opacity: 0;                      /* 초기 상태: 투명 (부드러운 등장을 위해) */
-  overflow: hidden;                /* 내용 넘치면 숨김 (max-height 애니메이션 필수) */
-  margin-bottom: 0;                /* 초기 아래쪽 마진 0 */
-  padding-top: 0;                  /* 초기 위쪽 패딩 0 */
-  padding-bottom: 0;               /* 초기 아래쪽 패딩 0 */
-  border-bottom-width: 0;          /* 초기 아래쪽 테두리 두께 0 */
-  border-bottom-style: solid;      /* 테두리 스타일은 유지 (애니메이션 위해) */
-  border-bottom-color: #eee;       /* 테두리 색상 유지 */
-  box-sizing: border-box;          /* 패딩/테두리 포함하여 크기 계산 */
-
-  /* 여러 속성에 대한 전환(애니메이션) 효과 설정 */
-  transition:
-    max-height 0.4s ease-in-out,   /* 높이 변경 애니메이션 */
-    opacity 0.2s ease 0.1s,        /* 투명도 애니메이션 (나타날 때 약간 늦게) */
-    margin-bottom 0.4s ease-in-out, /* 마진 변경 애니메이션 */
-    padding-top 0.4s ease-in-out,   /* 패딩 변경 애니메이션 */
-    padding-bottom 0.4s ease-in-out, /* 패딩 변경 애니메이션 */
-    border-bottom-width 0.4s ease-in-out; /* 테두리 두께 애니메이션 */
-}
-
-/* 액션 바가 보여질 때 적용될 스타일 (.visible 클래스가 추가되었을 때) */
-.action-bar.visible {
-  /* 내용물 높이 + 패딩 + 테두리보다 충분히 큰 값으로 설정 (펼쳐진 상태) */
-  max-height: 100px;               /* 예시 값, 버튼 높이(약 40px) + 패딩 등을 고려해 조정 */
-  opacity: 1;                      /* 최종 상태: 불투명 */
-
-  /* 원래 값 복원 */
-  margin-bottom: 20px;             /* 원래 아래쪽 마진 */
-  padding-bottom: 15px;            /* 원래 아래쪽 패딩 */
-  border-bottom-width: 1px;        /* 원래 아래쪽 테두리 두께 */
-}
-
-/* 삭제 상태 메시지 스타일 (#delete-status) */
-#delete-status,
-.status-message { /* 상태 메시지 공통 스타일 */
-  font-size: 13px;                 /* 메시지 글자 크기 */
-  color: #555;                     /* 메시지 글자 색상 */
-  opacity: 1;                      /* 기본 상태: 불투명 */
-  margin-left: auto;               /* 삭제 버튼들 외에 남는 공간을 모두 차지하여 오른쪽으로 밀착 (선택적) */
-  padding-left: 10px;              /* 버튼과의 최소 간격 (선택적) */
-  /* 메시지가 액션 바보다 약간 늦게 나타나도록 전환 효과 설정 */
-  transition: opacity 0.3s ease 0.2s; /* opacity 변경 시 0.3초 동안, 0.2초 지연 후 시작 */
-}
-
-/* 액션 바가 숨겨질 때(.visible 클래스가 없을 때) 상태 메시지 스타일 */
-.action-bar:not(.visible) #delete-status,
-.action-bar:not(.visible) .status-message {
-  opacity: 0;                      /* 숨김 상태: 투명 */
-  transition-delay: 0s;            /* 사라질 때는 지연 시간 없음 */
-  transition-duration: 0.1s;       /* 빠르게 사라지도록 */
-}
-
-/* ==========================================================================
-  액션 바 내부 버튼 스타일 (전체 선택, 삭제, 북마크)
-  ========================================================================== */
-
-/* 버튼 스타일링에 사용될 공통 CSS 변수 (커스텀 속성) */
-.action-bar {
-  --button-bg: #275efe;             /* 버튼 배경색 */
-  --button-text: #fff;              /* 버튼 글자색 */
-  --button-font-size: 14px;         /* 버튼 글자 크기 */
-  --button-duration: .44s;          /* 버튼 내부 글자 애니메이션 시간 */
-  --button-move-hover: -4px;        /* 마우스 올렸을 때 버튼 Y축 이동 거리 */
-  --button-shadow: 0 2px 8px -1px rgba(39, 94, 254, 0.32);  /* 기본 그림자 */
-  --button-shadow-hover: 0 4px 20px -2px rgba(39, 94, 254, 0.5); /* 호버 시 그림자 */
-  --button-font-shadow: var(--button-font-size);   /* 글자 아래 그림자 Y 오프셋 (입체 효과용) */
-}
-
-#select-all-button,
-#delete-selected-button,
-#bookmark-selected-button { /* 북마크 버튼 추가 */
-  --background: var(--button-bg);
-  --text: var(--button-text);
-  --font-size: var(--button-font-size);
-  --duration: var(--button-duration);
-  --move-hover: var(--button-move-hover);
-  --shadow: var(--button-shadow);
-  --shadow-hover: var(--button-shadow-hover);
-  --font-shadow: var(--button-font-shadow);
-  --m: 0;
-
-  padding: 10px 20px;
-  font-family: 'Roboto', 'Noto Sans KR', sans-serif;
-  font-weight: 500;
-  line-height: var(--font-size);
-  border-radius: 24px;
-  outline: none;
-  appearance: none;
-  border: none;
-  text-decoration: none;
-  font-size: var(--font-size);
-  letter-spacing: .5px;
-  background: var(--background);
-  color: var(--text);
-  box-shadow: var(--shadow);
-  cursor: pointer;
-  display: block;
-  flex-shrink: 0;
-
-  transition:
-    transform var(--duration) ease,
-    box-shadow var(--duration) ease;
-  transform: translateY(0);
-}
-
-/* 버튼 마진 */
-#select-all-button {
-  margin-right: 10px;
-}
-#delete-selected-button {
-  margin-right: 10px;
-}
-#bookmark-selected-button { /* 북마크 버튼 마진 */
-    margin-right: 10px;
-}
-
-/* 버튼 내부의 div 요소 */
-#select-all-button div,
-#delete-selected-button div,
-#bookmark-selected-button div { /* 북마크 버튼 div 추가 */
-  display: flex;
-  overflow: hidden;
-  text-shadow: 0 var(--button-font-shadow) 0 var(--button-text);
-}
-
-/* 버튼 내부의 span 요소 */
-#select-all-button div span,
-#delete-selected-button div span,
-#bookmark-selected-button div span { /* 북마크 버튼 span 추가 */
-  display: block;
-  backface-visibility: hidden;
-  font-style: normal;
-  transition: transform var(--button-duration) ease;
-  transform: translateY(var(--m)) translateZ(0);
-}
-
-/* "전체 선택" 버튼 글자별 애니메이션 시작 지연 시간 설정 */
-#select-all-button div span:nth-child(1) { transition-delay: 0.05s; }
-#select-all-button div span:nth-child(2) { transition-delay: 0.1s; }
-#select-all-button div span:nth-child(3) { transition-delay: 0.15s; }
-#select-all-button div span:nth-child(4) { transition-delay: 0.2s; }
-#select-all-button div span:nth-child(5) { transition-delay: 0.25s; }
-
-/* "삭제" 버튼 글자별 애니메이션 시작 지연 시간 설정 */
-#delete-selected-button div span:nth-child(1) { transition-delay: 0.05s; }
-#delete-selected-button div span:nth-child(2) { transition-delay: 0.1s; }
-
-/* "북마크" 버튼 글자별 애니메이션 시작 지연 시간 설정 */
-#bookmark-selected-button div span:nth-child(1) { transition-delay: 0.05s; }
-#bookmark-selected-button div span:nth-child(2) { transition-delay: 0.1s; }
-#bookmark-selected-button div span:nth-child(3) { transition-delay: 0.15s; }
-#bookmark-selected-button div span:nth-child(4) { transition-delay: 0.2s; }
-
-
-/* 버튼에 마우스를 올렸을 때(:hover) 스타일 */
-#select-all-button:hover,
-#delete-selected-button:hover,
-#bookmark-selected-button:hover { /* 북마크 버튼 호버 추가 */
-  transform: translateY(var(--button-move-hover));
-  box-shadow: var(--button-shadow-hover);
-}
-
-/* 버튼에 마우스를 올렸을 때(:hover) 내부 글자(span) 스타일 */
-#select-all-button:hover span,
-#delete-selected-button:hover span,
-#bookmark-selected-button:hover span { /* 북마크 버튼 호버 span 추가 */
-  --m: calc(var(--button-font-size) * -1);
-}
-
-/* ==========================================================================
-  방문 기록 리스트 스타일
-  ========================================================================== */
-/* 날짜 그룹 스타일 */
-.date-group {
-  margin-bottom: 25px;
-  border-bottom: 1px solid #eee;
-  padding-bottom: 15px;
-}
-
-/* 날짜 그룹 제목 */
-.date-group h3 {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   font-size: 16px;
-  font-weight: 500;
-  margin-bottom: 15px;
-  color: #555;
+  color: var(--text-color);
+  background-color: var(--background-color);
+  margin: 0;
 }
 
-/* 방문 기록 목록 전체 (ul) 스타일 */
-ul {
+.container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 24px 32px;
+}
+
+/* 헤더 */
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.page-header h2 {
+  font-size: 28px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.header-actions .icon-button {
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  margin-left: 12px;
+  opacity: 0.6;
+}
+
+.header-actions .icon-button:disabled {
+  opacity: 0.2;
+  cursor: not-allowed;
+}
+
+.header-actions .icon-button img {
+  width: 22px;
+  height: 22px;
+}
+
+/* 검색창 */
+.search-container {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 8px;
+  margin-bottom: 24px;
+}
+
+.search-container img {
+  width: 20px;
+  height: 20px;
+  margin-right: 12px;
+  opacity: 0.5;
+}
+
+#search-input {
+  border: none;
+  outline: none;
+  width: 100%;
+  font-size: 16px;
+  background: transparent;
+}
+#search-input::placeholder {
+  color: var(--secondary-text-color);
+}
+
+/* 필터 */
+.filter-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+
+.filter-tabs button {
+  background: none;
+  border: none;
+  padding: 4px 0;
+  margin-right: 16px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--secondary-text-color);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+
+.filter-tabs button.active {
+  color: var(--primary-color);
+  border-bottom-color: var(--primary-color);
+}
+
+/* ================================== */
+/* <<<<<<< 날짜 그룹 헤더 스타일 추가 >>>>>>> */
+/* ================================== */
+.date-header {
+  padding: 12px 4px 8px 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--secondary-text-color);
+  background-color: var(--background-color);
+  border-bottom: 1px solid var(--border-color);
+
+  /* 스크롤 시 상단에 고정 */
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+
+/* 방문 기록 목록 */
+#history-list .date-group {
+  margin-bottom: 16px;
+}
+
+#history-list ul {
   list-style: none;
   padding: 0;
   margin: 0;
 }
 
-/* 각 방문 기록 항목 (li) 스타일 */
-li {
-  padding: 10px 8px;
-  border-radius: 4px;
-  transition: background-color 0.2s ease;
+#history-list li {
   display: flex;
-  align-items: center;
-  margin-bottom: 8px;
-  position: relative;
-  min-height: 3.5em;
+  align-items: flex-start;
+  padding: 8px 4px;
+}
+/* 목록 아이템 사이에는 얇은 선 대신, 헤더에만 선을 사용 */
+/* border-bottom: 1px solid var(--border-color); */
+
+
+#history-list li:hover {
+  background-color: var(--hover-background);
 }
 
-/* 리스트 항목에 마우스를 올렸을 때(:hover) 배경색 변경 */
-li:hover {
-  background-color: #e8f0fe;
-}
-
-/* 리스트 항목 내부의 체크박스 스타일 */
-li input[type="checkbox"] {
+#history-list input[type="checkbox"] {
+  margin-top: 2px;
   margin-right: 12px;
   flex-shrink: 0;
-  cursor: pointer;
-  vertical-align: middle;
+  width: 16px;
+  height: 16px;
 }
 
-/* 리스트 항목 내부의 제목과 URL을 감싸는 컨테이너 스타일 */
-.entry-content {
+.entry-details {
   flex-grow: 1;
-  /* 타임스탬프와 북마크 아이콘이 오른쪽 끝에 붙도록 margin-right 조정 */
-  margin-right: 8px; /* 기존 75px에서 변경 */
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
+  min-width: 0;
 }
 
-/* 리스트 항목의 제목 스타일 */
-.entry-title {
-  font-weight: 500;
-  color: #333;
+.entry-line-1 {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
   margin-bottom: 2px;
-  display: block;
+}
+
+.entry-title {
+  font-size: 14px;
+  font-weight: 500;
+  margin-right: 16px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: 0.9em;
-  line-height: 1.4;
 }
 
-/* 리스트 항목의 URL 링크(a) 스타일 */
-a {
-  color: #0c64e8;
+.timestamp {
+  font-size: 12px;
+  color: var(--secondary-text-color);
+  flex-shrink: 0;
+}
+
+.entry-url {
+  font-size: 12px;
+  color: var(--primary-color);
   text-decoration: none;
   display: block;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: 0.9em;
-  line-height: 1.4;
 }
 
-/* URL 링크에 마우스를 올렸을 때(:hover) 밑줄 표시 */
-a:hover {
+.entry-url:hover {
   text-decoration: underline;
 }
 
-/* 리스트 항목의 타임스탬프(방문 시간) 스타일 */
-.timestamp {
-  color: #777;
-  font-size: 0.85em;
-  white-space: nowrap;
-  /* position: absolute; 제거, flexbox로 배치 */
-  /* right, top, transform 제거, flexbox로 배치 */
-  margin-left: auto; /* 타임스탬프를 오른쪽으로 밀기 */
-}
-
-/* 방문 기록이 없을 때 표시되는 메시지(#history-list 내부의 p 태그) 스타일 */
-#history-list p {
+/* 기록 없을 때 메시지 */
+.empty-message {
   text-align: center;
-  color: #888;
-  margin-top: 30px;
+  color: var(--secondary-text-color);
+  padding: 40px 0;
 }
 
-.search-container {
-  margin-bottom: 20px;
-  text-align: center;
-}
-
-#search-input {
-  padding: 8px 15px;
+/* 알림창(토스트) 스타일 */
+.toast-notification {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background-color: rgba(28, 28, 30, 0.85);
+  color: white;
+  padding: 10px 20px;
   border-radius: 20px;
-  border: 1px solid #ddd;
-  width: 50%;
-  box-sizing: border-box;
   font-size: 14px;
-  outline: none;
-  transition: border-color 0.3s;
+  z-index: 1000;
+  opacity: 0;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+  backdrop-filter: blur(5px);
 }
 
-#search-input:focus {
-  border-color: #275efe;
-}
-
-#result-count {
-  margin-top: 8px;
-  font-size: 13px;
-  color: #555;
-  text-align: center;
-  opacity: 0.9;
-}
-
-/* 기존 북마크 아이콘 스타일 제거 또는 주석 처리 */
-/* .bookmark-icon { ... } */
-/* .bookmark-icon.bookmarked { ... } */
-
-/* 필터 탭 스타일 */
-.filter-tabs {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 20px;
-  border-bottom: 1px solid #eee;
-  padding-bottom: 10px;
-}
-
-.filter-tabs button {
-  background-color: #f0f0f0;
-  border: 1px solid #ddd;
-  padding: 8px 15px;
-  margin: 0 5px;
-  border-radius: 5px;
-  cursor: pointer;
-  font-size: 14px;
-  color: #555;
-  transition: background-color 0.2s, border-color 0.2s, color 0.2s;
-  outline: none;
-}
-
-.filter-tabs button:hover {
-  background-color: #e0e0e0;
-}
-
-.filter-tabs button.active {
-  background-color: #275efe;
-  border-color: #275efe;
-  color: #fff;
+.toast-notification.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
 }
