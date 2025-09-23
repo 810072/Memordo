@@ -1,5 +1,3 @@
-# py/rag_workflow.py
-
 import os
 import json
 import platform
@@ -36,6 +34,8 @@ def _get_content_hash(content: str) -> str:
     return hashlib.sha256(content.encode('utf-8')).hexdigest()
 
 class GraphState(TypedDict):
+    # --- [수정] --- 원본 질문을 저장할 필드 추가
+    original_question: str
     question: str
     notes: List[dict]
     edges: List[dict]
@@ -59,13 +59,16 @@ PROMPT_TEMPLATES = {
         {original_content}
         """
     ),
-    "expand_question": ChatPromptTemplate.from_template(
-        """당신은 사용자의 질문을 벡터 검색에 더 적합하도록 재작성하는 전문가입니다.
-        질문의 핵심 의도는 유지하되, 가능한 상세하고 구체적인 정보(예: 주제, 맥락, 예상 답변 형식)를 포함하는 풍부한 문장으로 만들어주세요.
-        재작성된 질문만 간결하게 답변해주세요.
+    # --- [수정] --- '질문 확장' 대신 '가상 문서 생성(HyDE)' 프롬프트로 변경
+    "generate_hyde": ChatPromptTemplate.from_template(
+        """당신은 주어진 질문에 대해 가장 이상적인 답변을 생성하는 AI입니다.
+        이 답변은 실제 문서를 찾는 데 사용될 검색어 역할을 합니다.
+        질문의 핵심 의도를 파악하여, 그에 대한 완벽한 답변을 상세하게 작성해주세요.
 
         --- 원본 질문 ---
         {question}
+
+        --- 이상적인 답변 ---
         """
     ),
     "generate_answer": ChatPromptTemplate.from_template(
@@ -94,31 +97,35 @@ def expand_short_notes(state: GraphState) -> dict:
     chain = prompt | llm | StrOutputParser()
     for note in notes:
         if len(note['content']) < MIN_CHARS_FOR_EXPANSION:
-            print(f"    - '{note['fileName']}' 보강 필요 (현재 {len(note['content'])}자)")
+            print(f"     - '{note['fileName']}' 보강 필요 (현재 {len(note['content'])}자)")
             expanded_content = chain.invoke({"original_content": note['content']})
             note['retrieval_content'] = expanded_content
-            print(f"    - 보강 완료: {expanded_content[:50]}...")
+            print(f"     - 보강 완료: {expanded_content[:50]}...")
         else:
             note['retrieval_content'] = note['content']
         updated_notes.append(note)
     return {"notes": updated_notes}
 
-def expand_question(state: GraphState) -> dict:
-    print("--- (Node 1) 질문 확장 시작 ---")
-    original_question = state['question']
+# --- [수정] --- 함수 이름을 명확하게 변경하고, 가상 문서를 생성하도록 로직 수정
+def generate_hypothetical_document(state: GraphState) -> dict:
+    """HyDE: 검색 성능 향상을 위해 질문에 대한 가상의 답변 문서를 생성합니다."""
+    print("--- (Node 1) 가상 문서 생성 (HyDE) 시작 ---")
+    original_question = state['original_question']
+    
     llm = ChatGoogleGenerativeAI(model=DEFAULT_GEMINI_MODEL, temperature=0)
-    prompt = PROMPT_TEMPLATES["expand_question"]
+    prompt = PROMPT_TEMPLATES["generate_hyde"]
     chain = prompt | llm | StrOutputParser()
-    expanded_question = chain.invoke({"question": original_question})
-    print(f"    - 원본 질문: \"{original_question}\"")
-    print(f"    - 확장된 질문: \"{expanded_question}\"")
-    return {"question": expanded_question}
+    
+    hypothetical_document = chain.invoke({"question": original_question})
+    
+    print(f"     - 원본 질문: \"{original_question}\"")
+    print(f"     - 생성된 가상 문서: \"{hypothetical_document[:100]}...\"")
+    
+    # 'question' 필드를 가상 문서로 덮어써서 다음 검색 단계에서 사용하도록 함
+    return {"question": hypothetical_document}
 
 def prepare_retrieval(state: GraphState) -> dict:
     """[REFACTORED] 해시 비교를 통해 노트의 추가, 수정, 삭제를 감지하고 DB를 동기화합니다."""
-    with open("sync_test.log", "a", encoding="utf-8") as f:
-        f.write("--- (Node 2) SYNC START ---\n")
-
     print("--- (Node 2) 검색 준비, 벡터 저장소 동기화 ---")
     notes = state['notes']
     edges = state['edges']
@@ -159,16 +166,12 @@ def prepare_retrieval(state: GraphState) -> dict:
         for file_name in files_for_resync:
             ids_to_delete.extend(db_chunks_map.get(file_name, []))
         if ids_to_delete:
-            log_msg = f"    - DELETING {len(ids_to_delete)} chunks from {len(files_for_resync)} notes.\n"
-            with open("sync_test.log", "a", encoding="utf-8") as f: f.write(log_msg)
-            print(f"    - 삭제/수정된 {len(files_for_resync)}개 노트의 기존 청크 {len(ids_to_delete)}개를 삭제합니다.")
+            print(f"     - 삭제/수정된 {len(files_for_resync)}개 노트의 기존 청크 {len(ids_to_delete)}개를 삭제합니다.")
             vectorstore.delete(ids=ids_to_delete)
 
     notes_to_process = files_to_add.union(files_to_update)
     if notes_to_process:
-        log_msg = f"    - PROCESSING {len(notes_to_process)} new/modified notes.\n"
-        with open("sync_test.log", "a", encoding="utf-8") as f: f.write(log_msg)
-        print(f"    - 신규/수정된 {len(notes_to_process)}개 노트를 처리합니다.")
+        print(f"     - 신규/수정된 {len(notes_to_process)}개 노트를 처리합니다.")
         notes_to_add_data = [n for n in notes if n['fileName'] in notes_to_process]
         
         text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
@@ -193,19 +196,17 @@ def prepare_retrieval(state: GraphState) -> dict:
             ids_to_add = [c[0] for c in all_new_chunks]
             docs_to_add = [c[1] for c in all_new_chunks]
             
-            log_msg = f"    - ADDING {len(all_new_chunks)} new chunks to DB.\n"
-            with open("sync_test.log", "a", encoding="utf-8") as f: f.write(log_msg)
             vectorstore.add_documents(documents=docs_to_add, ids=ids_to_add)
-            print(f"    - 총 {len(all_new_chunks)}개의 신규 청크를 DB에 추가했습니다.")
+            print(f"     - 총 {len(all_new_chunks)}개의 신규 청크를 DB에 추가했습니다.")
 
     if not files_to_add and not files_for_resync:
-        print("    - DB와 동기화 완료. 변경 사항 없음.")
+        print("     - DB와 동기화 완료. 변경 사항 없음.")
 
     documents = [Document(page_content=note['content'], metadata={'source': note['fileName']}) for note in notes]
     connected_nodes = {edge['from'] for edge in edges} | {edge['to'] for edge in edges}
     isolated_nodes = set(local_notes_state.keys()) - connected_nodes
     
-    print(f"    - 동기화 후 노드: {len(local_notes_state)}개 (연결: {len(connected_nodes)}, 고립: {len(isolated_nodes)})")
+    print(f"     - 동기화 후 노드: {len(local_notes_state)}개 (연결: {len(connected_nodes)}, 고립: {len(isolated_nodes)})")
     
     return {"documents": documents, "vectorstore": vectorstore, "connected_nodes": connected_nodes, "isolated_nodes": isolated_nodes}
 
@@ -221,29 +222,29 @@ def first_pass_retrieval(state: GraphState) -> dict:
     )
 
     if vectorstore._collection.count() == 0:
-         print("    - 벡터 저장소가 비어있어 검색을 건너뜁니다.")
-         return {"top_docs": []}
+        print("     - 벡터 저장소가 비어있어 검색을 건너뜁니다.")
+        return {"top_docs": []}
 
     retriever = vectorstore.as_retriever(search_kwargs={"k": 10})
     top_docs = retriever.invoke(question)
     
-    print(f"    - 1차 검색 결과 (상위 {len(top_docs)}개): {[doc.metadata['source'] for doc in top_docs]}")
+    print(f"     - 1차 검색 결과 (상위 {len(top_docs)}개): {[doc.metadata['source'] for doc in top_docs]}")
     return {"top_docs": top_docs}
 
 def analyze_and_branch(state: GraphState) -> str:
     print("--- (Node 4) 분기 결정 ---")
     if not state.get('top_docs'):
-        print("    -> 1차 검색 결과 없음. 바로 답변 생성으로 이동합니다.")
+        print("     -> 1차 검색 결과 없음. 바로 답변 생성으로 이동합니다.")
         return "generate_answer_direct"
 
     top_doc_source = state['top_docs'][0].metadata['source']
     connected_nodes = state['connected_nodes']
     
     if top_doc_source in connected_nodes:
-        print(f"    -> '{top_doc_source}'는 연결된 노드. 2차 검색으로 확장합니다.")
+        print(f"     -> '{top_doc_source}'는 연결된 노드. 2차 검색으로 확장합니다.")
         return "expand_context"
     else:
-        print(f"    -> '{top_doc_source}'는 고립된 노드. 바로 답변 생성으로 이동합니다.")
+        print(f"     -> '{top_doc_source}'는 고립된 노드. 바로 답변 생성으로 이동합니다.")
         return "generate_answer_direct"
 
 def second_pass_retrieval(state: GraphState) -> dict:
@@ -262,7 +263,7 @@ def second_pass_retrieval(state: GraphState) -> dict:
     neighbors = {edge['to'] for edge in edges if edge['from'] == top_doc_source}
     neighbors.update({edge['from'] for edge in edges if edge['to'] == top_doc_source})
             
-    print(f"    - '{top_doc_source}'의 이웃 노드 {len(neighbors)}개를 대상으로 추가 검색...")
+    print(f"     - '{top_doc_source}'의 이웃 노드 {len(neighbors)}개를 대상으로 추가 검색...")
     
     if not neighbors:
         return {"expanded_docs": []}
@@ -272,12 +273,14 @@ def second_pass_retrieval(state: GraphState) -> dict:
     )
     expanded_docs = retriever.invoke(question)
     
-    print(f"    - 2차 검색 결과: {[doc.metadata['source'] for doc in expanded_docs]}")
+    print(f"     - 2차 검색 결과: {[doc.metadata['source'] for doc in expanded_docs]}")
     return {"expanded_docs": expanded_docs}
 
 def generate_answer(state: GraphState) -> dict:
     print("--- (Node 6) 최종 답변 생성 ---")
-    question = state['question']
+    
+    # --- [수정] --- 'question' 대신 'original_question'을 사용하도록 변경
+    question_for_llm = state['original_question']
     top_docs = state.get('top_docs') or []
     expanded_docs = state.get('expanded_docs') or []
 
@@ -307,7 +310,9 @@ def generate_answer(state: GraphState) -> dict:
     llm = ChatGoogleGenerativeAI(model=DEFAULT_GEMINI_MODEL, temperature=0.3)
     
     chain = prompt_template | llm | StrOutputParser()
-    answer = chain.invoke({"context": context_text, "question": question})
+
+    # --- [수정] --- 최종 LLM 호출 시 원본 질문을 전달
+    answer = chain.invoke({"context": context_text, "question": question_for_llm})
     
     source_names = sorted(list(set([doc.metadata['source'] for doc in final_docs])))
     
@@ -317,15 +322,17 @@ def generate_answer(state: GraphState) -> dict:
 def build_rag_workflow():
     workflow = StateGraph(GraphState)
     workflow.add_node("expand_notes", expand_short_notes)
-    workflow.add_node("expand_question", expand_question)
+    # --- [수정] --- 노드 이름 변경
+    workflow.add_node("generate_hyde", generate_hypothetical_document)
     workflow.add_node("prepare", prepare_retrieval)
     workflow.add_node("first_retrieval", first_pass_retrieval)
     workflow.add_node("expand_retrieval", second_pass_retrieval)
     workflow.add_node("generate", generate_answer)
 
     workflow.set_entry_point("expand_notes")
-    workflow.add_edge("expand_notes", "expand_question")
-    workflow.add_edge("expand_question", "prepare")
+    # --- [수정] --- 엣지 연결 순서 변경
+    workflow.add_edge("expand_notes", "generate_hyde")
+    workflow.add_edge("generate_hyde", "prepare")
     workflow.add_edge("prepare", "first_retrieval")
     
     workflow.add_conditional_edges(
