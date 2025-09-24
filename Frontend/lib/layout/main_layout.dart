@@ -553,7 +553,7 @@ class WindowButtons extends StatelessWidget {
     return Row(
       children: [
         IconButton(
-          icon: const Icon(Icons.minimize, size: 16),
+          icon: const Icon(Icons.remove, size: 16),
           onPressed: () => windowManager.minimize(),
           tooltip: 'Minimize',
           color: const Color(0xFF475569),
