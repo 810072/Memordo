@@ -11,6 +11,7 @@ class TabProvider with ChangeNotifier {
   final List<NoteTab> _openTabs = [];
   int _activeTabIndex = -1;
   Timer? _debounce; // ✨ 자동 저장을 위한 타이머 변수 추가
+  VoidCallback? onTabOpenedFromExternalWindow;
 
   List<NoteTab> get openTabs => _openTabs;
   int get activeTabIndex => _activeTabIndex;
@@ -77,6 +78,7 @@ class TabProvider with ChangeNotifier {
       );
       if (existingTabIndex != -1) {
         setActiveTab(existingTabIndex);
+        onTabOpenedFromExternalWindow?.call(); // ✨ 콜백 호출
         return;
       }
     }
@@ -98,12 +100,14 @@ class TabProvider with ChangeNotifier {
 
     _openTabs.add(newTab);
     _activeTabIndex = _openTabs.length - 1;
+    onTabOpenedFromExternalWindow?.call(); // ✨ 콜백 호출
     notifyListeners();
   }
 
   void setActiveTab(int index) {
     if (index >= 0 && index < _openTabs.length) {
       _activeTabIndex = index;
+      onTabOpenedFromExternalWindow?.call(); // ✨ 콜백 호출
       notifyListeners();
     }
   }

@@ -1,6 +1,9 @@
 // Frontend/lib/features/chatbot_page.dart
 
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as p;
+import 'dart:io';
+import 'package:desktop_multi_window/desktop_multi_window.dart';
 import '../utils/ai_service.dart'; // AI 서비스 임포트
 import 'dart:async';
 
@@ -381,40 +384,68 @@ class _ChatbotPageState extends State<ChatbotPage> {
               child: ListView.builder(
                 itemCount: _currentSourceFiles.length,
                 itemBuilder: (context, index) {
-                  final file = _currentSourceFiles[index];
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 8.0),
-                    padding: const EdgeInsets.all(8.0),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8.0),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.description,
-                          size: 16,
-                          color: Colors.grey.shade700,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            file,
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Colors.grey.shade800,
+                  final filePath = _currentSourceFiles[index];
+                  final fileName = p.basename(filePath);
+                  return GestureDetector(
+                    onTap: () async {
+                      try {
+                        // 메인 윈도우(ID:0)로 파일 경로 전송
+                        await DesktopMultiWindow.invokeMethod(
+                          0,
+                          'open_document',
+                          filePath,
+                        );
+                      } catch (e) {
+                        debugPrint('메인 윈도우 호출 오류: $e');
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                                content:
+                                    Text('문서를 여는 데 실패했습니다: ${e.toString()}')),
+                          );
+                        }
+                      }
+                    },
+                    child: MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 8.0),
+                        padding: const EdgeInsets.all(8.0),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8.0),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.05),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
                             ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                          ],
                         ),
-                      ],
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.description,
+                              size: 16,
+                              color: Colors.grey.shade700,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Tooltip(
+                                message: filePath,
+                                child: Text(
+                                  fileName,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.grey.shade800,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   );
                 },

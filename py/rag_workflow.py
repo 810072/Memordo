@@ -1,44 +1,46 @@
-import os
-import json
-import platform
-import hashlib
-from pathlib import Path
-from typing import TypedDict, List
+# py/rag_workflow.py
 
-from langchain_community.vectorstores import Chroma
-from langchain.prompts import ChatPromptTemplate
+import os
+import platform
+from pathlib import Path
+from langchain_chroma import Chroma
 from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
+from langchain.prompts import ChatPromptTemplate
 from langchain.schema.output_parser import StrOutputParser
 from langchain.schema.document import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langgraph.graph import StateGraph, END
-
 from gemini_ai import EMBEDDING_MODEL, DEFAULT_GEMINI_MODEL
 
+from typing import TypedDict, List
+from langgraph.graph import StateGraph, END
 
 def _get_db_path() -> str:
     """실행 중인 OS를 감지하여 ChromaDB 저장소의 동적 경로를 반환합니다."""
     home_dir = Path.home()
     system = platform.system()
-    if system == "Darwin":  # macOS
+    if system == "Darwin": # macOS
         notes_dir = home_dir / "Memordo_Notes"
-    else:  # Windows, Linux 등
+    else: # Windows, Linux 등
         notes_dir = home_dir / "Documents" / "Memordo_Notes"
     
     db_path = notes_dir / "chroma_db"
     os.makedirs(db_path, exist_ok=True)
     return str(db_path)
 
-def _get_content_hash(content: str) -> str:
-    """주어진 내용의 SHA-256 해시를 계산합니다."""
-    return hashlib.sha256(content.encode('utf-8')).hexdigest()
+# JSON 경로 함수는 현재 코드에서 사용되지 않으므로 삭제해도 무방합니다.
+# def _get_json_path() -> str: ...
 
 class GraphState(TypedDict):
-    # --- [수정] --- 원본 질문을 저장할 필드 추가
-    original_question: str
+    """
+    LangGraph의 상태를 정의하는 TypedDict입니다.
+    워크플로우의 각 노드 간에 데이터가 이 구조를 통해 전달됩니다.
+    """
+    # 필수 입력 값
     question: str
     notes: List[dict]
     edges: List[dict]
+    
+    # 노드 실행 결과로 채워지는 값
     documents: List[Document]
     vectorstore: Chroma
     connected_nodes: set
@@ -59,22 +61,20 @@ PROMPT_TEMPLATES = {
         {original_content}
         """
     ),
-    # --- [수정] --- '질문 확장' 대신 '가상 문서 생성(HyDE)' 프롬프트로 변경
-    "generate_hyde": ChatPromptTemplate.from_template(
-        """당신은 주어진 질문에 대해 가장 이상적인 답변을 생성하는 AI입니다.
-        이 답변은 실제 문서를 찾는 데 사용될 검색어 역할을 합니다.
-        질문의 핵심 의도를 파악하여, 그에 대한 완벽한 답변을 상세하게 작성해주세요.
+    "expand_question": ChatPromptTemplate.from_template(
+        """당신은 사용자의 질문을 벡터 검색에 더 적합하도록 재작성하는 전문가입니다.
+        질문의 핵심 의도는 유지하되, 가능한 상세하고 구체적인 정보(예: 주제, 맥락, 예상 답변 형식)를 포함하는 풍부한 문장으로 만들어주세요.
+        재작성된 질문만 간결하게 답변해주세요.
 
         --- 원본 질문 ---
         {question}
-
-        --- 이상적인 답변 ---
         """
     ),
     "generate_answer": ChatPromptTemplate.from_template(
         """당신은 사용자의 노트를 기반으로 질문에 답변하는 AI 비서 'Memordo'입니다.
         아래에 제공되는 "노트 내용"을 참고하여 사용자의 "질문"에 대해 상세하고 친절하게 답변해주세요.
         답변은 반드시 "노트 내용"에 근거해야 하며, 내용에 없는 정보는 답변하지 마세요.
+        어떤 노트를 참고했는지 명시해주면 좋습니다.
 
         --- 노트 내용 ---
         {context}
@@ -91,136 +91,94 @@ def expand_short_notes(state: GraphState) -> dict:
     notes = state['notes']
     MIN_CHARS_FOR_EXPANSION = 100
     updated_notes = []
+    
     llm = ChatGoogleGenerativeAI(model=DEFAULT_GEMINI_MODEL, temperature=0.5)
     prompt = PROMPT_TEMPLATES["expand_note"]
     chain = prompt | llm | StrOutputParser()
+
     for note in notes:
+        # 'retrieval_content'를 새로 만들어 검색용으로 사용하고, 'content'는 원본을 보존
         if len(note['content']) < MIN_CHARS_FOR_EXPANSION:
             print(f"     - '{note['fileName']}' 보강 필요 (현재 {len(note['content'])}자)")
             expanded_content = chain.invoke({"original_content": note['content']})
             note['retrieval_content'] = expanded_content
             print(f"     - 보강 완료: {expanded_content[:50]}...")
         else:
-            note['retrieval_content'] = note['content']
+            note['retrieval_content'] = note['content'] # 내용이 충분하면 원본을 그대로 사용
         updated_notes.append(note)
+        
     return {"notes": updated_notes}
 
-# --- [수정] --- 함수 이름을 명확하게 변경하고, 가상 문서를 생성하도록 로직 수정
-def generate_hypothetical_document(state: GraphState) -> dict:
-    """HyDE: 검색 성능 향상을 위해 질문에 대한 가상의 답변 문서를 생성합니다."""
-    print("--- (Node 1) 가상 문서 생성 (HyDE) 시작 ---")
-    original_question = state['original_question']
+def expand_question(state: GraphState) -> dict:
+    print("--- (Node 1) 질문 확장 시작 ---")
+    original_question = state['question']
     
     llm = ChatGoogleGenerativeAI(model=DEFAULT_GEMINI_MODEL, temperature=0)
-    prompt = PROMPT_TEMPLATES["generate_hyde"]
+    prompt = PROMPT_TEMPLATES["expand_question"]
     chain = prompt | llm | StrOutputParser()
     
-    hypothetical_document = chain.invoke({"question": original_question})
-    
+    expanded_question = chain.invoke({"question": original_question})
     print(f"     - 원본 질문: \"{original_question}\"")
-    print(f"     - 생성된 가상 문서: \"{hypothetical_document[:100]}...\"")
+    print(f"     - 확장된 질문: \"{expanded_question}\"")
     
-    # 'question' 필드를 가상 문서로 덮어써서 다음 검색 단계에서 사용하도록 함
-    return {"question": hypothetical_document}
+    # 확장된 질문으로 state의 'question'을 업데이트
+    return {"question": expanded_question}
 
 def prepare_retrieval(state: GraphState) -> dict:
-    """[REFACTORED] 해시 비교를 통해 노트의 추가, 수정, 삭제를 감지하고 DB를 동기화합니다."""
-    print("--- (Node 2) 검색 준비, 벡터 저장소 동기화 ---")
+    print("--- (Node 2) 검색 준비, 벡터 저장소 로드 및 업데이트 ---")
     notes = state['notes']
     edges = state['edges']
     db_path = _get_db_path()
 
     embedding_function = GoogleGenerativeAIEmbeddings(model=EMBEDDING_MODEL, task_type="retrieval_document")
     vectorstore = Chroma(persist_directory=db_path, embedding_function=embedding_function)
+    
+    all_note_ids = {note['fileName'] for note in notes}
+    # DB에 이미 존재하는 ID를 확인하여 추가할 노트만 필터링 (청크 ID 기준)
+    existing_ids_in_db = set(vectorstore.get()['ids'])
+    
+    notes_to_add = []
+    for note in notes:
+        # 해당 노트의 청크가 하나라도 DB에 없다면 추가 대상으로 간주
+        # (간단한 체크를 위해 첫번째 청크 ID만 확인)
+        potential_chunk_id = f"{note['fileName']}_0"
+        if potential_chunk_id not in existing_ids_in_db:
+            notes_to_add.append(note)
 
-    local_notes_state = {note['fileName']: _get_content_hash(note['content']) for note in notes}
-    
-    db_docs = vectorstore.get(include=["metadatas"])
-    db_notes_state = {}
-    db_chunks_map = {}
-    for i, metadata in enumerate(db_docs['metadatas']):
-        source = metadata.get('source')
-        content_hash = metadata.get('content_hash')
-        if source and content_hash:
-            if source not in db_notes_state:
-                db_notes_state[source] = content_hash
-            if source not in db_chunks_map:
-                db_chunks_map[source] = []
-            db_chunks_map[source].append(db_docs['ids'][i])
-
-    local_files = set(local_notes_state.keys())
-    db_files = set(db_notes_state.keys())
-    
-    files_to_add = local_files - db_files
-    files_to_delete = db_files - local_files
-    files_to_check = local_files.intersection(db_files)
-    
-    files_to_update = {
-        f for f in files_to_check if local_notes_state[f] != db_notes_state[f]
-    }
-    
-    ids_to_delete = []
-    files_for_resync = files_to_delete.union(files_to_update)
-    if files_for_resync:
-        for file_name in files_for_resync:
-            ids_to_delete.extend(db_chunks_map.get(file_name, []))
-        if ids_to_delete:
-            print(f"     - 삭제/수정된 {len(files_for_resync)}개 노트의 기존 청크 {len(ids_to_delete)}개를 삭제합니다.")
-            vectorstore.delete(ids=ids_to_delete)
-
-    notes_to_process = files_to_add.union(files_to_update)
-    if notes_to_process:
-        print(f"     - 신규/수정된 {len(notes_to_process)}개 노트를 처리합니다.")
-        notes_to_add_data = [n for n in notes if n['fileName'] in notes_to_process]
-        
+    if notes_to_add:
+        print(f"     - {len(notes_to_add)}개의 신규/업데이트 메모를 발견하여 DB에 추가합니다.")
         text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
         
-        all_new_chunks = []
-        for note in notes_to_add_data:
-            content_hash = local_notes_state[note['fileName']]
+        all_chunks = []
+        for note in notes_to_add:
             chunks = text_splitter.split_text(note['retrieval_content'])
             for i, chunk_text in enumerate(chunks):
                 chunk_doc = Document(
                     page_content=chunk_text,
-                    metadata={
-                        'source': note['fileName'],
-                        'original_content': note['content'],
-                        'content_hash': content_hash
-                    }
+                    metadata={'source': note['fileName'], 'original_content': note['content']}
                 )
                 chunk_id = f"{note['fileName']}_{i}"
-                all_new_chunks.append((chunk_id, chunk_doc))
+                all_chunks.append((chunk_id, chunk_doc))
 
-        if all_new_chunks:
-            ids_to_add = [c[0] for c in all_new_chunks]
-            docs_to_add = [c[1] for c in all_new_chunks]
-            
+        if all_chunks:
+            ids_to_add = [c[0] for c in all_chunks]
+            docs_to_add = [c[1] for c in all_chunks]
             vectorstore.add_documents(documents=docs_to_add, ids=ids_to_add)
-            print(f"     - 총 {len(all_new_chunks)}개의 신규 청크를 DB에 추가했습니다.")
-
-    if not files_to_add and not files_for_resync:
-        print("     - DB와 동기화 완료. 변경 사항 없음.")
-
-    documents = [Document(page_content=note['content'], metadata={'source': note['fileName']}) for note in notes]
+            print(f"     - 신규 메모 {len(notes_to_add)}개를 총 {len(all_chunks)}개의 청크로 분할하여 ChromaDB에 추가했습니다.")
+    
+    # 연결 정보 계산
     connected_nodes = {edge['from'] for edge in edges} | {edge['to'] for edge in edges}
-    isolated_nodes = set(local_notes_state.keys()) - connected_nodes
+    isolated_nodes = all_note_ids - connected_nodes
+    print(f"     - 연결된 노드: {len(connected_nodes)}개, 고립된 노드: {len(isolated_nodes)}개")
     
-    print(f"     - 동기화 후 노드: {len(local_notes_state)}개 (연결: {len(connected_nodes)}, 고립: {len(isolated_nodes)})")
-    
-    return {"documents": documents, "vectorstore": vectorstore, "connected_nodes": connected_nodes, "isolated_nodes": isolated_nodes}
+    return {"vectorstore": vectorstore, "connected_nodes": connected_nodes, "isolated_nodes": isolated_nodes}
 
 def first_pass_retrieval(state: GraphState) -> dict:
     print("--- (Node 3) 1차 검색 수행 ---")
     question = state['question']
-    db_path = _get_db_path()
+    vectorstore = state['vectorstore']
 
-    query_embedding_function = GoogleGenerativeAIEmbeddings(model=EMBEDDING_MODEL, task_type="retrieval_query")
-    vectorstore = Chroma(
-        persist_directory=db_path,
-        embedding_function=query_embedding_function
-    )
-
-    if vectorstore._collection.count() == 0:
+    if not vectorstore or vectorstore._collection.count() == 0:
         print("     - 벡터 저장소가 비어있어 검색을 건너뜁니다.")
         return {"top_docs": []}
 
@@ -232,7 +190,7 @@ def first_pass_retrieval(state: GraphState) -> dict:
 
 def analyze_and_branch(state: GraphState) -> str:
     print("--- (Node 4) 분기 결정 ---")
-    if not state.get('top_docs'):
+    if not state['top_docs']:
         print("     -> 1차 검색 결과 없음. 바로 답변 생성으로 이동합니다.")
         return "generate_answer_direct"
 
@@ -249,15 +207,9 @@ def analyze_and_branch(state: GraphState) -> str:
 def second_pass_retrieval(state: GraphState) -> dict:
     print("--- (Node 5a) 2차 검색 (문맥 확장) ---")
     question = state['question']
+    vectorstore = state['vectorstore']
     top_doc_source = state['top_docs'][0].metadata['source']
     edges = state['edges']
-    db_path = _get_db_path()
-
-    query_embedding_function = GoogleGenerativeAIEmbeddings(model=EMBEDDING_MODEL, task_type="retrieval_query")
-    vectorstore = Chroma(
-        persist_directory=db_path,
-        embedding_function=query_embedding_function
-    )
     
     neighbors = {edge['to'] for edge in edges if edge['from'] == top_doc_source}
     neighbors.update({edge['from'] for edge in edges if edge['to'] == top_doc_source})
@@ -277,14 +229,12 @@ def second_pass_retrieval(state: GraphState) -> dict:
 
 def generate_answer(state: GraphState) -> dict:
     print("--- (Node 6) 최종 답변 생성 ---")
-    
-    # --- [수정] --- 'question' 대신 'original_question'을 사용하도록 변경
-    question_for_llm = state['original_question']
-    top_docs = state.get('top_docs') or []
-    expanded_docs = state.get('expanded_docs') or []
+    question = state['question']
+    top_docs = state.get('top_docs', [])
+    expanded_docs = state.get('expanded_docs', [])
 
     combined_docs = top_docs + expanded_docs
-    unique_docs_map = { (doc.metadata['source'], doc.page_content): doc for doc in combined_docs }
+    unique_docs_map = {(doc.metadata['source'], doc.page_content): doc for doc in combined_docs}
     final_docs = list(unique_docs_map.values())
 
     if not final_docs:
@@ -305,13 +255,10 @@ def generate_answer(state: GraphState) -> dict:
     context_text = "\n\n---\n\n".join(context_parts)
     
     prompt_template = PROMPT_TEMPLATES["generate_answer"]
-    
     llm = ChatGoogleGenerativeAI(model=DEFAULT_GEMINI_MODEL, temperature=0.3)
-    
     chain = prompt_template | llm | StrOutputParser()
-
-    # --- [수정] --- 최종 LLM 호출 시 원본 질문을 전달
-    answer = chain.invoke({"context": context_text, "question": question_for_llm})
+    
+    answer = chain.invoke({"context": context_text, "question": question})
     
     source_names = sorted(list(set([doc.metadata['source'] for doc in final_docs])))
     
@@ -320,18 +267,17 @@ def generate_answer(state: GraphState) -> dict:
 
 def build_rag_workflow():
     workflow = StateGraph(GraphState)
+    
     workflow.add_node("expand_notes", expand_short_notes)
-    # --- [수정] --- 노드 이름 변경
-    workflow.add_node("generate_hyde", generate_hypothetical_document)
+    workflow.add_node("expand_question", expand_question)
     workflow.add_node("prepare", prepare_retrieval)
     workflow.add_node("first_retrieval", first_pass_retrieval)
     workflow.add_node("expand_retrieval", second_pass_retrieval)
     workflow.add_node("generate", generate_answer)
 
     workflow.set_entry_point("expand_notes")
-    # --- [수정] --- 엣지 연결 순서 변경
-    workflow.add_edge("expand_notes", "generate_hyde")
-    workflow.add_edge("generate_hyde", "prepare")
+    workflow.add_edge("expand_notes", "expand_question")
+    workflow.add_edge("expand_question", "prepare")
     workflow.add_edge("prepare", "first_retrieval")
     
     workflow.add_conditional_edges(

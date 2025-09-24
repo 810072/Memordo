@@ -2,8 +2,11 @@
 
 import 'dart:convert';
 import 'dart:io';
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
@@ -194,7 +197,9 @@ class _MainLayoutWrapperState extends State<MainLayoutWrapper>
     super.initState();
     windowManager.addListener(this);
     _configureWindowCloseHandler();
+    _setupMethodHandler();
 
+    // 노트 히스토리에서 새 메모를 만들 때 홈 화면으로 전환
     Provider.of<NoteProvider>(context, listen: false).onNewMemoFromHistory = (
       text,
     ) {
@@ -204,15 +209,60 @@ class _MainLayoutWrapperState extends State<MainLayoutWrapper>
         _currentPage = PageType.home;
       });
     };
+
   }
 
   void _configureWindowCloseHandler() async {
     await windowManager.setPreventClose(true);
   }
 
+  void _setupMethodHandler() {
+    DesktopMultiWindow.setMethodHandler((MethodCall call, int fromWindowId) async {
+      if (call.method == 'open_document') {
+        final String relativePath = call.arguments as String;
+        if (!mounted) return;
+
+        try {
+          final fsProvider = Provider.of<FileSystemProvider>(context, listen: false);
+          final rootPath = await fsProvider.getOrCreateNoteFolderPath();
+          final fullPath = p.join(rootPath, relativePath);
+
+          final tabProvider = Provider.of<TabProvider>(context, listen: false);
+          final file = File(fullPath);
+
+          if (await file.exists()) {
+            final content = await file.readAsString();
+            // Use fullPath to ensure the tab's ID is unique and correct
+            tabProvider.openNewTab(filePath: fullPath, content: content);
+
+            if (_currentPage != PageType.home) {
+              // Use addPostFrameCallback to avoid 'setState during build' error
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) {
+                  setState(() {
+                    _currentPage = PageType.home;
+                  });
+                }
+              });
+            }
+          } else {
+            throw Exception('File not found at path: $fullPath');
+          }
+        } catch (e) {
+          debugPrint('Error handling open_document call: $e');
+        }
+      }
+    });
+  }
+
   @override
   void dispose() {
     windowManager.removeListener(this);
+    // 콜백 정리
+    Provider.of<NoteProvider>(context, listen: false).onNewMemoFromHistory =
+        null;
+    // 핸들러 정리
+    DesktopMultiWindow.setMethodHandler(null);
     super.dispose();
   }
 
