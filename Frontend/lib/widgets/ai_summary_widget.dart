@@ -10,9 +10,7 @@ class AiSummaryWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<BottomSectionController>(
       builder: (context, controller, child) {
-        // 로딩 중일 때 UI
         if (controller.isLoading) {
-          // ✨ [수정] Text 위젯을 Flexible로 감싸 오버플로우를 방지합니다.
           return const Center(
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -25,37 +23,41 @@ class AiSummaryWidget extends StatelessWidget {
           );
         }
 
+        final textStyle = TextStyle(
+          fontSize: 13,
+          color:
+              controller.summaryText.isEmpty
+                  ? Colors.grey.shade600
+                  : Colors.grey.shade800,
+          height: 1.6,
+        );
+
+        final String summaryText =
+            controller.summaryText.isEmpty
+                ? '내용 요약 AI'
+                : controller.summaryText;
+
+        // ✨ [수정] RichText와 TextSpan을 사용하여 아이콘과 텍스트를 유연하게 배치
         return SingleChildScrollView(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // AI 아이콘
-              Padding(
-                padding: const EdgeInsets.only(top: 2.0),
-                child: Icon(
-                  Icons.auto_awesome, // Gemini를 상징하는 아이콘
-                  color: Colors.deepPurple.shade300,
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 12),
-              // 요약 텍스트
-              Expanded(
-                child: SelectableText(
-                  controller.summaryText.isEmpty
-                      ? '내용 요약 AI' // 더 자연스러운 안내 문구
-                      : controller.summaryText,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color:
-                        controller.summaryText.isEmpty
-                            ? Colors.grey.shade600
-                            : Colors.grey.shade800,
-                    height: 1.6, // 줄 간격을 조절하여 가독성 향상
+          child: RichText(
+            text: TextSpan(
+              children: [
+                // 아이콘을 텍스트의 일부처럼 처리
+                WidgetSpan(
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 12.0),
+                    child: Icon(
+                      Icons.auto_awesome,
+                      color: Colors.deepPurple.shade300,
+                      size: 20,
+                    ),
                   ),
+                  alignment: PlaceholderAlignment.top, // 아이콘을 텍스트 상단에 정렬
                 ),
-              ),
-            ],
+                // 실제 요약 텍스트
+                TextSpan(text: summaryText, style: textStyle),
+              ],
+            ),
           ),
         );
       },

@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert'; // ✨ [수정] 'dart.convert' -> 'dart:convert'로 변경
+import 'dart:convert';
 import 'dart:io';
 import 'package:path/path.dart' as p;
 import '../viewmodels/calendar_viewmodel.dart';
@@ -22,13 +22,15 @@ class _CalendarPageState extends State<CalendarPage> {
   final Map<DateTime, String> _memoData = {};
   final TextEditingController _memoController = TextEditingController();
 
-  final Map<DateTime, List<String>> _createdFilesData = {};
+  // ✨ [삭제] 수정된 파일 데이터를 관리하던 변수 삭제
+  // final Map<DateTime, List<String>> _createdFilesData = {};
 
   @override
   void initState() {
     super.initState();
     _loadFromPrefs();
-    _loadCreatedFilesData();
+    // ✨ [삭제] 수정된 파일 데이터를 불러오던 함수 호출 삭제
+    // _loadCreatedFilesData();
   }
 
   @override
@@ -69,60 +71,10 @@ class _CalendarPageState extends State<CalendarPage> {
     }
   }
 
-  Future<void> _loadCreatedFilesData() async {
-    try {
-      final notesDir = await _getNotesDirectory();
-      final directory = Directory(notesDir);
-      final files = await _getAllMarkdownFiles(directory);
-
-      final Map<DateTime, List<String>> fileData = {};
-      for (final file in files) {
-        final stat = await file.stat();
-        final modifiedDate = _pureDate(stat.modified);
-        final fileName = p.basename(file.path);
-
-        if (fileData.containsKey(modifiedDate)) {
-          fileData[modifiedDate]!.add(fileName);
-        } else {
-          fileData[modifiedDate] = [fileName];
-        }
-      }
-
-      if (mounted) {
-        setState(() {
-          _createdFilesData.clear();
-          _createdFilesData.addAll(fileData);
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('노트 파일을 불러오는 중 오류 발생: $e')));
-      }
-    }
-  }
-
-  Future<String> _getNotesDirectory() async {
-    final home =
-        Platform.environment['USERPROFILE'] ?? Platform.environment['HOME'];
-    if (home == null) throw Exception('홈 디렉토리를 찾을 수 없습니다.');
-    return Platform.isMacOS
-        ? p.join(home, 'Memordo_Notes')
-        : p.join(home, 'Documents', 'Memordo_Notes');
-  }
-
-  Future<List<File>> _getAllMarkdownFiles(Directory dir) async {
-    final List<File> mdFiles = [];
-    if (!await dir.exists()) return mdFiles;
-
-    await for (var entity in dir.list(recursive: true, followLinks: false)) {
-      if (entity is File && p.extension(entity.path).toLowerCase() == '.md') {
-        mdFiles.add(entity);
-      }
-    }
-    return mdFiles;
-  }
+  // ✨ [삭제] 수정된 파일 데이터를 불러오는 관련 메서드들 전체 삭제
+  // Future<void> _loadCreatedFilesData() async { ... }
+  // Future<String> _getNotesDirectory() async { ... }
+  // Future<List<File>> _getAllMarkdownFiles(Directory dir) async { ... }
 
   @override
   Widget build(BuildContext context) {
@@ -155,8 +107,9 @@ class _CalendarPageState extends State<CalendarPage> {
           ),
           const SizedBox(height: 24),
           if (viewModel.selectedDay != null) ...[
-            _buildCreatedFilesList(viewModel.selectedDay!),
-            const SizedBox(height: 16),
+            // ✨ [삭제] 수정된 파일 목록을 보여주는 위젯 호출 삭제
+            // _buildCreatedFilesList(viewModel.selectedDay!),
+            // const SizedBox(height: 16),
             _buildMemoSection(viewModel.selectedDay!),
           ],
         ],
@@ -184,9 +137,10 @@ class _CalendarPageState extends State<CalendarPage> {
         if (_memoData.containsKey(pure) && _memoData[pure]!.isNotEmpty) {
           events.add('memo');
         }
-        if (_createdFilesData.containsKey(pure)) {
-          events.add('file');
-        }
+        // ✨ [삭제] 파일 이벤트 추가 로직 삭제
+        // if (_createdFilesData.containsKey(pure)) {
+        //   events.add('file');
+        // }
         return events;
       },
       calendarBuilders: CalendarBuilders(
@@ -206,8 +160,8 @@ class _CalendarPageState extends State<CalendarPage> {
                       width: 6,
                       height: 6,
                       decoration: BoxDecoration(
-                        color:
-                            event == 'memo' ? Colors.green : Colors.blueAccent,
+                        // ✨ [수정] 파일 마커(파란색) 관련 로직 삭제
+                        color: Colors.green,
                         shape: BoxShape.circle,
                       ),
                     );
@@ -278,66 +232,6 @@ class _CalendarPageState extends State<CalendarPage> {
     );
   }
 
-  Widget _buildCreatedFilesList(DateTime selectedDay) {
-    final pureSelectedDay = _pureDate(selectedDay);
-    final files = _createdFilesData[pureSelectedDay];
-
-    if (files == null || files.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(12.0),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            spreadRadius: 1,
-            blurRadius: 3,
-            offset: const Offset(0, 1),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              "해당 날짜에 수정한 노트",
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(8.0),
-              ),
-              child: Column(
-                children:
-                    files
-                        .map(
-                          (fileName) => ListTile(
-                            dense: true,
-                            contentPadding: EdgeInsets.zero,
-                            leading: const Icon(
-                              Icons.description_outlined,
-                              color: Colors.blueAccent,
-                              size: 20,
-                            ),
-                            title: Text(
-                              fileName,
-                              style: const TextStyle(fontSize: 14),
-                            ),
-                          ),
-                        )
-                        .toList(),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  // ✨ [삭제] 수정된 파일 목록을 보여주는 위젯 전체 삭제
+  // Widget _buildCreatedFilesList(DateTime selectedDay) { ... }
 }

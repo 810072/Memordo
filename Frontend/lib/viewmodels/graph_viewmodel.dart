@@ -6,8 +6,10 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:graphview/GraphView.dart';
 import 'package:path/path.dart' as p;
+import 'package:provider/provider.dart'; // ✨ [추가]
 import '../utils/ai_service.dart' as ai_service;
-import '../features/graph_page.dart'; // 데이터 모델 클래스를 위해 임포트
+import '../features/graph_page.dart';
+import '../providers/status_bar_provider.dart'; // ✨ [추가]
 
 class GraphViewModel with ChangeNotifier {
   final Graph graph = Graph();
@@ -33,7 +35,6 @@ class GraphViewModel with ChangeNotifier {
   double get canvasWidth => _canvasWidth;
   double get canvasHeight => _canvasHeight;
 
-  // ✨ [수정] 생성자에서 데이터 로딩 호출 제거
   GraphViewModel();
 
   void toggleGraphView() {
@@ -45,8 +46,14 @@ class GraphViewModel with ChangeNotifier {
 
   Future<void> triggerEmbeddingProcess(BuildContext context) async {
     if (_isLoading) return;
+
+    final statusBar = context.read<StatusBarProvider>(); // ✨ [추가]
     _isLoading = true;
     _statusMessage = '로컬 노트 파일 스캔 중...';
+    statusBar.showStatusMessage(
+      _statusMessage,
+      type: StatusType.info,
+    ); // ✨ [수정]
     notifyListeners();
 
     try {
@@ -54,13 +61,21 @@ class GraphViewModel with ChangeNotifier {
       final localFiles = await _getAllMarkdownFiles(Directory(notesDir));
 
       if (localFiles.isEmpty) {
-        _showSnackBar(context, '노트 폴더에 분석할 .md 파일이 없습니다.');
+        _statusMessage = '노트 폴더에 분석할 .md 파일이 없습니다.';
+        statusBar.showStatusMessage(
+          _statusMessage,
+          type: StatusType.error,
+        ); // ✨ [수정]
         _isLoading = false;
         notifyListeners();
         return;
       }
 
       _statusMessage = '${localFiles.length}개 노트의 관계 분석을 AI 서버에 요청합니다...';
+      statusBar.showStatusMessage(
+        _statusMessage,
+        type: StatusType.info,
+      ); // ✨ [수정]
       notifyListeners();
 
       List<Map<String, String>> notesData = [];
@@ -71,7 +86,6 @@ class GraphViewModel with ChangeNotifier {
         });
       }
 
-      // 백엔드에 그래프 데이터 생성을 요청
       final graphData = await ai_service.generateGraphData(notesData);
 
       if (graphData == null || graphData.containsKey('error')) {
@@ -79,12 +93,10 @@ class GraphViewModel with ChangeNotifier {
         throw Exception('백엔드 API 오류: $errorMessage');
       }
 
-      // 사용자 정의 엣지 및 토픽 추출
       final userDefinedResult = await _extractUserDefinedEdgesAndTopics(
         notesData,
       );
 
-      // 최종 데이터 합치기
       final finalData = {
         "nodes": graphData['nodes'],
         "edges": graphData['edges'],
@@ -101,15 +113,20 @@ class GraphViewModel with ChangeNotifier {
         "userTopics": userDefinedResult.topicNodes.toList(),
       };
 
-      // `embeddings.json` 파일에 최종 결과 저장 (캐시/초기 로딩용)
       final embeddingsFile = File(p.join(notesDir, 'embeddings.json'));
       await embeddingsFile.writeAsString(jsonEncode(finalData));
 
-      _showSnackBar(context, '그래프 생성 완료!');
+      statusBar.showStatusMessage(
+        '그래프 생성 완료!',
+        type: StatusType.success,
+      ); // ✨ [수정]
       _buildGraphFromData(finalData);
     } catch (e) {
-      _showSnackBar(context, '오류 발생: ${e.toString()}');
       _statusMessage = '오류가 발생했습니다.';
+      statusBar.showStatusMessage(
+        '그래프 생성 중 오류 발생: ${e.toString()}',
+        type: StatusType.error,
+      ); // ✨ [수정]
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -251,12 +268,7 @@ class GraphViewModel with ChangeNotifier {
     return mdFiles;
   }
 
-  void _showSnackBar(BuildContext context, String message) {
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), duration: const Duration(seconds: 3)),
-    );
-  }
+  // ⛔️ [삭제] _showSnackBar 메서드는 더 이상 사용하지 않습니다.
 
   Future<({List<GraphEdgeData> userEdges, Set<String> topicNodes})>
   _extractUserDefinedEdgesAndTopics(List<Map<String, String>> notesData) async {
@@ -286,8 +298,6 @@ class GraphViewModel with ChangeNotifier {
     }
     return (userEdges: userEdges, topicNodes: topicNodes);
   }
-
-  // ✨ [수정] UI 관련 메서드 제거
 
   bool isUserNodeActive(String label) {
     return _activeUserNodeIds.contains(label);

@@ -3,7 +3,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'dart:convert';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -16,23 +15,22 @@ import '../features/graph_page.dart';
 import '../features/history.dart';
 import '../features/settings_page.dart';
 import '../features/search_page.dart';
+import '../features/notification_log_page.dart';
 import '../providers/file_system_provider.dart';
 import '../providers/token_status_provider.dart';
-import '../layout/bottom_section_controller.dart';
-import '../auth/login_page.dart';
 import '../providers/tab_provider.dart';
 import '../viewmodels/history_viewmodel.dart';
 import '../viewmodels/calendar_viewmodel.dart';
 import '../viewmodels/graph_viewmodel.dart';
+import '../widgets/status_bar_widget.dart';
+import 'bottom_section_controller.dart'; // ✨ [추가]
 
 class MainLayout extends StatefulWidget {
-  final PageType activePage;
   final ValueChanged<PageType> onPageSelected;
   final String? initialTextForMemo;
 
   const MainLayout({
     Key? key,
-    required this.activePage,
     required this.onPageSelected,
     this.initialTextForMemo,
   }) : super(key: key);
@@ -42,6 +40,8 @@ class MainLayout extends StatefulWidget {
 }
 
 class _MainLayoutState extends State<MainLayout> {
+  PageType _activePage = PageType.home;
+
   bool _isRightExpanded = true;
   double _rightSidebarWidth = 160.0;
   bool _isResizing = false;
@@ -79,19 +79,28 @@ class _MainLayoutState extends State<MainLayout> {
       case PageType.graph:
         return const GraphPage();
       case PageType.settings:
-        return const SettingsPage();
+        return SettingsPage(onPageChange: (page) => _changePage(page));
       case PageType.search:
         return const SearchPage();
-      default:
-        return const Center(child: Text('알 수 없는 페이지'));
+      case PageType.notifications:
+        return const NotificationLogPage();
     }
   }
 
+  void _changePage(PageType pageType) {
+    widget.onPageSelected(pageType);
+    // ✨ [수정] 페이지를 변경할 때마다 AI 요약 내용을 초기화합니다.
+    context.read<BottomSectionController>().clearSummary();
+    setState(() {
+      _activePage = pageType;
+    });
+  }
+
   bool get _showRightSidebar =>
-      widget.activePage == PageType.home ||
-      widget.activePage == PageType.history ||
-      widget.activePage == PageType.graph ||
-      widget.activePage == PageType.calendar;
+      _activePage == PageType.home ||
+      _activePage == PageType.history ||
+      _activePage == PageType.graph ||
+      _activePage == PageType.calendar;
 
   Widget _buildTabList(TabProvider tabProvider) {
     final theme = Theme.of(context);
@@ -181,331 +190,364 @@ class _MainLayoutState extends State<MainLayout> {
     final dividerColor = Theme.of(context).dividerColor;
 
     return Scaffold(
-      body: Row(
+      body: Column(
         children: [
-          Container(
-            width: 48,
-            color: Theme.of(context).cardColor,
-            child: Column(
-              children: [
-                Expanded(
-                  child: LeftSidebarContent(
-                    isExpanded: false,
-                    activePage: widget.activePage,
-                    onPageSelected: widget.onPageSelected,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          VerticalDivider(thickness: 1, width: 1, color: dividerColor),
-
-          if (_showRightSidebar && _isRightExpanded)
-            Row(
+          Expanded(
+            child: Row(
               children: [
                 Container(
-                  width: _rightSidebarWidth,
+                  width: 48,
                   color: Theme.of(context).cardColor,
                   child: Column(
                     children: [
                       Expanded(
-                        child: Consumer<FileSystemProvider>(
-                          builder: (context, fileSystemProvider, child) {
-                            return RightSidebarContent(
-                              activePage: widget.activePage,
-                              isLoading: fileSystemProvider.isLoading,
-                              fileSystemEntries:
-                                  fileSystemProvider.fileSystemEntries,
-                              onEntryTap: (entry) {
-                                if (entry.isDirectory) {
-                                  debugPrint('폴더는 로드할 수 없습니다: ${entry.name}');
-                                  return;
-                                }
-                                context
-                                    .read<FileSystemProvider>()
-                                    .setSelectedFileForMeetingScreen(entry);
-                              },
-                              onRefresh: fileSystemProvider.scanForFileSystem,
-                              onRenameEntry: (entry) async {
-                                String? newName = await _showTextInputDialog(
-                                  context,
-                                  '이름 변경',
-                                  '새 이름을 입력하세요.',
-                                  initialValue: entry.name,
-                                );
-                                if (newName != null &&
-                                    newName.isNotEmpty &&
-                                    newName != entry.name) {
-                                  fileSystemProvider.renameEntry(
-                                    context,
-                                    entry,
-                                    newName,
-                                  );
-                                }
-                              },
-                              onDeleteEntry:
-                                  (entry) => fileSystemProvider.deleteEntry(
-                                    context,
-                                    entry,
-                                  ),
-                              sidebarIsExpanded: _isRightExpanded,
-                            );
-                          },
+                        child: LeftSidebarContent(
+                          isExpanded: false,
+                          activePage: _activePage,
+                          onPageSelected: (page) => _changePage(page),
                         ),
                       ),
                     ],
                   ),
                 ),
-                GestureDetector(
-                  onHorizontalDragStart:
-                      (_) => setState(() => _isResizing = true),
-                  onHorizontalDragUpdate: (details) {
-                    setState(() {
-                      _rightSidebarWidth += details.delta.dx;
-                      _rightSidebarWidth = _rightSidebarWidth.clamp(
-                        160.0,
-                        500.0,
-                      );
-                    });
-                  },
-                  onHorizontalDragEnd:
-                      (_) => setState(() => _isResizing = false),
-                  child: MouseRegion(
-                    cursor: SystemMouseCursors.resizeLeftRight,
-                    child: Container(
-                      width: 8,
-                      color: Colors.transparent,
-                      alignment: Alignment.center,
-                      child: Container(
-                        width: 1,
-                        color:
-                            _isResizing
-                                ? Theme.of(context).primaryColor
-                                : dividerColor,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+                VerticalDivider(thickness: 1, width: 1, color: dividerColor),
 
-          Expanded(
-            child: Column(
-              children: [
-                DragToMoveArea(
-                  child: Container(
-                    height: 40.0,
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).cardColor,
-                      border: Border(
-                        bottom: BorderSide(color: dividerColor, width: 1),
+                if (_showRightSidebar && _isRightExpanded)
+                  Row(
+                    children: [
+                      Container(
+                        width: _rightSidebarWidth,
+                        color: Theme.of(context).cardColor,
+                        child: Column(
+                          children: [
+                            Expanded(
+                              child: Consumer<FileSystemProvider>(
+                                builder: (context, fileSystemProvider, child) {
+                                  return RightSidebarContent(
+                                    activePage: _activePage,
+                                    isLoading: fileSystemProvider.isLoading,
+                                    fileSystemEntries:
+                                        fileSystemProvider.fileSystemEntries,
+                                    onEntryTap: (entry) {
+                                      if (entry.isDirectory) {
+                                        debugPrint(
+                                          '폴더는 로드할 수 없습니다: ${entry.name}',
+                                        );
+                                        return;
+                                      }
+                                      context
+                                          .read<FileSystemProvider>()
+                                          .setSelectedFileForMeetingScreen(
+                                            entry,
+                                          );
+                                    },
+                                    onRefresh:
+                                        fileSystemProvider.scanForFileSystem,
+                                    onRenameEntry: (entry) async {
+                                      String? newName =
+                                          await _showTextInputDialog(
+                                            context,
+                                            '이름 변경',
+                                            '새 이름을 입력하세요.',
+                                            initialValue: entry.name,
+                                          );
+                                      if (newName != null &&
+                                          newName.isNotEmpty &&
+                                          newName != entry.name) {
+                                        fileSystemProvider.renameEntry(
+                                          context,
+                                          entry,
+                                          newName,
+                                        );
+                                      }
+                                    },
+                                    onDeleteEntry:
+                                        (entry) => fileSystemProvider
+                                            .deleteEntry(context, entry),
+                                    sidebarIsExpanded: _isRightExpanded,
+                                  );
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    child: Row(
-                      children: [
-                        if (widget.activePage == PageType.home)
-                          Expanded(
-                            child: Consumer<TabProvider>(
-                              builder: (context, tabProvider, child) {
-                                return _buildTabList(tabProvider);
-                              },
+                      GestureDetector(
+                        onHorizontalDragStart:
+                            (_) => setState(() => _isResizing = true),
+                        onHorizontalDragUpdate: (details) {
+                          setState(() {
+                            _rightSidebarWidth += details.delta.dx;
+                            _rightSidebarWidth = _rightSidebarWidth.clamp(
+                              160.0,
+                              500.0,
+                            );
+                          });
+                        },
+                        onHorizontalDragEnd:
+                            (_) => setState(() => _isResizing = false),
+                        child: MouseRegion(
+                          cursor: SystemMouseCursors.resizeLeftRight,
+                          child: Container(
+                            width: 8,
+                            color: Colors.transparent,
+                            alignment: Alignment.center,
+                            child: Container(
+                              width: 1,
+                              color:
+                                  _isResizing
+                                      ? Theme.of(context).primaryColor
+                                      : dividerColor,
                             ),
                           ),
-                        if (widget.activePage == PageType.history)
-                          Padding(
-                            padding: const EdgeInsets.only(left: 16.0),
-                            child: Text(
-                              '방문 기록',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                color:
-                                    Theme.of(
-                                      context,
-                                    ).textTheme.bodyLarge?.color,
-                              ),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                Expanded(
+                  child: Column(
+                    children: [
+                      DragToMoveArea(
+                        child: Container(
+                          height: 40.0,
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).cardColor,
+                            border: Border(
+                              bottom: BorderSide(color: dividerColor, width: 1),
                             ),
                           ),
-                        if (widget.activePage == PageType.calendar)
-                          Padding(
-                            padding: const EdgeInsets.only(left: 16.0),
-                            child: Text(
-                              'Calendar',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                color:
-                                    Theme.of(
-                                      context,
-                                    ).textTheme.bodyLarge?.color,
-                              ),
-                            ),
-                          ),
-                        if (widget.activePage == PageType.graph)
-                          Padding(
-                            padding: const EdgeInsets.only(left: 16.0),
-                            child: Text(
-                              'AI 노트 관계도',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                color:
-                                    Theme.of(
-                                      context,
-                                    ).textTheme.bodyLarge?.color,
-                              ),
-                            ),
-                          ),
-                        if (widget.activePage == PageType.settings)
-                          Padding(
-                            padding: const EdgeInsets.only(left: 16.0),
-                            child: Text(
-                              'Settings',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                color:
-                                    Theme.of(
-                                      context,
-                                    ).textTheme.bodyLarge?.color,
-                              ),
-                            ),
-                          ),
-                        if (widget.activePage != PageType.home) const Spacer(),
-                        if (widget.activePage == PageType.home)
-                          Consumer<TabProvider>(
-                            builder:
-                                (context, tabProvider, child) => IconButton(
-                                  icon: const Icon(Icons.add, size: 18),
-                                  onPressed: () => tabProvider.openNewTab(),
-                                  tooltip: '새 메모',
-                                  splashRadius: 18,
-                                  constraints: const BoxConstraints(
-                                    maxWidth: 36,
-                                    maxHeight: 36,
+                          child: Row(
+                            children: [
+                              if (_activePage == PageType.home)
+                                Expanded(
+                                  child: Consumer<TabProvider>(
+                                    builder: (context, tabProvider, child) {
+                                      return _buildTabList(tabProvider);
+                                    },
                                   ),
                                 ),
+                              if (_activePage == PageType.history)
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 16.0),
+                                  child: Text(
+                                    '방문 기록',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                      color:
+                                          Theme.of(
+                                            context,
+                                          ).textTheme.bodyLarge?.color,
+                                    ),
+                                  ),
+                                ),
+                              if (_activePage == PageType.calendar)
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 16.0),
+                                  child: Text(
+                                    'Calendar',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                      color:
+                                          Theme.of(
+                                            context,
+                                          ).textTheme.bodyLarge?.color,
+                                    ),
+                                  ),
+                                ),
+                              if (_activePage == PageType.graph)
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 16.0),
+                                  child: Text(
+                                    'AI 노트 관계도',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                      color:
+                                          Theme.of(
+                                            context,
+                                          ).textTheme.bodyLarge?.color,
+                                    ),
+                                  ),
+                                ),
+                              if (_activePage == PageType.settings)
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 16.0),
+                                  child: Text(
+                                    'Settings',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                      color:
+                                          Theme.of(
+                                            context,
+                                          ).textTheme.bodyLarge?.color,
+                                    ),
+                                  ),
+                                ),
+                              if (_activePage != PageType.home) const Spacer(),
+                              if (_activePage == PageType.home)
+                                Consumer<TabProvider>(
+                                  builder:
+                                      (context, tabProvider, child) =>
+                                          IconButton(
+                                            icon: const Icon(
+                                              Icons.add,
+                                              size: 18,
+                                            ),
+                                            onPressed:
+                                                () => tabProvider.openNewTab(),
+                                            tooltip: '새 메모',
+                                            splashRadius: 18,
+                                            constraints: const BoxConstraints(
+                                              maxWidth: 36,
+                                              maxHeight: 36,
+                                            ),
+                                          ),
+                                ),
+                              if (_activePage == PageType.history)
+                                Consumer<HistoryViewModel>(
+                                  builder: (context, viewModel, child) {
+                                    final tokenProvider =
+                                        context.watch<TokenStatusProvider>();
+                                    return Row(
+                                      children: [
+                                        IconButton(
+                                          icon: const Icon(
+                                            Icons.refresh,
+                                            size: 20,
+                                          ),
+                                          tooltip: '새로고침',
+                                          color: const Color(0xFF475569),
+                                          onPressed:
+                                              viewModel.isLoading ||
+                                                      !tokenProvider
+                                                          .isAuthenticated
+                                                  ? null
+                                                  : () =>
+                                                      viewModel
+                                                          .loadVisitHistory(),
+                                        ),
+                                        IconButton(
+                                          icon: const Icon(
+                                            Icons.auto_awesome_outlined,
+                                            size: 20,
+                                          ),
+                                          tooltip: '선택 항목 요약',
+                                          color: const Color(0xFF475569),
+                                          onPressed:
+                                              viewModel.isLoading ||
+                                                      !tokenProvider
+                                                          .isAuthenticated
+                                                  ? null
+                                                  : () => viewModel
+                                                      .summarizeSelection(
+                                                        context,
+                                                      ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                      ],
+                                    );
+                                  },
+                                ),
+                              if (_activePage == PageType.calendar)
+                                Padding(
+                                  padding: const EdgeInsets.only(right: 8.0),
+                                  child: Consumer<CalendarViewModel>(
+                                    builder: (context, viewModel, child) {
+                                      return ElevatedButton(
+                                        onPressed:
+                                            () => viewModel.jumpToToday(),
+                                        child: const Text('Today'),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: const Color(
+                                            0xFF3d98f4,
+                                          ),
+                                          foregroundColor: Colors.white,
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 8,
+                                          ),
+                                          textStyle: const TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              8.0,
+                                            ),
+                                          ),
+                                          elevation: 0,
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                              if (_activePage == PageType.graph)
+                                Consumer<GraphViewModel>(
+                                  builder: (context, viewModel, child) {
+                                    return Row(
+                                      children: [
+                                        IconButton(
+                                          icon: const Icon(
+                                            Icons.hub_outlined,
+                                            size: 20,
+                                          ),
+                                          tooltip: '임베딩 생성 및 새로고침',
+                                          color: const Color(0xFF475569),
+                                          onPressed:
+                                              viewModel.isLoading
+                                                  ? null
+                                                  : () => viewModel
+                                                      .triggerEmbeddingProcess(
+                                                        context,
+                                                      ),
+                                        ),
+                                        IconButton(
+                                          icon: Icon(
+                                            viewModel.showUserGraph
+                                                ? Icons.person_outline
+                                                : Icons.smart_toy_outlined,
+                                            size: 20,
+                                          ),
+                                          tooltip:
+                                              viewModel.showUserGraph
+                                                  ? '사용자 정의 링크 보기'
+                                                  : 'AI 추천 관계 보기',
+                                          color: const Color(0xFF475569),
+                                          onPressed:
+                                              viewModel.isLoading
+                                                  ? null
+                                                  : () =>
+                                                      viewModel
+                                                          .toggleGraphView(),
+                                        ),
+                                        const SizedBox(width: 8),
+                                      ],
+                                    );
+                                  },
+                                ),
+                              const WindowButtons(),
+                            ],
                           ),
-                        if (widget.activePage == PageType.history)
-                          Consumer<HistoryViewModel>(
-                            builder: (context, viewModel, child) {
-                              final tokenProvider =
-                                  context.watch<TokenStatusProvider>();
-                              return Row(
-                                children: [
-                                  IconButton(
-                                    icon: const Icon(Icons.refresh, size: 20),
-                                    tooltip: '새로고침',
-                                    color: const Color(0xFF475569),
-                                    onPressed:
-                                        viewModel.isLoading ||
-                                                !tokenProvider.isAuthenticated
-                                            ? null
-                                            : () =>
-                                                viewModel.loadVisitHistory(),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(
-                                      Icons.auto_awesome_outlined,
-                                      size: 20,
-                                    ),
-                                    tooltip: '선택 항목 요약',
-                                    color: const Color(0xFF475569),
-                                    onPressed:
-                                        viewModel.isLoading ||
-                                                !tokenProvider.isAuthenticated
-                                            ? null
-                                            : () => viewModel
-                                                .summarizeSelection(context),
-                                  ),
-                                  const SizedBox(width: 8),
-                                ],
-                              );
-                            },
-                          ),
-                        if (widget.activePage == PageType.calendar)
-                          Padding(
-                            padding: const EdgeInsets.only(right: 8.0),
-                            child: Consumer<CalendarViewModel>(
-                              builder: (context, viewModel, child) {
-                                return ElevatedButton(
-                                  onPressed: () => viewModel.jumpToToday(),
-                                  child: const Text('Today'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF3d98f4),
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 8,
-                                    ),
-                                    textStyle: const TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8.0),
-                                    ),
-                                    elevation: 0,
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                        if (widget.activePage == PageType.graph)
-                          Consumer<GraphViewModel>(
-                            builder: (context, viewModel, child) {
-                              return Row(
-                                children: [
-                                  IconButton(
-                                    icon: const Icon(
-                                      Icons.hub_outlined,
-                                      size: 20,
-                                    ),
-                                    tooltip: '임베딩 생성 및 새로고침',
-                                    color: const Color(0xFF475569),
-                                    onPressed:
-                                        viewModel.isLoading
-                                            ? null
-                                            : () => viewModel
-                                                .triggerEmbeddingProcess(
-                                                  context,
-                                                ),
-                                  ),
-                                  IconButton(
-                                    icon: Icon(
-                                      viewModel.showUserGraph
-                                          ? Icons.person_outline
-                                          : Icons.smart_toy_outlined,
-                                      size: 20,
-                                    ),
-                                    tooltip:
-                                        viewModel.showUserGraph
-                                            ? '사용자 정의 링크 보기'
-                                            : 'AI 추천 관계 보기',
-                                    color: const Color(0xFF475569),
-                                    onPressed:
-                                        viewModel.isLoading
-                                            ? null
-                                            : () => viewModel.toggleGraphView(),
-                                  ),
-                                  const SizedBox(width: 8),
-                                ],
-                              );
-                            },
-                          ),
-                        const WindowButtons(),
-                      ],
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: IndexedStack(
-                    index: widget.activePage.index,
-                    children: pages,
+                        ),
+                      ),
+                      Expanded(
+                        child: IndexedStack(
+                          index: _activePage.index,
+                          children: pages,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
+          ),
+          StatusBarWidget(
+            onBellPressed: () => _changePage(PageType.notifications),
           ),
         ],
       ),

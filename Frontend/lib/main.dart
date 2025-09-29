@@ -2,8 +2,6 @@
 
 import 'dart:convert';
 import 'dart:io';
-import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -31,7 +29,8 @@ import 'providers/scratchpad_provider.dart';
 import 'providers/tab_provider.dart';
 import 'viewmodels/history_viewmodel.dart';
 import 'viewmodels/calendar_viewmodel.dart';
-import 'viewmodels/graph_viewmodel.dart'; // ✨ [추가] GraphViewModel 임포트
+import 'viewmodels/graph_viewmodel.dart';
+import 'providers/status_bar_provider.dart';
 
 // macOS에서만 사용할 백엔드 서버 프로세스 변수
 Process? _macOSBackendProcess;
@@ -83,8 +82,8 @@ Future<void> main(List<String> args) async {
           ChangeNotifierProvider(create: (context) => TabProvider()),
           ChangeNotifierProvider(create: (context) => HistoryViewModel()),
           ChangeNotifierProvider(create: (context) => CalendarViewModel()),
-          // ✨ [추가] GraphViewModel을 MultiProvider에 추가
           ChangeNotifierProvider(create: (context) => GraphViewModel()),
+          ChangeNotifierProvider(create: (context) => StatusBarProvider()),
         ],
         child: const MyApp(),
       ),
@@ -189,7 +188,6 @@ class MainLayoutWrapper extends StatefulWidget {
 
 class _MainLayoutWrapperState extends State<MainLayoutWrapper>
     with WindowListener {
-  PageType _currentPage = PageType.home;
   String? _initialTextForMemo;
 
   @override
@@ -199,17 +197,14 @@ class _MainLayoutWrapperState extends State<MainLayoutWrapper>
     _configureWindowCloseHandler();
     _setupMethodHandler();
 
-    // 노트 히스토리에서 새 메모를 만들 때 홈 화면으로 전환
     Provider.of<NoteProvider>(context, listen: false).onNewMemoFromHistory = (
       text,
     ) {
       if (!mounted) return;
       setState(() {
         _initialTextForMemo = text;
-        _currentPage = PageType.home;
       });
     };
-
   }
 
   void _configureWindowCloseHandler() async {
@@ -217,13 +212,19 @@ class _MainLayoutWrapperState extends State<MainLayoutWrapper>
   }
 
   void _setupMethodHandler() {
-    DesktopMultiWindow.setMethodHandler((MethodCall call, int fromWindowId) async {
+    DesktopMultiWindow.setMethodHandler((
+      MethodCall call,
+      int fromWindowId,
+    ) async {
       if (call.method == 'open_document') {
         final String relativePath = call.arguments as String;
         if (!mounted) return;
 
         try {
-          final fsProvider = Provider.of<FileSystemProvider>(context, listen: false);
+          final fsProvider = Provider.of<FileSystemProvider>(
+            context,
+            listen: false,
+          );
           final rootPath = await fsProvider.getOrCreateNoteFolderPath();
           final fullPath = p.join(rootPath, relativePath);
 
@@ -232,19 +233,7 @@ class _MainLayoutWrapperState extends State<MainLayoutWrapper>
 
           if (await file.exists()) {
             final content = await file.readAsString();
-            // Use fullPath to ensure the tab's ID is unique and correct
             tabProvider.openNewTab(filePath: fullPath, content: content);
-
-            if (_currentPage != PageType.home) {
-              // Use addPostFrameCallback to avoid 'setState during build' error
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (mounted) {
-                  setState(() {
-                    _currentPage = PageType.home;
-                  });
-                }
-              });
-            }
           } else {
             throw Exception('File not found at path: $fullPath');
           }
@@ -258,10 +247,8 @@ class _MainLayoutWrapperState extends State<MainLayoutWrapper>
   @override
   void dispose() {
     windowManager.removeListener(this);
-    // 콜백 정리
     Provider.of<NoteProvider>(context, listen: false).onNewMemoFromHistory =
         null;
-    // 핸들러 정리
     DesktopMultiWindow.setMethodHandler(null);
     super.dispose();
   }
@@ -299,14 +286,12 @@ class _MainLayoutWrapperState extends State<MainLayoutWrapper>
   @override
   Widget build(BuildContext context) {
     return MainLayout(
-      activePage: _currentPage,
       initialTextForMemo: _initialTextForMemo,
       onPageSelected: (pageType) {
         setState(() {
-          if (_currentPage == PageType.home && pageType != PageType.home) {
+          if (pageType != PageType.home) {
             _initialTextForMemo = null;
           }
-          _currentPage = pageType;
         });
       },
     );

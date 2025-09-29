@@ -7,23 +7,21 @@ import 'package:provider/provider.dart';
 import '../services/auth_token.dart';
 import '../layout/bottom_section_controller.dart';
 import '../utils/ai_service.dart';
+import '../providers/status_bar_provider.dart'; // ✨ [추가]
 
 class HistoryViewModel with ChangeNotifier {
   List<Map<String, dynamic>> _visitHistory = [];
   String _status = '방문 기록을 불러오세요.';
   bool _isLoading = false;
-  // ✨ [추가] 선택된 항목들을 관리하는 Set
   final Set<String> _selectedUniqueKeys = {};
 
   List<Map<String, dynamic>> get visitHistory => _visitHistory;
   String get status => _status;
   bool get isLoading => _isLoading;
-  // ✨ [추가] 외부에서 선택된 항목에 접근하기 위한 getter
   Set<String> get selectedUniqueKeys => _selectedUniqueKeys;
 
   HistoryViewModel();
 
-  // ✨ [추가] 항목 선택/해제 메서드
   void toggleItemSelection(String uniqueKey) {
     if (_selectedUniqueKeys.contains(uniqueKey)) {
       _selectedUniqueKeys.remove(uniqueKey);
@@ -33,7 +31,6 @@ class HistoryViewModel with ChangeNotifier {
     notifyListeners();
   }
 
-  // ✨ [추가] 모든 선택 해제 메서드
   void clearSelection() {
     _selectedUniqueKeys.clear();
     notifyListeners();
@@ -44,7 +41,6 @@ class HistoryViewModel with ChangeNotifier {
 
     _isLoading = true;
     _status = '방문 기록 불러오는 중...';
-    // ✨ [수정] 새로고침 시 기존 선택 항목 초기화
     _selectedUniqueKeys.clear();
     notifyListeners();
 
@@ -116,9 +112,9 @@ class HistoryViewModel with ChangeNotifier {
     }
   }
 
-  // ✨ [추가] 요약 로직을 처리하는 메서드
   Future<void> summarizeSelection(BuildContext context) async {
     final bottomController = context.read<BottomSectionController>();
+    final statusBar = context.read<StatusBarProvider>(); // ✨ [추가]
 
     if (bottomController.isLoading) return;
 
@@ -135,7 +131,7 @@ class HistoryViewModel with ChangeNotifier {
       }
 
       if (selectedUrl != null && selectedUrl.isNotEmpty) {
-        bottomController.setActiveTab(2); // AI 요약 탭으로 이동
+        bottomController.setActiveTab(2);
 
         bottomController.setIsLoading(true);
         bottomController.updateSummary('URL 요약 중...\n$selectedUrl');
@@ -149,31 +145,31 @@ class HistoryViewModel with ChangeNotifier {
         if (summary == null ||
             summary.contains("오류") ||
             summary.contains("실패")) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(summary ?? 'URL 요약에 실패했습니다.'),
-              backgroundColor: Colors.redAccent,
-            ),
+          // ✨ [수정] SnackBar 대신 StatusBarProvider 사용
+          statusBar.showStatusMessage(
+            summary ?? 'URL 요약에 실패했습니다.',
+            type: StatusType.error,
+          );
+        } else {
+          statusBar.showStatusMessage(
+            'URL 요약이 완료되었습니다.',
+            type: StatusType.success,
           );
         }
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('유효한 URL을 찾을 수 없습니다.'),
-            backgroundColor: Colors.orangeAccent,
-          ),
+        // ✨ [수정] SnackBar 대신 StatusBarProvider 사용
+        statusBar.showStatusMessage(
+          '유효한 URL을 찾을 수 없습니다.',
+          type: StatusType.error,
         );
       }
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            _selectedUniqueKeys.isEmpty
-                ? '내용을 요약할 URL을 선택해주세요.'
-                : '내용을 요약할 URL은 하나만 선택할 수 있습니다.',
-          ),
-          backgroundColor: Colors.orangeAccent,
-        ),
+      // ✨ [수정] SnackBar 대신 StatusBarProvider 사용
+      statusBar.showStatusMessage(
+        _selectedUniqueKeys.isEmpty
+            ? '내용을 요약할 URL을 선택해주세요.'
+            : '내용을 요약할 URL은 하나만 선택할 수 있습니다.',
+        type: StatusType.info,
       );
     }
   }

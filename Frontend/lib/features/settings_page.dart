@@ -2,9 +2,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/theme_provider.dart';
+import 'page_type.dart';
 
 class SettingsPage extends StatefulWidget {
-  const SettingsPage({super.key});
+  final Function(PageType) onPageChange;
+
+  const SettingsPage({super.key, required this.onPageChange});
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -83,7 +86,7 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ),
             onTap: () {
-              // TODO: 알림 설정 페이지로 이동
+              widget.onPageChange(PageType.notifications);
             },
           ),
           ListTile(

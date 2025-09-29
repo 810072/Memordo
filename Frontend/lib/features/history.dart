@@ -11,7 +11,6 @@ import '../viewmodels/history_viewmodel.dart';
 import '../providers/token_status_provider.dart';
 import '../auth/login_page.dart';
 
-// ✨ [수정] HistoryPage는 더 이상 Provider를 생성하지 않고, 단순히 HistoryView를 반환합니다.
 class HistoryPage extends StatelessWidget {
   const HistoryPage({super.key});
 
@@ -21,7 +20,6 @@ class HistoryPage extends StatelessWidget {
   }
 }
 
-/// 실제 UI를 구성하고 ViewModel과 상호작용하는 위젯
 class HistoryView extends StatefulWidget {
   const HistoryView({super.key});
 
@@ -30,10 +28,6 @@ class HistoryView extends StatefulWidget {
 }
 
 class _HistoryViewState extends State<HistoryView> {
-  // ✨ [수정] UI 상태 변수들 제거. ViewModel에서 관리합니다.
-  // final Set<String> _selectedUniqueKeys = {};
-  // bool _showSummary = false;
-
   final TextEditingController _searchController = TextEditingController();
   Timer? _debounce;
   List<Map<String, dynamic>> _filteredHistory = [];
@@ -51,7 +45,6 @@ class _HistoryViewState extends State<HistoryView> {
       if (_wasAuthenticated) {
         historyViewModel.loadVisitHistory().then((_) {
           if (mounted) {
-            // ViewModel의 데이터를 기반으로 필터링
             _filterHistory('');
           }
         });
@@ -76,7 +69,6 @@ class _HistoryViewState extends State<HistoryView> {
   }
 
   void _filterHistory(String query) {
-    // ✨ [수정] ViewModel에서 데이터를 가져오도록 변경
     final viewModel = context.read<HistoryViewModel>();
     final lowerCaseQuery = query.toLowerCase();
 
@@ -94,8 +86,6 @@ class _HistoryViewState extends State<HistoryView> {
       }
     });
   }
-
-  // ✨ [수정] 요약 관련 함수들 모두 제거 -> ViewModel로 이동됨
 
   @override
   Widget build(BuildContext context) {
@@ -126,7 +116,6 @@ class _HistoryViewState extends State<HistoryView> {
 
     return Column(
       children: [
-        // ✨ [수정] 상단 바 UI 전체 제거
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
           child: TextField(
@@ -163,41 +152,45 @@ class _HistoryViewState extends State<HistoryView> {
           ),
         ),
         Expanded(
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child:
-                !tokenProvider.isAuthenticated
-                    ? _buildLoginPrompt(context)
-                    : viewModel.isLoading
-                    ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const CircularProgressIndicator(),
-                          const SizedBox(height: 16),
-                          Text(viewModel.status),
-                        ],
-                      ),
-                    )
-                    : _filteredHistory.isEmpty
-                    ? Center(
+          // ✨ [수정] Padding 위젯을 제거하고 ListView.builder에 직접 padding 속성을 적용합니다.
+          child:
+              !tokenProvider.isAuthenticated
+                  ? _buildLoginPrompt(context)
+                  : viewModel.isLoading
+                  ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const CircularProgressIndicator(),
+                        const SizedBox(height: 16),
+                        Text(viewModel.status),
+                      ],
+                    ),
+                  )
+                  : _filteredHistory.isEmpty
+                  ? Center(
+                    child: Padding(
+                      // Center 안의 Text에는 Padding을 유지해도 괜찮습니다.
+                      padding: const EdgeInsets.all(16.0),
                       child: Text(
                         _searchController.text.isNotEmpty
                             ? '검색 결과가 없습니다.'
                             : viewModel.status,
                       ),
-                    )
-                    : ListView.builder(
-                      itemCount: sortedDates.length,
-                      itemBuilder: (context, index) {
-                        final date = sortedDates[index];
-                        final itemsOnDate = groupedByDate[date]!;
-                        return _buildDateGroup(context, date, itemsOnDate);
-                      },
                     ),
-          ),
+                  )
+                  : ListView.builder(
+                    padding: const EdgeInsets.all(
+                      16.0,
+                    ), // ✨ [수정] 여기에 padding 적용
+                    itemCount: sortedDates.length,
+                    itemBuilder: (context, index) {
+                      final date = sortedDates[index];
+                      final itemsOnDate = groupedByDate[date]!;
+                      return _buildDateGroup(context, date, itemsOnDate);
+                    },
+                  ),
         ),
-        // ✨ [수정] 하단 요약 위젯 전체 제거
       ],
     );
   }
@@ -239,13 +232,11 @@ class _HistoryViewState extends State<HistoryView> {
 
     final String uniqueKey = '$timestamp-$url';
 
-    // ✨ [수정] ViewModel을 통해 선택 상태 확인
     final viewModel = context.read<HistoryViewModel>();
     final bool isChecked = viewModel.selectedUniqueKeys.contains(uniqueKey);
 
     return InkWell(
       onTap: () {
-        // ✨ [수정] ViewModel의 메서드 호출
         viewModel.toggleItemSelection(uniqueKey);
       },
       child: Container(
@@ -264,7 +255,6 @@ class _HistoryViewState extends State<HistoryView> {
               child: Checkbox(
                 value: isChecked,
                 onChanged: (bool? checked) {
-                  // ✨ [수정] ViewModel의 메서드 호출
                   viewModel.toggleItemSelection(uniqueKey);
                 },
                 activeColor: Theme.of(context).primaryColor,

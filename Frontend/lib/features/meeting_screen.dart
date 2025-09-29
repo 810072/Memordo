@@ -17,7 +17,8 @@ import '../providers/file_system_provider.dart';
 import '../providers/note_provider.dart';
 import '../providers/tab_provider.dart';
 import '../model/note_model.dart';
-import '../widgets/custom_popup_menu.dart'; // ✨ [추가] 공통 메뉴 위젯 임포트
+import '../widgets/custom_popup_menu.dart';
+import '../providers/status_bar_provider.dart'; // ✨ [추가]
 
 class SaveIntent extends Intent {}
 
@@ -156,59 +157,76 @@ class _MeetingScreenState extends State<MeetingScreen> {
   }
 
   Map<String, TextStyle> _getMarkdownStyles(bool isDarkMode) {
+    final Color textColor =
+        isDarkMode ? Colors.white70 : const Color(0xFF333333);
     final Color h1Color = isDarkMode ? Colors.white : const Color(0xFF1a1a1a);
     final Color h2Color = isDarkMode ? Colors.white : const Color(0xFF2a2a2a);
     final Color h3Color = isDarkMode ? Colors.white : const Color(0xFF3a3a3a);
-    final Color boldColor = isDarkMode ? Colors.white : const Color(0xFF1a1a1a);
-    final Color italicColor =
-        isDarkMode ? Colors.white : const Color(0xFF2a2a2a);
-    final Color strikeColor =
-        isDarkMode ? Colors.grey.shade500 : const Color(0xFF6a6a6a);
     final Color quoteColor =
         isDarkMode ? Colors.grey.shade400 : const Color(0xFF7f8c8d);
     final Color codeBgColor =
-        isDarkMode ? Colors.grey.shade800 : const Color(0xFFF5F5F5);
+        isDarkMode ? const Color(0x993C4043) : const Color(0xFFF5F5F5);
+    final Color codeColor =
+        isDarkMode ? const Color(0xFF82AAFF) : const Color(0xFFe74c3c);
 
     return {
       'h1': TextStyle(
         fontSize: 32,
         fontWeight: FontWeight.bold,
         color: h1Color,
-        height: 1.3,
+        height: 1.4,
       ),
       'h2': TextStyle(
         fontSize: 28,
         fontWeight: FontWeight.bold,
         color: h2Color,
-        height: 1.3,
+        height: 1.4,
       ),
       'h3': TextStyle(
         fontSize: 24,
         fontWeight: FontWeight.w600,
         color: h3Color,
-        height: 1.3,
+        height: 1.4,
       ),
-      'bold': TextStyle(fontWeight: FontWeight.bold, color: boldColor),
-      'italic': TextStyle(fontStyle: FontStyle.italic, color: italicColor),
+      'h4': TextStyle(
+        fontSize: 20,
+        fontWeight: FontWeight.w600,
+        color: h3Color,
+        height: 1.4,
+      ),
+      'h5': TextStyle(
+        fontSize: 18,
+        fontWeight: FontWeight.w600,
+        color: h3Color,
+        height: 1.4,
+      ),
+      'h6': TextStyle(
+        fontSize: 16,
+        fontWeight: FontWeight.w600,
+        color: h3Color,
+        height: 1.4,
+      ),
+      'bold': TextStyle(fontWeight: FontWeight.bold, color: textColor),
+      'italic': TextStyle(fontStyle: FontStyle.italic, color: textColor),
       'strikethrough': TextStyle(
         decoration: TextDecoration.lineThrough,
-        color: strikeColor,
+        color: Colors.grey.shade600,
       ),
       'code': TextStyle(
         fontFamily: 'monospace',
         backgroundColor: codeBgColor,
-        color: const Color(0xFFe74c3c),
-        fontSize: 14,
+        color: codeColor,
       ),
       'link': const TextStyle(
         color: Color(0xFF3498db),
         decoration: TextDecoration.underline,
       ),
-      'list': const TextStyle(fontSize: 16, height: 1.6),
-      'quote': TextStyle(
-        color: quoteColor,
+      'list': TextStyle(fontSize: 16, color: textColor, height: 1.7),
+      'quote': TextStyle(color: quoteColor, fontStyle: FontStyle.italic),
+      'hr': TextStyle(color: Colors.grey.shade400, letterSpacing: 4),
+      'image': TextStyle(
+        color: Colors.blue.shade300,
         fontStyle: FontStyle.italic,
-        fontSize: 16,
       ),
     };
   }
@@ -371,7 +389,6 @@ class _MeetingScreenState extends State<MeetingScreen> {
             alignment: Alignment.centerRight,
             child: Consumer<BottomSectionController>(
               builder: (context, bottomController, child) {
-                // ✨ [수정] 공통 위젯 CompactPopupMenuItem 사용 및 분류선 제거
                 return PopupMenuButton<String>(
                   icon: const Icon(Icons.more_vert),
                   tooltip: '더보기',
@@ -491,10 +508,14 @@ class _MeetingScreenState extends State<MeetingScreen> {
     final tabProvider = context.read<TabProvider>();
     final activeTab = tabProvider.activeTab;
     if (activeTab == null) return;
+    final statusBar = context.read<StatusBarProvider>(); // ✨ [수정]
 
     final content = activeTab.controller.text;
     if (content.isEmpty) {
-      _showSnackBar("저장할 내용이 없습니다.", isError: true);
+      statusBar.showStatusMessage(
+        "저장할 내용이 없습니다.",
+        type: StatusType.error,
+      ); // ✨ [수정]
       return;
     }
     final fileProvider = context.read<FileSystemProvider>();
@@ -522,22 +543,35 @@ class _MeetingScreenState extends State<MeetingScreen> {
         tabProvider.updateTabInfo(tabProvider.activeTabIndex, path);
 
         fileProvider.scanForFileSystem();
-        _showSnackBar("저장 완료: ${p.basename(path)} ✅");
+        statusBar.showStatusMessage(
+          "저장 완료: ${p.basename(path)} ✅",
+          type: StatusType.success,
+        ); // ✨ [수정]
       } catch (e) {
-        _showSnackBar("파일 저장 중 오류 발생: $e", isError: true);
+        statusBar.showStatusMessage(
+          "파일 저장 중 오류 발생: $e",
+          type: StatusType.error,
+        ); // ✨ [수정]
       }
     } else {
-      _showSnackBar("저장이 취소되었습니다.");
+      statusBar.showStatusMessage(
+        "저장이 취소되었습니다.",
+        type: StatusType.info,
+      ); // ✨ [수정]
     }
   }
 
   Future<void> _loadMarkdownFromFilePicker() async {
+    final statusBar = context.read<StatusBarProvider>(); // ✨ [추가]
     FilePickerResult? result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['md', 'txt'],
     );
     if (result == null) {
-      _showSnackBar("파일 불러오기가 취소되었습니다.");
+      statusBar.showStatusMessage(
+        "파일 불러오기가 취소되었습니다.",
+        type: StatusType.info,
+      ); // ✨ [수정]
       return;
     }
     String content;
@@ -558,18 +592,23 @@ class _MeetingScreenState extends State<MeetingScreen> {
       filePath: filePath,
       content: content,
     );
-    _showSnackBar(
+    statusBar.showStatusMessage(
       "파일 불러오기 완료: ${p.basename(filePath ?? result.files.single.name)} ✅",
-    );
+      type: StatusType.success,
+    ); // ✨ [수정]
   }
 
   Future<void> _summarizeContent() async {
     final activeTab = context.read<TabProvider>().activeTab;
+    final statusBar = context.read<StatusBarProvider>(); // ✨ [추가]
     if (activeTab == null) return;
 
     final content = activeTab.controller.text.trim();
     if (content.length < 50) {
-      _showSnackBar('요약할 내용이 너무 짧습니다 (최소 50자 필요).', isError: true);
+      statusBar.showStatusMessage(
+        '요약할 내용이 너무 짧습니다 (최소 50자 필요).',
+        type: StatusType.error,
+      ); // ✨ [수정]
       return;
     }
     final bottomController = context.read<BottomSectionController>();
@@ -584,21 +623,16 @@ class _MeetingScreenState extends State<MeetingScreen> {
       bottomController.updateSummary(summary ?? '요약에 실패했거나 내용이 없습니다.');
     } catch (e) {
       bottomController.updateSummary('요약 중 오류 발생: $e');
-      _showSnackBar('텍스트 요약 중 오류 발생: $e', isError: true);
+      statusBar.showStatusMessage(
+        '텍스트 요약 중 오류 발생: $e',
+        type: StatusType.error,
+      ); // ✨ [수정]
     } finally {
       bottomController.setIsLoading(false);
     }
   }
 
-  void _showSnackBar(String message, {bool isError = false}) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: isError ? Colors.redAccent : Colors.green,
-      ),
-    );
-  }
+  // ⛔️ [삭제] 이 파일의 _showSnackBar 메서드는 더 이상 필요 없으므로 삭제합니다.
 
   Future<String> _getNotesDirectoryPath() async {
     final home =

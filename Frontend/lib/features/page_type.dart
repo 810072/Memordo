@@ -6,4 +6,5 @@ enum PageType {
   history,
   settings,
   search,
-} // ✨ 추가: search
+  notifications, // ✨ [추가]
+}
