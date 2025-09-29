@@ -2,7 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-
+import 'package:provider/provider.dart';
+import '../providers/status_bar_provider.dart';
 import '../widgets/common_ui.dart';
 
 class FindIdPage extends StatefulWidget {
@@ -20,11 +21,15 @@ class _FindIdPageState extends State<FindIdPage> {
   final String baseUrl = 'https://aidoctorgreen.com';
   final String apiPrefix = '/memo/api';
 
+  void _showMessage(String msg, {StatusType type = StatusType.info}) {
+    if (!mounted) return;
+    context.read<StatusBarProvider>().showStatusMessage(msg, type: type);
+  }
+
   Future<void> _findId(BuildContext context) async {
     final email = _emailController.text.trim();
     if (email.isEmpty || !RegExp(r'\S+@\S+\.\S+').hasMatch(email)) {
-      setState(() => _resultMessage = '올바른 이메일 주소를 입력해주세요.');
-      _showStyledSnackBar(_resultMessage, isError: true);
+      _showMessage('올바른 이메일 주소를 입력해주세요.', type: StatusType.error);
       return;
     }
 
@@ -52,48 +57,31 @@ class _FindIdPageState extends State<FindIdPage> {
             if (isDuplicate) {
               _resultMessage =
                   '✅ 해당 이메일로 등록된 계정이 있습니다.\n(실제 아이디는 이메일로 전송됩니다 - *백엔드 구현 필요*)';
+              _showMessage('등록된 계정을 확인했습니다.', type: StatusType.success);
             } else {
               _resultMessage = '❌ 해당 이메일로 등록된 계정을 찾을 수 없습니다.';
+              _showMessage('등록된 계정이 없습니다.', type: StatusType.error);
             }
           });
         } else {
           setState(() => _resultMessage = '알 수 없는 API 응답 형식입니다.');
+          _showMessage(_resultMessage, type: StatusType.error);
         }
       } else {
         final errorMessage = responseBody['message'] ?? '아이디 찾기에 실패했습니다.';
         setState(
           () => _resultMessage = '오류: $errorMessage (${response.statusCode})',
         );
+        _showMessage(_resultMessage, type: StatusType.error);
       }
     } catch (e) {
       setState(() => _resultMessage = '네트워크 오류 또는 응답 처리 오류: $e');
+      _showMessage(_resultMessage, type: StatusType.error);
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
-        if (_resultMessage.isNotEmpty) {
-          _showStyledSnackBar(
-            _resultMessage,
-            isError:
-                _resultMessage.contains('❌') ||
-                _resultMessage.contains('오류') ||
-                _resultMessage.contains('알 수 없는'),
-          );
-        }
       }
     }
-  }
-
-  void _showStyledSnackBar(String message, {bool isError = false}) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: isError ? Colors.redAccent : Colors.green,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.0)),
-        margin: const EdgeInsets.all(16.0),
-      ),
-    );
   }
 
   @override

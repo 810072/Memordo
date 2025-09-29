@@ -2,7 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-
+import 'package:provider/provider.dart';
+import '../providers/status_bar_provider.dart';
 import 'login_page.dart';
 import '../widgets/common_ui.dart';
 
@@ -19,7 +20,6 @@ class _PasswordResetPageState extends State<PasswordResetPage> {
   final TextEditingController _codeController = TextEditingController();
   final TextEditingController _newPasswordController = TextEditingController();
 
-  String _message = '';
   bool _isCodeSending = false;
   bool _isCodeSent = false;
   bool _isVerifying = false;
@@ -29,10 +29,14 @@ class _PasswordResetPageState extends State<PasswordResetPage> {
   final String baseUrl = 'https://aidoctorgreen.com';
   final String apiPrefix = '/memo/api';
 
+  void _showMessage(String msg, {StatusType type = StatusType.info}) {
+    if (!mounted) return;
+    context.read<StatusBarProvider>().showStatusMessage(msg, type: type);
+  }
+
   Future<void> _sendVerificationCode() async {
     setState(() {
       _isCodeSending = true;
-      _message = '';
     });
 
     final url = Uri.parse('$baseUrl$apiPrefix/m/send-verification');
@@ -47,16 +51,19 @@ class _PasswordResetPageState extends State<PasswordResetPage> {
       final data = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
-        _showMessage(data['message'] ?? '인증 코드가 이메일로 전송되었습니다.', isError: false);
+        _showMessage(
+          data['message'] ?? '인증 코드가 이메일로 전송되었습니다.',
+          type: StatusType.success,
+        );
         setState(() => _isCodeSent = true);
       } else {
         _showMessage(
           data['message'] ?? '인증 코드 전송 실패 (${response.statusCode})',
-          isError: true,
+          type: StatusType.error,
         );
       }
     } catch (e) {
-      _showMessage('인증 코드 전송 중 오류 발생: $e', isError: true);
+      _showMessage('인증 코드 전송 중 오류 발생: $e', type: StatusType.error);
     } finally {
       if (mounted) setState(() => _isCodeSending = false);
     }
@@ -65,13 +72,12 @@ class _PasswordResetPageState extends State<PasswordResetPage> {
   Future<void> _verifyCode() async {
     final code = _codeController.text.trim();
     if (code.isEmpty) {
-      _showMessage('인증 코드를 입력해주세요.', isError: true);
+      _showMessage('인증 코드를 입력해주세요.', type: StatusType.error);
       return;
     }
 
     setState(() {
       _isVerifying = true;
-      _message = '';
     });
 
     final url = Uri.parse('$baseUrl$apiPrefix/m/verify-code');
@@ -86,17 +92,20 @@ class _PasswordResetPageState extends State<PasswordResetPage> {
       final data = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
-        _showMessage(data['message'] ?? '인증 코드 확인 성공!', isError: false);
+        _showMessage(
+          data['message'] ?? '인증 코드 확인 성공!',
+          type: StatusType.success,
+        );
         setState(() => _isCodeVerified = true);
       } else {
         _showMessage(
           data['message'] ?? '인증 코드 확인 실패 (${response.statusCode})',
-          isError: true,
+          type: StatusType.error,
         );
         setState(() => _isCodeVerified = false);
       }
     } catch (e) {
-      _showMessage('인증 코드 확인 중 오류 발생: $e', isError: true);
+      _showMessage('인증 코드 확인 중 오류 발생: $e', type: StatusType.error);
       setState(() => _isCodeVerified = false);
     } finally {
       if (mounted) setState(() => _isVerifying = false);
@@ -106,21 +115,20 @@ class _PasswordResetPageState extends State<PasswordResetPage> {
   Future<void> _resetPassword() async {
     final newPassword = _newPasswordController.text.trim();
     if (!_isCodeVerified) {
-      _showMessage('인증 코드 확인을 먼저 완료해주세요.', isError: true);
+      _showMessage('인증 코드 확인을 먼저 완료해주세요.', type: StatusType.error);
       return;
     }
     if (newPassword.isEmpty) {
-      _showMessage('새 비밀번호를 입력해주세요.', isError: true);
+      _showMessage('새 비밀번호를 입력해주세요.', type: StatusType.error);
       return;
     }
     if (newPassword.length < 6) {
-      _showMessage('비밀번호는 6자 이상이어야 합니다.', isError: true);
+      _showMessage('비밀번호는 6자 이상이어야 합니다.', type: StatusType.error);
       return;
     }
 
     setState(() {
       _isResetting = true;
-      _message = '';
     });
 
     final url = Uri.parse('$baseUrl$apiPrefix/reset-password');
@@ -137,7 +145,7 @@ class _PasswordResetPageState extends State<PasswordResetPage> {
       if (response.statusCode == 200) {
         _showMessage(
           data['message'] ?? '비밀번호가 성공적으로 변경되었습니다. 로그인 페이지로 이동합니다.',
-          isError: false,
+          type: StatusType.success,
         );
         await Future.delayed(const Duration(seconds: 2));
         if (mounted) {
@@ -150,28 +158,14 @@ class _PasswordResetPageState extends State<PasswordResetPage> {
       } else {
         _showMessage(
           data['message'] ?? '비밀번호 재설정 실패 (${response.statusCode})',
-          isError: true,
+          type: StatusType.error,
         );
       }
     } catch (e) {
-      _showMessage('비밀번호 재설정 중 오류 발생: $e', isError: true);
+      _showMessage('비밀번호 재설정 중 오류 발생: $e', type: StatusType.error);
     } finally {
       if (mounted) setState(() => _isResetting = false);
     }
-  }
-
-  void _showMessage(String msg, {bool isError = false}) {
-    if (!mounted) return;
-    setState(() => _message = msg);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg),
-        backgroundColor: isError ? Colors.redAccent : Colors.green,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.0)),
-        margin: const EdgeInsets.all(16.0),
-      ),
-    );
   }
 
   @override

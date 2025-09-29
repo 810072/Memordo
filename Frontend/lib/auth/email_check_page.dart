@@ -2,7 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-
+import 'package:provider/provider.dart';
+import '../providers/status_bar_provider.dart';
 import 'password_reset_page.dart';
 import '../widgets/common_ui.dart';
 
@@ -18,10 +19,15 @@ class _EmailCheckPageState extends State<EmailCheckPage> {
   final String baseUrl = 'https://aidoctorgreen.com';
   final String apiPrefix = '/memo/api';
 
+  void _showMessage(String msg, {StatusType type = StatusType.info}) {
+    if (!mounted) return;
+    context.read<StatusBarProvider>().showStatusMessage(msg, type: type);
+  }
+
   Future<void> _checkEmailAndProceed() async {
     final email = _emailController.text.trim();
     if (email.isEmpty || !RegExp(r'\S+@\S+\.\S+').hasMatch(email)) {
-      _showStyledSnackBar('올바른 이메일 주소를 입력해주세요.', isError: true);
+      _showMessage('올바른 이메일 주소를 입력해주세요.', type: StatusType.error);
       return;
     }
 
@@ -40,9 +46,9 @@ class _EmailCheckPageState extends State<EmailCheckPage> {
       if (response.statusCode == 200) {
         if (responseBody.containsKey('isDuplicate') &&
             responseBody['isDuplicate'] == true) {
-          _showStyledSnackBar(
+          _showMessage(
             '등록된 계정을 찾았습니다. 비밀번호 재설정 페이지로 이동합니다.',
-            isError: false,
+            type: StatusType.success,
           );
           await Future.delayed(const Duration(milliseconds: 1500));
           if (mounted) {
@@ -54,33 +60,20 @@ class _EmailCheckPageState extends State<EmailCheckPage> {
             );
           }
         } else {
-          _showStyledSnackBar('해당 이메일로 등록된 계정을 찾을 수 없습니다.', isError: true);
+          _showMessage('해당 이메일로 등록된 계정을 찾을 수 없습니다.', type: StatusType.error);
         }
       } else {
         final errorMessage = responseBody['message'] ?? '오류가 발생했습니다.';
-        _showStyledSnackBar(
+        _showMessage(
           '$errorMessage (${response.statusCode})',
-          isError: true,
+          type: StatusType.error,
         );
       }
     } catch (e) {
-      _showStyledSnackBar('네트워크 오류 또는 응답 처리 오류: $e', isError: true);
+      _showMessage('네트워크 오류 또는 응답 처리 오류: $e', type: StatusType.error);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
-  }
-
-  void _showStyledSnackBar(String message, {bool isError = false}) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: isError ? Colors.redAccent : Colors.green,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.0)),
-        margin: const EdgeInsets.all(16.0),
-      ),
-    );
   }
 
   @override

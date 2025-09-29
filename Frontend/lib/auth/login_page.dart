@@ -1,7 +1,6 @@
 // lib/auth/login_page.dart
 import 'dart:convert';
 import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -9,10 +8,9 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/auth_token.dart';
 import '../providers/token_status_provider.dart';
-
 import 'package:jwt_decoder/jwt_decoder.dart';
 import '../services/ai_service.dart';
-
+import '../providers/status_bar_provider.dart';
 import '../widgets/common_ui.dart';
 import 'email_check_page.dart';
 import 'find_id_page.dart';
@@ -39,9 +37,14 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
+  void _showMessage(String msg, {StatusType type = StatusType.info}) {
+    if (!mounted) return;
+    context.read<StatusBarProvider>().showStatusMessage(msg, type: type);
+  }
+
   Future<void> _initializeAiWithToken(String? accessToken) async {
     if (accessToken == null || accessToken.isEmpty) {
-      print('⚠️ AccessToken이 없어 AI 초기화를 건너<0xEB><0x84>니다.');
+      print('⚠️ AccessToken이 없어 AI 초기화를 건너뜁니다.');
       return;
     }
     try {
@@ -63,7 +66,7 @@ class _LoginPageState extends State<LoginPage> {
     final password = _passwordController.text.trim();
 
     if (email.isEmpty || password.isEmpty) {
-      _showSnackBar('이메일과 비밀번호를 입력해주세요.', isError: true);
+      _showMessage('이메일과 비밀번호를 입력해주세요.', type: StatusType.error);
       return;
     }
 
@@ -91,15 +94,12 @@ class _LoginPageState extends State<LoginPage> {
 
         print('✅ 일반 로그인 성공 및 토큰/이메일 저장 완료.');
 
-        // ✨ [추가] Provider에 로그인 성공 상태를 즉시 알립니다.
-        // 로그인에 성공했으므로 토큰들이 유효하다고 가정하고 상태 객체를 만듭니다.
         final statusData = {
           'accessTokenValid': true,
           'refreshTokenValid': true,
-          'googleAccessTokenValid': false, // 일반 로그인이므로 false
-          'googleRefreshTokenValid': false, // 일반 로그인이므로 false
+          'googleAccessTokenValid': false,
+          'googleRefreshTokenValid': false,
         };
-        // context가 여전히 유효할 때 Provider를 업데이트합니다.
         if (mounted) {
           await Provider.of<TokenStatusProvider>(
             context,
@@ -110,20 +110,20 @@ class _LoginPageState extends State<LoginPage> {
         await _initializeAiWithToken(accessToken);
 
         if (mounted) {
-          Navigator.pop(context); // 이전 화면으로 돌아갑니다.
+          Navigator.pop(context);
         }
       } else {
         final responseBody = jsonDecode(response.body);
         final message = responseBody['message'] ?? '이메일 또는 비밀번호를 확인해주세요.';
-        _showSnackBar(
+        _showMessage(
           '로그인 실패: $message (${response.statusCode})',
-          isError: true,
+          type: StatusType.error,
         );
         if (mounted) setState(() => _isLoading = false);
       }
     } catch (e) {
       print('로그인 오류: $e');
-      _showSnackBar('로그인 중 오류가 발생했습니다: $e', isError: true);
+      _showMessage('로그인 중 오류가 발생했습니다: $e', type: StatusType.error);
       if (mounted) setState(() => _isLoading = false);
     }
   }
@@ -143,7 +143,7 @@ class _LoginPageState extends State<LoginPage> {
       print(
         '❌ .env 파일에 GOOGLE_CLIENT_ID_WEB 또는 REDIRECT_URI가 올바르게 설정되지 않았습니다.',
       );
-      _showSnackBar('Google 로그인 설정을 확인해주세요. (환경 변수 누락)', isError: true);
+      _showMessage('Google 로그인 설정을 확인해주세요. (환경 변수 누락)', type: StatusType.error);
       if (mounted) setState(() => _isGoogleLoading = false);
       return;
     }
@@ -205,8 +205,6 @@ class _LoginPageState extends State<LoginPage> {
 
         print('✅ Google 로그인 성공 및 토큰/이메일 저장 완료.');
 
-        // ✨ [추가] Provider에 로그인 성공 상태를 즉시 알립니다.
-        // 서버에서 받은 토큰이 있는지 여부로 유효성을 판단하여 상태 객체를 만듭니다.
         final statusData = {
           'accessTokenValid': accessToken != null && accessToken.isNotEmpty,
           'refreshTokenValid': refreshToken != null && refreshToken.isNotEmpty,
@@ -215,7 +213,6 @@ class _LoginPageState extends State<LoginPage> {
           'googleRefreshTokenValid':
               googleRefreshToken != null && googleRefreshToken.isNotEmpty,
         };
-        // context가 여전히 유효할 때 Provider를 업데이트합니다.
         if (mounted) {
           await Provider.of<TokenStatusProvider>(
             context,
@@ -226,20 +223,23 @@ class _LoginPageState extends State<LoginPage> {
         await _initializeAiWithToken(accessToken);
 
         if (mounted) {
-          Navigator.pop(context); // 이전 화면으로 돌아갑니다.
+          Navigator.pop(context);
         }
       } else {
         final responseBody = jsonDecode(response.body);
         final message = responseBody['message'] ?? '서버 인증에 실패했습니다.';
-        _showSnackBar(
+        _showMessage(
           'Google 로그인 실패: $message (${response.statusCode})',
-          isError: true,
+          type: StatusType.error,
         );
         if (mounted) setState(() => _isGoogleLoading = false);
       }
     } catch (e) {
       print('⚠️ Google 로그인 중 오류 발생: $e');
-      _showSnackBar('Google 로그인 중 오류가 발생했습니다: ${e.toString()}', isError: true);
+      _showMessage(
+        'Google 로그인 중 오류가 발생했습니다: ${e.toString()}',
+        type: StatusType.error,
+      );
       if (mounted) setState(() => _isGoogleLoading = false);
     }
   }
@@ -258,7 +258,10 @@ class _LoginPageState extends State<LoginPage> {
         const Duration(minutes: 3),
         onTimeout: () {
           print('❌ 인증 코드 대기 시간 초과');
-          _showSnackBar('로그인 인증 시간이 초과되었습니다. 다시 시도해주세요.', isError: true);
+          _showMessage(
+            '로그인 인증 시간이 초과되었습니다. 다시 시도해주세요.',
+            type: StatusType.error,
+          );
           throw StateError('인증 코드 대기 시간 초과');
         },
       );
@@ -279,7 +282,7 @@ class _LoginPageState extends State<LoginPage> {
 
       if (error != null) {
         print('❌ Google 인증 오류 콜백: $error');
-        _showSnackBar('Google 인증 중 오류가 발생했습니다: $error', isError: true);
+        _showMessage('Google 인증 중 오류가 발생했습니다: $error', type: StatusType.error);
         request.response
           ..statusCode = 400
           ..headers.contentType = ContentType.html
@@ -292,7 +295,7 @@ class _LoginPageState extends State<LoginPage> {
 
       if (code == null || code.isEmpty) {
         print('❌ 인증 코드가 전달되지 않았습니다.');
-        _showSnackBar('Google로부터 인증 코드를 받지 못했습니다.', isError: true);
+        _showMessage('Google로부터 인증 코드를 받지 못했습니다.', type: StatusType.error);
       } else {
         print('✅ 인증 코드 수신 완료: $code');
       }
@@ -307,7 +310,7 @@ class _LoginPageState extends State<LoginPage> {
       return code;
     } catch (e) {
       print('❌ _waitForCode 실행 중 오류: $e');
-      _showSnackBar('_waitForCode 오류: $e', isError: true);
+      _showMessage('_waitForCode 오류: $e', type: StatusType.error);
       return null;
     } finally {
       if (server != null) {
@@ -317,31 +320,14 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  void _showSnackBar(String message, {bool isError = false}) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor:
-            isError ? Colors.redAccent.shade700 : Colors.green.shade600,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.0)),
-        margin: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-        elevation: 4.0,
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // ✨ [수정] body가 AppBar 뒤로 확장되도록 설정
       extendBodyBehindAppBar: true,
       backgroundColor: Colors.grey[100],
-      // ✨ [추가] 뒤로가기 버튼을 포함하는 AppBar 추가
       appBar: AppBar(
-        backgroundColor: Colors.transparent, // 배경 투명
-        elevation: 0, // 그림자 제거
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         leading: IconButton(
           icon: Icon(Icons.arrow_back_ios_new, color: Colors.black87, size: 20),
           onPressed: () => Navigator.of(context).pop(),
