@@ -1,18 +1,21 @@
-// lib/auth/signup_page.dart
+// lib/auth/signup_form.dart
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:provider/provider.dart';
 import '../providers/status_bar_provider.dart';
 import '../widgets/common_ui.dart';
-import 'login_page.dart';
 
-class SignUpPage extends StatefulWidget {
+class SignupForm extends StatefulWidget {
+  final VoidCallback onGoToLogin;
+
+  const SignupForm({Key? key, required this.onGoToLogin}) : super(key: key);
+
   @override
-  State<SignUpPage> createState() => _SignUpPageState();
+  State<SignupForm> createState() => _SignupFormState();
 }
 
-class _SignUpPageState extends State<SignUpPage> {
+class _SignupFormState extends State<SignupForm> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _codeController = TextEditingController();
@@ -123,14 +126,8 @@ class _SignUpPageState extends State<SignUpPage> {
       final data = jsonDecode(response.body);
       if (response.statusCode == 201 || response.statusCode == 200) {
         _showMessage('회원가입 성공! 로그인 페이지로 이동합니다.', type: StatusType.success);
-        await Future.delayed(const Duration(seconds: 2));
-        if (mounted) {
-          Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(builder: (context) => LoginPage()),
-            (Route<dynamic> route) => false,
-          );
-        }
+        await Future.delayed(const Duration(seconds: 1));
+        widget.onGoToLogin();
       } else {
         _showMessage(
           data['message'] ?? '회원가입에 실패했습니다.',
@@ -146,99 +143,77 @@ class _SignUpPageState extends State<SignUpPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey[100],
-      appBar: AppBar(
-        title: const Text('회원가입'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black87,
-        elevation: 1.0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new, size: 20),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: Card(
-            elevation: 5.0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16.0),
-            ),
-            child: Container(
-              width: 400,
-              padding: const EdgeInsets.symmetric(
-                horizontal: 32.0,
-                vertical: 48.0,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Text(
-                    'Create Your Account',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.deepPurple,
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-                  buildTextField(
-                    controller: _emailController,
-                    labelText: 'Email',
-                    icon: Icons.email_outlined,
-                    enabled: !_emailVerified,
-                  ),
-                  const SizedBox(height: 12),
-                  buildElevatedButton(
-                    text: '인증 코드 발송',
-                    onPressed:
-                        _emailVerified || _isSendingCode
-                            ? null
-                            : _sendVerificationCode,
-                    isLoading: _isSendingCode,
-                    bgColor: Colors.teal,
-                  ),
-                  const SizedBox(height: 24),
-                  buildTextField(
-                    controller: _codeController,
-                    labelText: 'Verification Code',
-                    icon: Icons.pin_outlined,
-                    enabled: !_emailVerified,
-                  ),
-                  const SizedBox(height: 12),
-                  buildElevatedButton(
-                    text: _emailVerified ? '인증 완료 ✓' : '인증 코드 확인',
-                    onPressed:
-                        _emailVerified || _isVerifyingCode ? null : _verifyCode,
-                    isLoading: _isVerifyingCode,
-                    bgColor: _emailVerified ? Colors.grey : Colors.teal,
-                  ),
-                  Divider(
-                    height: 48,
-                    thickness: 1,
-                    color: Colors.grey.shade300,
-                  ),
-                  buildTextField(
-                    controller: _passwordController,
-                    labelText: 'Password (6자 이상)',
-                    icon: Icons.lock_outline,
-                    obscureText: true,
-                    enabled: _emailVerified,
-                  ),
-                  const SizedBox(height: 32),
-                  buildElevatedButton(
-                    text: 'SIGN UP',
-                    onPressed: !_emailVerified || _isLoading ? null : _signUp,
-                    isLoading: _isLoading,
-                  ),
-                ],
+    return Card(
+      elevation: 5.0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
+      child: Container(
+        width: 400,
+        padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 48.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'Create Your Account',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: Colors.deepPurple,
               ),
             ),
-          ),
+            const SizedBox(height: 32),
+            buildTextField(
+              controller: _emailController,
+              labelText: 'Email',
+              icon: Icons.email_outlined,
+              enabled: !_emailVerified,
+            ),
+            const SizedBox(height: 12),
+            buildElevatedButton(
+              text: '인증 코드 발송',
+              onPressed: _emailVerified || _isSendingCode
+                  ? null
+                  : _sendVerificationCode,
+              isLoading: _isSendingCode,
+              bgColor: Colors.teal,
+            ),
+            const SizedBox(height: 24),
+            buildTextField(
+              controller: _codeController,
+              labelText: 'Verification Code',
+              icon: Icons.pin_outlined,
+              enabled: !_emailVerified,
+            ),
+            const SizedBox(height: 12),
+            buildElevatedButton(
+              text: _emailVerified ? '인증 완료 ✓' : '인증 코드 확인',
+              onPressed: _emailVerified || _isVerifyingCode
+                  ? null
+                  : _verifyCode,
+              isLoading: _isVerifyingCode,
+              bgColor: _emailVerified ? Colors.grey : Colors.teal,
+            ),
+            Divider(height: 48, thickness: 1, color: Colors.grey.shade300),
+            buildTextField(
+              controller: _passwordController,
+              labelText: 'Password (6자 이상)',
+              icon: Icons.lock_outline,
+              obscureText: true,
+              enabled: _emailVerified,
+            ),
+            const SizedBox(height: 32),
+            buildElevatedButton(
+              text: 'SIGN UP',
+              onPressed: !_emailVerified || _isLoading ? null : _signUp,
+              isLoading: _isLoading,
+            ),
+            const SizedBox(height: 16),
+            TextButton(
+              onPressed: widget.onGoToLogin,
+              child: const Text('Already have an account? Login'),
+            ),
+          ],
         ),
       ),
     );

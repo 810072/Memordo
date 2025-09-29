@@ -3,9 +3,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:provider/provider.dart'; // Provider 임포트 추가
-import '../auth/login_page.dart';
-import '../providers/token_status_provider.dart'; // TokenStatusProvider 임포트 추가
+import 'package:provider/provider.dart';
+import '../providers/token_status_provider.dart';
 
 final _storage = FlutterSecureStorage();
 
@@ -50,7 +49,7 @@ Future<String?> getStoredGoogleTokenExpiry() async {
   return await _storage.read(key: 'google_token_expiry');
 }
 
-// ✨ [추가] User Email
+// --- User Email ---
 Future<void> setStoredUserEmail(String email) async {
   await _storage.write(key: 'user_email', value: email);
 }
@@ -240,12 +239,10 @@ Future<Map<String, dynamic>?> fetchTokenStatus(BuildContext context) async {
   }
 }
 
-// ✨ [수정] Provider를 사용하여 앱 상태를 업데이트하도록 변경
 Future<void> logoutUser(BuildContext context) async {
   await clearAllTokens();
 
   if (context.mounted) {
-    // Provider를 통해 forceLogout 호출
     await Provider.of<TokenStatusProvider>(
       context,
       listen: false,

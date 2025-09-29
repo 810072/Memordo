@@ -9,7 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../viewmodels/history_viewmodel.dart';
 import '../providers/token_status_provider.dart';
-import '../auth/login_page.dart';
+import '../auth/auth_dialog.dart';
 
 class HistoryPage extends StatelessWidget {
   const HistoryPage({super.key});
@@ -152,7 +152,6 @@ class _HistoryViewState extends State<HistoryView> {
           ),
         ),
         Expanded(
-          // ✨ [수정] Padding 위젯을 제거하고 ListView.builder에 직접 padding 속성을 적용합니다.
           child:
               !tokenProvider.isAuthenticated
                   ? _buildLoginPrompt(context)
@@ -170,7 +169,6 @@ class _HistoryViewState extends State<HistoryView> {
                   : _filteredHistory.isEmpty
                   ? Center(
                     child: Padding(
-                      // Center 안의 Text에는 Padding을 유지해도 괜찮습니다.
                       padding: const EdgeInsets.all(16.0),
                       child: Text(
                         _searchController.text.isNotEmpty
@@ -180,9 +178,7 @@ class _HistoryViewState extends State<HistoryView> {
                     ),
                   )
                   : ListView.builder(
-                    padding: const EdgeInsets.all(
-                      16.0,
-                    ), // ✨ [수정] 여기에 padding 적용
+                    padding: const EdgeInsets.all(16.0),
                     itemCount: sortedDates.length,
                     itemBuilder: (context, index) {
                       final date = sortedDates[index];
@@ -336,9 +332,12 @@ class _HistoryViewState extends State<HistoryView> {
             icon: const Icon(Icons.login, size: 16),
             label: const Text('로그인 페이지로 이동'),
             onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => LoginPage()),
+              showDialog(
+                context: context,
+                barrierDismissible: false, // ✨ [추가]
+                builder: (BuildContext context) {
+                  return const AuthDialog();
+                },
               );
             },
             style: ElevatedButton.styleFrom(

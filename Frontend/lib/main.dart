@@ -11,11 +11,7 @@ import 'package:provider/provider.dart';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:window_manager/window_manager.dart';
 
-import 'auth/login_page.dart';
-import 'auth/signup_page.dart';
-import 'auth/email_check_page.dart';
-import 'auth/password_reset_page.dart';
-import 'auth/find_id_page.dart';
+import 'auth/auth_dialog.dart'; // ✨ [수정] 페이지들 대신 AuthDialog 임포트
 import 'layout/ai_summary_controller.dart';
 import 'layout/bottom_section_controller.dart';
 import 'layout/main_layout.dart';
@@ -31,7 +27,7 @@ import 'viewmodels/history_viewmodel.dart';
 import 'viewmodels/calendar_viewmodel.dart';
 import 'viewmodels/graph_viewmodel.dart';
 import 'providers/status_bar_provider.dart';
-import 'viewmodels/calendar_sidebar_viewmodel.dart'; // ✨ [추가]
+import 'viewmodels/calendar_sidebar_viewmodel.dart';
 
 // macOS에서만 사용할 백엔드 서버 프로세스 변수
 Process? _macOSBackendProcess;
@@ -87,7 +83,7 @@ Future<void> main(List<String> args) async {
           ChangeNotifierProvider(create: (context) => StatusBarProvider()),
           ChangeNotifierProvider(
             create: (context) => CalendarSidebarViewModel(),
-          ), // ✨ [추가]
+          ),
         ],
         child: const MyApp(),
       ),
@@ -162,21 +158,10 @@ class MyApp extends StatelessWidget {
                   : ThemeMode.light,
           initialRoute: '/main',
           routes: {
-            '/login': (context) => LoginPage(),
-            '/signup': (context) => SignUpPage(),
-            '/emailCheck': (context) => EmailCheckPage(),
-            '/findId': (context) => const FindIdPage(),
+            // ✨ [수정] 메인 화면 경로만 남깁니다.
             '/main': (context) => const MainLayoutWrapper(),
           },
-          onGenerateRoute: (settings) {
-            if (settings.name == '/passwordReset') {
-              final args = settings.arguments as String;
-              return MaterialPageRoute(
-                builder: (context) => PasswordResetPage(email: args),
-              );
-            }
-            return null;
-          },
+          // ✨ [삭제] onGenerateRoute는 더 이상 필요 없습니다.
         );
       },
     );

@@ -1,11 +1,11 @@
-// Frontend/lib/layout/left_sidebar_content.dart
+// lib/layout/left_sidebar_content.dart
 import 'dart:convert';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:flutter/material.dart';
 import '../features/page_type.dart';
 import '../providers/token_status_provider.dart';
 import 'package:provider/provider.dart';
-import '../auth/login_page.dart';
+import '../auth/auth_dialog.dart';
 
 class LeftSidebarContent extends StatelessWidget {
   final bool isExpanded;
@@ -67,7 +67,6 @@ class LeftSidebarContent extends StatelessWidget {
               PageType.graph,
               () => onPageSelected(PageType.graph),
             ),
-            // ✨ [수정] 검색 아이콘과 챗봇 아이콘 위치 변경
             _sideBarItem(
               context,
               Icons.search_outlined,
@@ -79,9 +78,9 @@ class LeftSidebarContent extends StatelessWidget {
               context,
               Icons.forum_outlined,
               '챗봇',
-              null, // PageType이 없으므로 null 전달
+              null,
               _openChatbotWindow,
-              alwaysEnabled: true, // 항상 활성화되도록 설정
+              alwaysEnabled: true,
             ),
             const Spacer(),
             _buildUserProfileIcon(context),
@@ -212,16 +211,15 @@ class LeftSidebarContent extends StatelessWidget {
                   icon: const Icon(Icons.login, size: 16),
                   label: const Text('로그인/회원가입'),
                   onPressed: () {
-                    final tokenProvider = Provider.of<TokenStatusProvider>(
-                      context,
-                      listen: false,
-                    );
                     Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => LoginPage()),
+                    showDialog(
+                      context: context,
+                      barrierDismissible: false, // ✨ [추가]
+                      builder: (BuildContext context) {
+                        return const AuthDialog();
+                      },
                     ).then((_) {
-                      tokenProvider.loadStatus(context);
+                      context.read<TokenStatusProvider>().loadStatus(context);
                     });
                   },
                   style: ElevatedButton.styleFrom(
