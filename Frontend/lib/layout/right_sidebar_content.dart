@@ -1,5 +1,6 @@
 // lib/layout/right_sidebar_content.dart
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
 import '../model/file_system_entry.dart';
@@ -10,7 +11,9 @@ import '../widgets/ai_summary_widget.dart';
 import '../widgets/note_outline_view.dart';
 import '../widgets/scratchpad_view.dart';
 import '../features/page_type.dart';
-import '../widgets/custom_popup_menu.dart'; // ✨ [추가] 공통 메뉴 위젯 임포트
+import '../widgets/custom_popup_menu.dart';
+import '../viewmodels/calendar_viewmodel.dart';
+import '../viewmodels/calendar_sidebar_viewmodel.dart';
 
 class RightSidebarContent extends StatefulWidget {
   final PageType activePage;
@@ -200,7 +203,6 @@ class _RightSidebarContentState extends State<RightSidebarContent>
         position.dx,
         position.dy,
       ),
-      // ✨ [수정] 공통 위젯 CompactPopupMenuItem 사용 및 분류선 제거
       items: <PopupMenuEntry<String>>[
         CompactPopupMenuItem<String>(
           value: 'pin',
@@ -239,7 +241,7 @@ class _RightSidebarContentState extends State<RightSidebarContent>
       case PageType.graph:
         return _buildGraphSidebar(context);
       case PageType.calendar:
-        return _buildCalendarSidebar(context);
+        return const CalendarSidebarView();
       default:
         return const SizedBox.shrink();
     }
@@ -322,12 +324,6 @@ class _RightSidebarContentState extends State<RightSidebarContent>
   Widget _buildGraphSidebar(BuildContext context) {
     return const Center(
       child: Text('그래프 정보 표시 영역', style: TextStyle(color: Colors.grey)),
-    );
-  }
-
-  Widget _buildCalendarSidebar(BuildContext context) {
-    return const Center(
-      child: Text('선택한 날짜의 노트 목록', style: TextStyle(color: Colors.grey)),
     );
   }
 
@@ -816,141 +812,133 @@ class _TreeLinePainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
 
-class ExpandableFolderTile extends StatefulWidget {
-  final Widget folderIcon;
-  final Widget title;
-  final List<Widget> children;
-  final bool isInitiallyExpanded;
-  final Color arrowColor;
-  final double itemHeight;
-  final VoidCallback? onSelect;
-  final bool isSelected;
-  final ValueChanged<bool>? onExpansionChanged;
-  final Color? backgroundColor;
-  final void Function(TapUpDetails)? onSecondaryTapUp;
-
-  const ExpandableFolderTile({
-    Key? key,
-    required this.folderIcon,
-    required this.title,
-    required this.children,
-    this.isInitiallyExpanded = false,
-    this.arrowColor = Colors.grey,
-    this.itemHeight = 24.0,
-    this.onSelect,
-    this.isSelected = false,
-    this.onExpansionChanged,
-    this.backgroundColor,
-    this.onSecondaryTapUp,
-  }) : super(key: key);
+class CalendarSidebarView extends StatefulWidget {
+  const CalendarSidebarView({Key? key}) : super(key: key);
 
   @override
-  _ExpandableFolderTileState createState() => _ExpandableFolderTileState();
+  State<CalendarSidebarView> createState() => _CalendarSidebarViewState();
 }
 
-class _ExpandableFolderTileState extends State<ExpandableFolderTile>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _heightFactor;
-  bool _isExpanded = false;
+class _CalendarSidebarViewState extends State<CalendarSidebarView> {
+  late CalendarViewModel _calendarViewModel;
+  late CalendarSidebarViewModel _sidebarViewModel;
+  DateTime? _lastFetchedDay;
 
   @override
   void initState() {
     super.initState();
-    _isExpanded = widget.isInitiallyExpanded;
-    _controller = AnimationController(
-      duration: const Duration(milliseconds: 200),
-      vsync: this,
-    );
-    _heightFactor = _controller.drive(CurveTween(curve: Curves.easeInQuad));
-    if (_isExpanded) _controller.value = 1.0;
+    _calendarViewModel = context.read<CalendarViewModel>();
+    _sidebarViewModel = context.read<CalendarSidebarViewModel>();
+    _calendarViewModel.addListener(_onSelectedDayChange);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _fetchNotesForSelectedDayIfNeeded();
+    });
   }
 
-  @override
-  void didUpdateWidget(covariant ExpandableFolderTile oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.isInitiallyExpanded != _isExpanded) {
-      setState(() {
-        _isExpanded = widget.isInitiallyExpanded;
-        if (_isExpanded)
-          _controller.forward();
-        else
-          _controller.reverse();
-      });
+  void _onSelectedDayChange() {
+    _fetchNotesForSelectedDayIfNeeded();
+  }
+
+  void _fetchNotesForSelectedDayIfNeeded() {
+    final currentSelectedDay = _calendarViewModel.selectedDay;
+    if (_lastFetchedDay != currentSelectedDay) {
+      _lastFetchedDay = currentSelectedDay;
+      _sidebarViewModel.fetchModifiedNotes(currentSelectedDay);
     }
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _calendarViewModel.removeListener(_onSelectedDayChange);
     super.dispose();
-  }
-
-  void _handleTap() {
-    widget.onSelect?.call();
-    setState(() {
-      _isExpanded = !_isExpanded;
-      if (_isExpanded)
-        _controller.forward();
-      else
-        _controller.reverse();
-      widget.onExpansionChanged?.call(_isExpanded);
-    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final bgColor =
-        widget.backgroundColor ??
-        (widget.isSelected
-            ? Theme.of(context).primaryColor.withOpacity(0.1)
-            : Colors.transparent);
+    final selectedDay = context.watch<CalendarViewModel>().selectedDay;
+    final sidebarViewModel = context.watch<CalendarSidebarViewModel>();
+
+    if (selectedDay == null) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(16.0),
+          child: Text(
+            '날짜를 선택하면\n해당 날짜에 수정된 노트 목록이\n여기에 표시됩니다.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey),
+          ),
+        ),
+      );
+    }
 
     return Column(
-      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        GestureDetector(
-          onSecondaryTapUp: widget.onSecondaryTapUp,
-          child: Material(
-            color: bgColor,
-            child: InkWell(
-              onTap: _handleTap,
-              hoverColor: Colors.grey[200],
-              splashFactory: NoSplash.splashFactory,
-              child: SizedBox(
-                height: widget.itemHeight,
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: 20,
-                      child: Center(
-                        child: Icon(
-                          _isExpanded
-                              ? Icons.keyboard_arrow_down
-                              : Icons.keyboard_arrow_right,
-                          size: 16,
-                          color: widget.arrowColor,
-                        ),
-                      ),
-                    ),
-                    widget.folderIcon,
-                    const SizedBox(width: 4),
-                    Expanded(child: widget.title),
-                  ],
-                ),
-              ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 8.0),
+          child: Text(
+            DateFormat('yyyy년 M월 d일').format(selectedDay),
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+              color: Theme.of(context).textTheme.bodyLarge?.color,
             ),
           ),
         ),
-        AnimatedBuilder(
-          animation: _controller.view,
-          builder:
-              (context, child) => ClipRect(
-                child: Align(heightFactor: _heightFactor.value, child: child),
-              ),
-          child: Column(children: widget.children),
-        ),
+        const Divider(height: 1),
+        Expanded(child: _buildNotesList(sidebarViewModel)),
       ],
+    );
+  }
+
+  Widget _buildNotesList(CalendarSidebarViewModel sidebarViewModel) {
+    if (sidebarViewModel.isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (sidebarViewModel.modifiedNotes.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(16.0),
+          child: Text(
+            '이 날짜에 수정된 노트가 없습니다.',
+            style: TextStyle(color: Colors.grey),
+          ),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      itemCount: sidebarViewModel.modifiedNotes.length,
+      itemBuilder: (context, index) {
+        final note = sidebarViewModel.modifiedNotes[index];
+        final formattedTime =
+            note.modifiedTime != null
+                ? DateFormat('HH:mm:ss').format(note.modifiedTime!)
+                : '';
+
+        return ListTile(
+          leading: const Icon(Icons.description_outlined, size: 20),
+          title: Text(
+            p.basenameWithoutExtension(note.name),
+            style: const TextStyle(fontSize: 13),
+            overflow: TextOverflow.ellipsis,
+          ),
+          // ✨ [추가] 수정된 시간을 표시하는 subtitle
+          subtitle: Text(
+            '수정된 시간: $formattedTime',
+            style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+          ),
+          dense: true,
+          onTap: () {
+            context.read<FileSystemProvider>().setSelectedFileForMeetingScreen(
+              note,
+            );
+          },
+        );
+      },
     );
   }
 }

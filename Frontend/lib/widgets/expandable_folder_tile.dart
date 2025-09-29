@@ -10,8 +10,9 @@ class ExpandableFolderTile extends StatefulWidget {
   final double itemHeight;
   final VoidCallback? onSelect;
   final bool isSelected;
-  // ✨ [수정] 확장 상태 변경 콜백 함수 추가
   final ValueChanged<bool>? onExpansionChanged;
+  final Color? backgroundColor; // ✨ [추가]
+  final void Function(TapUpDetails)? onSecondaryTapUp; // ✨ [추가]
 
   const ExpandableFolderTile({
     Key? key,
@@ -23,7 +24,9 @@ class ExpandableFolderTile extends StatefulWidget {
     this.itemHeight = 24.0,
     this.onSelect,
     this.isSelected = false,
-    this.onExpansionChanged, // ✨ [수정]
+    this.onExpansionChanged,
+    this.backgroundColor, // ✨ [추가]
+    this.onSecondaryTapUp, // ✨ [추가]
   }) : super(key: key);
 
   @override
@@ -34,7 +37,6 @@ class _ExpandableFolderTileState extends State<ExpandableFolderTile>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _heightFactor;
-
   bool _isExpanded = false;
 
   @override
@@ -46,13 +48,9 @@ class _ExpandableFolderTileState extends State<ExpandableFolderTile>
       vsync: this,
     );
     _heightFactor = _controller.drive(CurveTween(curve: Curves.easeInQuad));
-
-    if (_isExpanded) {
-      _controller.value = 1.0;
-    }
+    if (_isExpanded) _controller.value = 1.0;
   }
 
-  // ✨ [수정] isInitiallyExpanded 값이 외부에서 변경되었을 때 상태를 동기화하기 위함
   @override
   void didUpdateWidget(covariant ExpandableFolderTile oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -83,60 +81,60 @@ class _ExpandableFolderTileState extends State<ExpandableFolderTile>
       } else {
         _controller.reverse();
       }
-      // ✨ [수정] 상태 변경 시 콜백 함수 호출
       widget.onExpansionChanged?.call(_isExpanded);
     });
-  }
-
-  Widget _buildChildren(BuildContext context, Widget? child) {
-    return ClipRect(
-      child: Align(heightFactor: _heightFactor.value, child: child),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
     final bgColor =
-        widget.isSelected
+        widget.backgroundColor ??
+        (widget.isSelected
             ? Theme.of(context).primaryColor.withOpacity(0.1)
-            : Colors.transparent;
+            : Colors.transparent);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Material(
-          color: bgColor,
-          child: InkWell(
-            onTap: _handleTap,
-            hoverColor: Colors.grey[200],
-            splashFactory: NoSplash.splashFactory,
-            child: SizedBox(
-              height: widget.itemHeight,
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 20,
-                    child: Center(
-                      child: Icon(
-                        _isExpanded
-                            ? Icons.keyboard_arrow_down
-                            : Icons.keyboard_arrow_right,
-                        size: 16,
-                        color: widget.arrowColor,
+        GestureDetector(
+          onSecondaryTapUp: widget.onSecondaryTapUp,
+          child: Material(
+            color: bgColor,
+            child: InkWell(
+              onTap: _handleTap,
+              hoverColor: Colors.grey[200],
+              splashFactory: NoSplash.splashFactory,
+              child: SizedBox(
+                height: widget.itemHeight,
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 20,
+                      child: Center(
+                        child: Icon(
+                          _isExpanded
+                              ? Icons.keyboard_arrow_down
+                              : Icons.keyboard_arrow_right,
+                          size: 16,
+                          color: widget.arrowColor,
+                        ),
                       ),
                     ),
-                  ),
-                  widget.folderIcon,
-                  const SizedBox(width: 4),
-                  Expanded(child: widget.title),
-                ],
+                    widget.folderIcon,
+                    const SizedBox(width: 4),
+                    Expanded(child: widget.title),
+                  ],
+                ),
               ),
             ),
           ),
         ),
         AnimatedBuilder(
           animation: _controller.view,
-          builder: _buildChildren,
+          builder:
+              (context, child) => ClipRect(
+                child: Align(heightFactor: _heightFactor.value, child: child),
+              ),
           child: Column(children: widget.children),
         ),
       ],
