@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 
 import './meeting_screen.dart';
 import '../viewmodels/graph_viewmodel.dart';
+import '../providers/status_bar_provider.dart'; // ✨ [추가]
 
 // --- 데이터 모델 클래스 (기존과 동일) ---
 class GraphNodeData {
@@ -42,7 +43,6 @@ class GraphPage extends StatefulWidget {
 }
 
 class _GraphPageState extends State<GraphPage> {
-  // ✨ [추가] initState에서 데이터 로딩 시작
   @override
   void initState() {
     super.initState();
@@ -51,7 +51,6 @@ class _GraphPageState extends State<GraphPage> {
     });
   }
 
-  // ✨ [추가] UI 렌더링 로직을 페이지 위젯으로 다시 이동
   Widget _buildNodeWidget(BuildContext context, String label) {
     final viewModel = context.read<GraphViewModel>();
     final isMdFile = label.toLowerCase().endsWith('.md');
@@ -79,15 +78,12 @@ class _GraphPageState extends State<GraphPage> {
     );
   }
 
-  void _showSnackBar(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), duration: const Duration(seconds: 3)),
-    );
-  }
+  // ⛔️ [삭제] SnackBar를 직접 호출하던 _showSnackBar 메서드를 삭제합니다.
 
   Future<void> _openNoteEditor(BuildContext context, String filePath) async {
     final viewModel = context.read<GraphViewModel>();
+    // ✨ [수정] SnackBar 대신 StatusBarProvider를 사용하도록 변경
+    final statusBar = context.read<StatusBarProvider>();
     final isMdFile = filePath.toLowerCase().endsWith('.md');
 
     if (isMdFile) {
@@ -114,10 +110,16 @@ class _GraphPageState extends State<GraphPage> {
           ),
         );
       } else {
-        _showSnackBar('파일을 찾을 수 없습니다: $fullPath');
+        statusBar.showStatusMessage(
+          '파일을 찾을 수 없습니다: $fullPath',
+          type: StatusType.error,
+        );
       }
     } else {
-      _showSnackBar('주제 노드: "$filePath" (클릭 동작 없음)');
+      statusBar.showStatusMessage(
+        '주제 노드: "$filePath" (클릭 동작 없음)',
+        type: StatusType.info,
+      );
     }
   }
 
@@ -169,7 +171,6 @@ class _GraphPageState extends State<GraphPage> {
                         !viewModel.isUserNodeActive(label)) {
                       return const SizedBox.shrink();
                     }
-                    // ✨ [수정] ViewModel 대신 지역 메서드 호출
                     return _buildNodeWidget(context, label);
                   },
                 ),

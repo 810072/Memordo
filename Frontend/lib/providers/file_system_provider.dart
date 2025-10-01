@@ -4,8 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../model/file_system_entry.dart';
+import 'status_bar_provider.dart';
+import 'tab_provider.dart'; // TabProvider 임포트
 
 class FileSystemProvider extends ChangeNotifier {
   List<FileSystemEntry> _fileSystemEntries = [];
@@ -202,32 +205,35 @@ class FileSystemProvider extends ChangeNotifier {
     return folderPath;
   }
 
-  // ✨ [추가] 파일/폴더 이동 로직
   Future<bool> moveEntry(
     BuildContext context, {
     required FileSystemEntry entryToMove,
     required String newParentPath,
   }) async {
     if (kIsWeb) return false;
-
+    final statusBar = context.read<StatusBarProvider>();
     try {
       final newPath = p.join(newParentPath, entryToMove.name);
 
-      // 자기 자신 또는 자기 하위 폴더로 이동하는 것을 방지
       if (entryToMove.path == newParentPath ||
           p.isWithin(entryToMove.path, newParentPath)) {
-        _showSnackBar(context, '자신의 하위 폴더로는 이동할 수 없습니다. ❌', isError: true);
+        statusBar.showStatusMessage(
+          '자신의 하위 폴더로는 이동할 수 없습니다. ❌',
+          type: StatusType.error,
+        );
         return false;
       }
 
-      // 같은 경로로 이동하는 경우 무시
       if (newPath == entryToMove.path) {
         return true;
       }
 
       if (await FileSystemEntity.type(newPath) !=
           FileSystemEntityType.notFound) {
-        _showSnackBar(context, '같은 이름의 파일/폴더가 이미 존재합니다. ❌', isError: true);
+        statusBar.showStatusMessage(
+          '같은 이름의 파일/폴더가 이미 존재합니다. ❌',
+          type: StatusType.error,
+        );
         return false;
       }
 
@@ -237,11 +243,14 @@ class FileSystemProvider extends ChangeNotifier {
         await File(entryToMove.path).rename(newPath);
       }
 
-      _showSnackBar(context, '이동 완료: ${entryToMove.name} ✅');
-      await scanForFileSystem(); // 이동 후 파일 목록 새로고침
+      statusBar.showStatusMessage(
+        '이동 완료: ${entryToMove.name} ✅',
+        type: StatusType.success,
+      );
+      await scanForFileSystem();
       return true;
     } catch (e) {
-      _showSnackBar(context, '이동 중 오류 발생: $e ❌', isError: true);
+      statusBar.showStatusMessage('이동 중 오류 발생: $e ❌', type: StatusType.error);
       return false;
     }
   }
@@ -252,20 +261,30 @@ class FileSystemProvider extends ChangeNotifier {
     String? parentPath,
   }) async {
     if (kIsWeb) return false;
+    final statusBar = context.read<StatusBarProvider>();
     try {
       String basePath = parentPath ?? await getOrCreateNoteFolderPath();
       final newFilePath = p.join(basePath, '$fileName.md');
       final newFile = File(newFilePath);
       if (await newFile.exists()) {
-        _showSnackBar(context, '이미 같은 이름의 파일이 존재합니다. ❌', isError: true);
+        statusBar.showStatusMessage(
+          '이미 같은 이름의 파일이 존재합니다. ❌',
+          type: StatusType.error,
+        );
         return false;
       }
       await newFile.create();
       await newFile.writeAsString('');
-      _showSnackBar(context, '파일 생성 완료: $fileName.md ✅');
+      statusBar.showStatusMessage(
+        '파일 생성 완료: $fileName.md ✅',
+        type: StatusType.success,
+      );
       return true;
     } catch (e) {
-      _showSnackBar(context, '파일 생성 중 오류 발생: $e ❌', isError: true);
+      statusBar.showStatusMessage(
+        '파일 생성 중 오류 발생: $e ❌',
+        type: StatusType.error,
+      );
       return false;
     }
   }
@@ -276,19 +295,29 @@ class FileSystemProvider extends ChangeNotifier {
     String? parentPath,
   }) async {
     if (kIsWeb) return false;
+    final statusBar = context.read<StatusBarProvider>();
     try {
       String basePath = parentPath ?? await getOrCreateNoteFolderPath();
       final newFolderPath = p.join(basePath, folderName);
       final newDirectory = Directory(newFolderPath);
       if (await newDirectory.exists()) {
-        _showSnackBar(context, '이미 같은 이름의 폴더가 존재합니다. ❌', isError: true);
+        statusBar.showStatusMessage(
+          '이미 같은 이름의 폴더가 존재합니다. ❌',
+          type: StatusType.error,
+        );
         return false;
       }
       await newDirectory.create(recursive: false);
-      _showSnackBar(context, '폴더 생성 완료: $folderName ✅');
+      statusBar.showStatusMessage(
+        '폴더 생성 완료: $folderName ✅',
+        type: StatusType.success,
+      );
       return true;
     } catch (e) {
-      _showSnackBar(context, '폴더 생성 중 오류 발생: $e ❌', isError: true);
+      statusBar.showStatusMessage(
+        '폴더 생성 중 오류 발생: $e ❌',
+        type: StatusType.error,
+      );
       return false;
     }
   }
@@ -299,11 +328,15 @@ class FileSystemProvider extends ChangeNotifier {
     String newName,
   ) async {
     if (kIsWeb) return false;
+    final statusBar = context.read<StatusBarProvider>();
     try {
       String newPath = p.join(p.dirname(entry.path), newName);
       if (await FileSystemEntity.type(newPath) !=
           FileSystemEntityType.notFound) {
-        _showSnackBar(context, '이미 같은 이름의 파일/폴더가 존재합니다. ❌', isError: true);
+        statusBar.showStatusMessage(
+          '이미 같은 이름의 파일/폴더가 존재합니다. ❌',
+          type: StatusType.error,
+        );
         return false;
       }
       if (entry.isDirectory) {
@@ -311,10 +344,16 @@ class FileSystemProvider extends ChangeNotifier {
       } else {
         await File(entry.path).rename(newPath);
       }
-      _showSnackBar(context, '이름 변경 완료: ${entry.name} -> $newName ✅');
+      statusBar.showStatusMessage(
+        '이름 변경 완료: ${entry.name} -> $newName ✅',
+        type: StatusType.success,
+      );
       return true;
     } catch (e) {
-      _showSnackBar(context, '이름 변경 중 오류 발생: $e ❌', isError: true);
+      statusBar.showStatusMessage(
+        '이름 변경 중 오류 발생: $e ❌',
+        type: StatusType.error,
+      );
       return false;
     }
   }
@@ -340,34 +379,32 @@ class FileSystemProvider extends ChangeNotifier {
           ),
     );
     if (confirm != true) return false;
+    final statusBar = context.read<StatusBarProvider>();
     try {
       if (entry.isDirectory) {
         await Directory(entry.path).delete(recursive: true);
       } else {
         await File(entry.path).delete();
       }
-      _showSnackBar(context, '삭제 완료: ${entry.name} ✅');
+
+      // ✨ [수정] listen: false 파라미터를 제거하여 오류를 수정합니다.
+      final tabProvider = context.read<TabProvider>();
+      final tabIndexToDelete = tabProvider.openTabs.indexWhere(
+        (tab) => tab.filePath == entry.path,
+      );
+      if (tabIndexToDelete != -1) {
+        tabProvider.closeTab(tabIndexToDelete);
+      }
+
+      statusBar.showStatusMessage(
+        '삭제 완료: ${entry.name} ✅',
+        type: StatusType.success,
+      );
       return true;
     } catch (e) {
-      _showSnackBar(context, '삭제 중 오류 발생: $e ❌', isError: true);
+      statusBar.showStatusMessage('삭제 중 오류 발생: $e ❌', type: StatusType.error);
       return false;
     }
-  }
-
-  void _showSnackBar(
-    BuildContext context,
-    String message, {
-    bool isError = false,
-  }) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: isError ? Colors.redAccent : Colors.green,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.0)),
-        margin: const EdgeInsets.all(16.0),
-      ),
-    );
   }
 
   void updateLastSavedDirectoryPath(String? path) {

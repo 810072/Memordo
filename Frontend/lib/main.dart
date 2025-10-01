@@ -11,7 +11,7 @@ import 'package:provider/provider.dart';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:window_manager/window_manager.dart';
 
-import 'auth/auth_dialog.dart'; // ✨ [수정] 페이지들 대신 AuthDialog 임포트
+import 'auth/auth_dialog.dart';
 import 'layout/ai_summary_controller.dart';
 import 'layout/bottom_section_controller.dart';
 import 'layout/main_layout.dart';
@@ -157,11 +157,7 @@ class MyApp extends StatelessWidget {
                   ? ThemeMode.dark
                   : ThemeMode.light,
           initialRoute: '/main',
-          routes: {
-            // ✨ [수정] 메인 화면 경로만 남깁니다.
-            '/main': (context) => const MainLayoutWrapper(),
-          },
-          // ✨ [삭제] onGenerateRoute는 더 이상 필요 없습니다.
+          routes: {'/main': (context) => const MainLayoutWrapper()},
         );
       },
     );
@@ -229,6 +225,30 @@ class _MainLayoutWrapperState extends State<MainLayoutWrapper>
         } catch (e) {
           debugPrint('Error handling open_document call: $e');
         }
+      }
+      // ✨ [추가] 챗봇 창에서 오는 상태 메시지를 처리하는 핸들러
+      if (call.method == 'show_status_message') {
+        if (!mounted) return;
+        final args = call.arguments as Map<String, dynamic>;
+        final message = args['message'] as String? ?? '알 수 없는 메시지';
+        final typeStr = args['type'] as String? ?? 'info';
+
+        StatusType type;
+        switch (typeStr) {
+          case 'success':
+            type = StatusType.success;
+            break;
+          case 'error':
+            type = StatusType.error;
+            break;
+          default:
+            type = StatusType.info;
+        }
+
+        Provider.of<StatusBarProvider>(
+          context,
+          listen: false,
+        ).showStatusMessage(message, type: type);
       }
     });
   }

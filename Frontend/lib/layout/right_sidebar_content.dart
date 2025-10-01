@@ -53,7 +53,8 @@ class _RightSidebarContentState extends State<RightSidebarContent>
   final TextEditingController _editingController = TextEditingController();
   final FocusNode _editingFocusNode = FocusNode();
 
-  String? _dragOverPath;
+  // ✨ [삭제] 드래그 상태 관리를 위한 _dragOverPath 변수를 삭제합니다.
+  // String? _dragOverPath;
 
   @override
   void initState() {
@@ -420,15 +421,10 @@ class _RightSidebarContentState extends State<RightSidebarContent>
           )
         else
           Expanded(
+            // ✨ [수정] DragTarget의 onWillAccept와 onLeave에서 setState를 제거합니다.
             child: DragTarget<FileSystemEntry>(
-              onWillAccept: (entry) {
-                if (entry == null) return false;
-                setState(() => _dragOverPath = 'root');
-                return true;
-              },
-              onLeave: (entry) {
-                setState(() => _dragOverPath = null);
-              },
+              onWillAccept: (entry) => entry != null,
+              onLeave: (entry) {},
               onAccept: (entry) async {
                 final rootPath =
                     await fileSystemProvider.getOrCreateNoteFolderPath();
@@ -437,12 +433,13 @@ class _RightSidebarContentState extends State<RightSidebarContent>
                   entryToMove: entry,
                   newParentPath: rootPath,
                 );
-                setState(() => _dragOverPath = null);
               },
+              // ✨ [수정] builder의 candidateData를 사용하여 드래그 오버 상태를 확인합니다.
               builder: (context, candidateData, rejectedData) {
+                final isDragOverRoot = candidateData.isNotEmpty;
                 return Container(
                   color:
-                      _dragOverPath == 'root'
+                      isDragOverRoot
                           ? Theme.of(context).primaryColor.withOpacity(0.1)
                           : Colors.transparent,
                   child: ListView(
@@ -570,8 +567,8 @@ class _RightSidebarContentState extends State<RightSidebarContent>
     Widget tile;
     if (entry.isDirectory) {
       final isSelected = fileSystemProvider.selectedFolderPath == entry.path;
-      final isDragOver = _dragOverPath == entry.path;
 
+      // ✨ [수정] DragTarget 로직을 개선합니다.
       tile = DragTarget<FileSystemEntry>(
         onWillAccept: (data) {
           if (data == null ||
@@ -579,19 +576,19 @@ class _RightSidebarContentState extends State<RightSidebarContent>
               p.isWithin(entry.path, data.path)) {
             return false;
           }
-          setState(() => _dragOverPath = entry.path);
           return true;
         },
-        onLeave: (data) => setState(() => _dragOverPath = null),
+        onLeave: (data) {},
         onAccept: (data) {
           fileSystemProvider.moveEntry(
             context,
             entryToMove: data,
             newParentPath: entry.path,
           );
-          setState(() => _dragOverPath = null);
         },
         builder: (context, candidateData, rejectedData) {
+          // ✨ [수정] builder의 candidateData로 드래그 오버 상태를 결정합니다.
+          final isDragOver = candidateData.isNotEmpty;
           return ExpandableFolderTile(
             key: PageStorageKey(entry.path),
             folderIcon: Icon(
