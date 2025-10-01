@@ -102,6 +102,9 @@ class _MeetingScreenState extends State<MeetingScreen> {
       text: tabProvider.activeTab?.title ?? '',
     );
     tabProvider.addListener(_onTabChange);
+    // ✨ [추가] NoteProvider 리스너 추가
+    context.read<NoteProvider>().addListener(_onNoteChange);
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (tabProvider.openTabs.isEmpty) {
         tabProvider.openNewTab(
@@ -114,6 +117,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
         listen: false,
       );
       fileProvider.addListener(_onSelectedFileChanged);
+      _onNoteChange(); // ✨ [추가] 초기 상태 업데이트
     });
   }
 
@@ -125,6 +129,23 @@ class _MeetingScreenState extends State<MeetingScreen> {
     }
     if (activeTab == null && _titleController.text.isNotEmpty) {
       _titleController.clear();
+    }
+    _onNoteChange(); // ✨ [추가] 탭 변경 시 상태바 정보 업데이트
+  }
+
+  // ✨ [추가] NoteProvider의 변경을 감지하여 StatusBarProvider를 업데이트하는 함수
+  void _onNoteChange() {
+    if (!mounted) return;
+    final noteProvider = context.read<NoteProvider>();
+    final statusBarProvider = context.read<StatusBarProvider>();
+    if (noteProvider.controller != null) {
+      statusBarProvider.updateTextInfo(
+        line: noteProvider.currentLine,
+        char: noteProvider.currentChar,
+        totalChars: noteProvider.totalChars,
+      );
+    } else {
+      statusBarProvider.clearTextInfo();
     }
   }
 
@@ -147,6 +168,8 @@ class _MeetingScreenState extends State<MeetingScreen> {
   @override
   void dispose() {
     context.read<TabProvider>().removeListener(_onTabChange);
+    // ✨ [추가] NoteProvider 리스너 제거
+    context.read<NoteProvider>().removeListener(_onNoteChange);
     Provider.of<FileSystemProvider>(
       context,
       listen: false,

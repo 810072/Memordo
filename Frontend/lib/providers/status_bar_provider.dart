@@ -1,3 +1,4 @@
+// lib/providers/status_bar_provider.dart
 import 'package:flutter/material.dart';
 import 'dart:async';
 
@@ -27,11 +28,37 @@ class StatusBarProvider with ChangeNotifier {
   final List<NotificationLog> _logs = [];
   bool _hasUnread = false;
 
+  // ✨ [추가] 텍스트 정보 상태 변수
+  int _line = 0;
+  int _char = 0;
+  int _totalChars = 0;
+
   String get message => _message;
   StatusType get type => _type;
   bool get isVisible => _isVisible;
   List<NotificationLog> get logs => _logs;
   bool get hasUnread => _hasUnread;
+
+  // ✨ [추가] Getter for UI
+  int get line => _line;
+  int get char => _char;
+  int get totalChars => _totalChars;
+
+  // ✨ [추가] 텍스트 정보 업데이트 메서드
+  void updateTextInfo({int line = 0, int char = 0, int totalChars = 0}) {
+    _line = line;
+    _char = char;
+    _totalChars = totalChars;
+    notifyListeners();
+  }
+
+  // ✨ [추가] 텍스트 정보 초기화 메서드
+  void clearTextInfo() {
+    _line = 0;
+    _char = 0;
+    _totalChars = 0;
+    notifyListeners();
+  }
 
   void showStatusMessage(
     String message, {

@@ -17,6 +17,18 @@ class NoteProvider with ChangeNotifier {
   // ✨ [추가] History 페이지에서 메모 작성을 요청하기 위한 콜백
   void Function(String)? onNewMemoFromHistory;
 
+  // ✨ [수정] '현재 줄의 전체 글자 수' 상태 변수 추가
+  int _currentLine = 0;
+  int _currentChar = 0;
+  int _totalChars = 0;
+  int _totalLineChars = 0; // ✨ [추가]
+
+  // ✨ [수정] Getter for UI
+  int get currentLine => _currentLine;
+  int get currentChar => _currentChar;
+  int get totalChars => _totalChars;
+  int get totalLineChars => _totalLineChars; // ✨ [추가]
+
   // ✨ [추가] History 페이지에서 이 함수를 호출하여 메모 작성을 요청합니다.
   void requestNewMemoFromHistory(String text) {
     onNewMemoFromHistory?.call(text);
@@ -40,6 +52,37 @@ class NoteProvider with ChangeNotifier {
 
   // 텍스트가 변경되었음을 알리는 내부 메서드
   void _onTextChanged() {
+    // ✨ [수정] 커서 위치 및 글자 수 계산 로직 수정
+    if (_controller != null) {
+      final text = _controller!.text;
+      final offset = _controller!.selection.baseOffset;
+
+      _totalChars = text.length;
+
+      if (offset >= 0 && offset <= text.length) {
+        final textBeforeCursor = text.substring(0, offset);
+        final lines = textBeforeCursor.split('\n');
+        _currentLine = lines.length;
+        _currentChar = lines.isNotEmpty ? lines.last.length + 1 : 1;
+
+        // ✨ [추가] 현재 줄의 전체 글자 수 계산
+        final allLines = text.split('\n');
+        if (_currentLine > 0 && _currentLine <= allLines.length) {
+          _totalLineChars = allLines[_currentLine - 1].length;
+        } else {
+          _totalLineChars = 0;
+        }
+      } else {
+        _currentLine = 1;
+        _currentChar = 1;
+        _totalLineChars = 0;
+      }
+    } else {
+      _currentLine = 0;
+      _currentChar = 0;
+      _totalChars = 0;
+      _totalLineChars = 0;
+    }
     notifyListeners();
   }
 

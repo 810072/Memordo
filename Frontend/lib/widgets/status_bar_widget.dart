@@ -1,6 +1,8 @@
+// lib/widgets/status_bar_widget.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/status_bar_provider.dart';
+import '../providers/note_provider.dart'; // ✨ [추가] NoteProvider 임포트
 
 class StatusBarWidget extends StatelessWidget {
   final VoidCallback onBellPressed;
@@ -65,9 +67,30 @@ class StatusBarWidget extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
+                _buildTextInfo(context), // ✨ [수정] 위젯 호출
                 _buildNotificationBell(context),
               ],
             ),
+          ),
+        );
+      },
+    );
+  }
+
+  // ✨ [수정] 텍스트 정보 표시 위젯 수정
+  Widget _buildTextInfo(BuildContext context) {
+    // NoteProvider의 상태를 직접 구독하여 최신 정보를 표시
+    return Consumer<NoteProvider>(
+      builder: (context, noteProvider, child) {
+        // 표시할 정보가 없으면 (열린 노트가 없으면) 빈 컨테이너 반환
+        if (noteProvider.controller == null) {
+          return const SizedBox.shrink();
+        }
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+          child: Text(
+            '현재 줄: ${noteProvider.currentLine}, 글자 수: ${noteProvider.totalLineChars} / 전체: ${noteProvider.totalChars}',
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
           ),
         );
       },
@@ -84,7 +107,7 @@ class StatusBarWidget extends StatelessWidget {
             padding: EdgeInsets.zero,
             icon: Stack(
               alignment: Alignment.center,
-              clipBehavior: Clip.none, // ✨ [추가] 점이 잘리지 않도록 함
+              clipBehavior: Clip.none,
               children: [
                 Icon(
                   Icons.notifications_none_outlined,
@@ -93,8 +116,8 @@ class StatusBarWidget extends StatelessWidget {
                 ),
                 if (provider.hasUnread)
                   Positioned(
-                    top: 2, // ✨ [수정] 위치 미세 조정
-                    right: 3, // ✨ [수정] 위치 미세 조정
+                    top: 2,
+                    right: 3,
                     child: Container(
                       width: 8,
                       height: 8,
