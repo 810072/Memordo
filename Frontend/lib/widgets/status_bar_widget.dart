@@ -87,7 +87,7 @@ class StatusBarWidget extends StatelessWidget {
           return const SizedBox.shrink();
         }
         return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+          padding: const EdgeInsets.symmetric(horizontal: 0.0),
           child: Text(
             '현재 줄: ${noteProvider.currentLine}, 글자 수: ${noteProvider.totalLineChars} / 전체: ${noteProvider.totalChars}',
             style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
@@ -117,7 +117,7 @@ class StatusBarWidget extends StatelessWidget {
                 if (provider.hasUnread)
                   Positioned(
                     top: 2,
-                    right: 3,
+                    right: 2,
                     child: Container(
                       width: 8,
                       height: 8,
@@ -134,7 +134,7 @@ class StatusBarWidget extends StatelessWidget {
               ],
             ),
             onPressed: onBellPressed,
-            splashRadius: 18,
+            splashRadius: 15,
             tooltip: '알림 로그 보기',
           ),
         );
