@@ -7,7 +7,7 @@ import 'package:provider/provider.dart';
 import '../services/auth_token.dart';
 import '../layout/bottom_section_controller.dart';
 import '../utils/ai_service.dart';
-import '../providers/status_bar_provider.dart'; // ✨ [추가]
+import '../providers/status_bar_provider.dart';
 
 class HistoryViewModel with ChangeNotifier {
   List<Map<String, dynamic>> _visitHistory = [];
@@ -20,7 +20,12 @@ class HistoryViewModel with ChangeNotifier {
   bool get isLoading => _isLoading;
   Set<String> get selectedUniqueKeys => _selectedUniqueKeys;
 
-  HistoryViewModel();
+  // ✨ [추가] ViewModel이 소멸될 때 데이터를 비우는 로직
+  @override
+  void dispose() {
+    _visitHistory.clear();
+    super.dispose();
+  }
 
   void toggleItemSelection(String uniqueKey) {
     if (_selectedUniqueKeys.contains(uniqueKey)) {
@@ -42,6 +47,7 @@ class HistoryViewModel with ChangeNotifier {
     _isLoading = true;
     _status = '방문 기록 불러오는 중...';
     _selectedUniqueKeys.clear();
+    _visitHistory.clear(); // ✨ [추가] 불러오기 전에 기존 데이터 초기화
     notifyListeners();
 
     try {
@@ -114,7 +120,7 @@ class HistoryViewModel with ChangeNotifier {
 
   Future<void> summarizeSelection(BuildContext context) async {
     final bottomController = context.read<BottomSectionController>();
-    final statusBar = context.read<StatusBarProvider>(); // ✨ [추가]
+    final statusBar = context.read<StatusBarProvider>();
 
     if (bottomController.isLoading) return;
 
@@ -145,7 +151,6 @@ class HistoryViewModel with ChangeNotifier {
         if (summary == null ||
             summary.contains("오류") ||
             summary.contains("실패")) {
-          // ✨ [수정] SnackBar 대신 StatusBarProvider 사용
           statusBar.showStatusMessage(
             summary ?? 'URL 요약에 실패했습니다.',
             type: StatusType.error,
@@ -157,14 +162,12 @@ class HistoryViewModel with ChangeNotifier {
           );
         }
       } else {
-        // ✨ [수정] SnackBar 대신 StatusBarProvider 사용
         statusBar.showStatusMessage(
           '유효한 URL을 찾을 수 없습니다.',
           type: StatusType.error,
         );
       }
     } else {
-      // ✨ [수정] SnackBar 대신 StatusBarProvider 사용
       statusBar.showStatusMessage(
         _selectedUniqueKeys.isEmpty
             ? '내용을 요약할 URL을 선택해주세요.'

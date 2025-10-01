@@ -1,5 +1,5 @@
 // lib/providers/tab_provider.dart
-import 'dart:async'; // Timer를 사용하기 위해 추가
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 import '../model/note_model.dart';
@@ -10,7 +10,7 @@ import '../widgets/obsidian_markdown_controller.dart';
 class TabProvider with ChangeNotifier {
   final List<NoteTab> _openTabs = [];
   int _activeTabIndex = -1;
-  Timer? _debounce; // ✨ 자동 저장을 위한 타이머 변수 추가
+  Timer? _debounce;
   VoidCallback? onTabOpenedFromExternalWindow;
 
   List<NoteTab> get openTabs => _openTabs;
@@ -18,9 +18,7 @@ class TabProvider with ChangeNotifier {
   NoteTab? get activeTab =>
       _activeTabIndex != -1 ? _openTabs[_activeTabIndex] : null;
 
-  // ✨ 자동 저장 로직
   Future<void> _autoSave(NoteTab tab) async {
-    // 파일 경로가 없는 새 메모는 자동 저장하지 않음
     if (tab.filePath == null || tab.filePath!.isEmpty) return;
 
     try {
@@ -32,11 +30,8 @@ class TabProvider with ChangeNotifier {
     }
   }
 
-  // ✨ 탭 내용이 변경될 때 호출되는 리스너
   void _onContentChanged(NoteTab tab) {
-    // 기존 타이머가 있으면 취소
     if (_debounce?.isActive ?? false) _debounce!.cancel();
-    // 3초 후에 자동 저장 실행
     _debounce = Timer(const Duration(seconds: 3), () {
       _autoSave(tab);
     });
@@ -44,22 +39,25 @@ class TabProvider with ChangeNotifier {
 
   @override
   void dispose() {
-    _debounce?.cancel(); // Provider가 소멸될 때 타이머 취소
+    _debounce?.cancel();
+    // ✨ [추가] Provider가 소멸될 때 모든 탭의 리소스를 정리합니다.
+    for (var tab in _openTabs) {
+      if (tab.contentListener != null) {
+        tab.controller.removeListener(tab.contentListener!);
+      }
+      tab.controller.dispose();
+      tab.focusNode.dispose();
+    }
     super.dispose();
   }
 
-  // ✨ [추가] 탭 순서 변경 메서드
   void reorderTab(int oldIndex, int newIndex) {
-    // newIndex가 oldIndex 이후의 위치로 이동하는 경우,
-    // 리스트에서 oldIndex의 아이템이 삭제되면 newIndex가 하나 줄어들기 때문에 조정이 필요합니다.
     if (newIndex > oldIndex) {
       newIndex -= 1;
     }
-
     final NoteTab item = _openTabs.removeAt(oldIndex);
     _openTabs.insert(newIndex, item);
 
-    // 활성 탭의 인덱스를 업데이트합니다.
     if (_activeTabIndex == oldIndex) {
       _activeTabIndex = newIndex;
     } else if (_activeTabIndex >= newIndex && _activeTabIndex < oldIndex) {
@@ -67,7 +65,6 @@ class TabProvider with ChangeNotifier {
     } else if (_activeTabIndex <= newIndex && _activeTabIndex > oldIndex) {
       _activeTabIndex -= 1;
     }
-
     notifyListeners();
   }
 
@@ -78,7 +75,7 @@ class TabProvider with ChangeNotifier {
       );
       if (existingTabIndex != -1) {
         setActiveTab(existingTabIndex);
-        onTabOpenedFromExternalWindow?.call(); // ✨ 콜백 호출
+        onTabOpenedFromExternalWindow?.call();
         return;
       }
     }
@@ -95,31 +92,33 @@ class TabProvider with ChangeNotifier {
       filePath: filePath,
     );
 
-    // ✨ 새로 생성된 탭의 컨트롤러에 리스너 추가
-    newTab.controller.addListener(() => _onContentChanged(newTab));
+    // ✨ [수정] 각 탭에 고유한 리스너를 할당하여 나중에 제거할 수 있도록 합니다.
+    newTab.contentListener = () => _onContentChanged(newTab);
+    newTab.controller.addListener(newTab.contentListener!);
 
     _openTabs.add(newTab);
     _activeTabIndex = _openTabs.length - 1;
-    onTabOpenedFromExternalWindow?.call(); // ✨ 콜백 호출
+    onTabOpenedFromExternalWindow?.call();
     notifyListeners();
   }
 
   void setActiveTab(int index) {
     if (index >= 0 && index < _openTabs.length) {
       _activeTabIndex = index;
-      onTabOpenedFromExternalWindow?.call(); // ✨ 콜백 호출
+      onTabOpenedFromExternalWindow?.call();
       notifyListeners();
     }
   }
 
   void closeTab(int index) {
     if (index >= 0 && index < _openTabs.length) {
-      // ✨ 탭을 닫을 때 리스너도 제거
-      _openTabs[index].controller.removeListener(
-        () => _onContentChanged(_openTabs[index]),
-      );
-      _openTabs[index].controller.dispose();
-      _openTabs[index].focusNode.dispose();
+      final tabToClose = _openTabs[index];
+      // ✨ [수정] 탭을 닫을 때 저장된 리스너를 정확하게 제거합니다.
+      if (tabToClose.contentListener != null) {
+        tabToClose.controller.removeListener(tabToClose.contentListener!);
+      }
+      tabToClose.controller.dispose();
+      tabToClose.focusNode.dispose();
       _openTabs.removeAt(index);
 
       if (_openTabs.isEmpty) {

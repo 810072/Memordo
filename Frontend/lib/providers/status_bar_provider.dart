@@ -2,10 +2,8 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 
-// 상태 종류 (성공, 오류, 정보)
 enum StatusType { success, error, info }
 
-// 알림 로그 데이터 모델
 class NotificationLog {
   final String message;
   final StatusType type;
@@ -24,11 +22,11 @@ class StatusBarProvider with ChangeNotifier {
   bool _isVisible = false;
   Timer? _timer;
 
-  // 알림 로그 기록 및 읽음 상태 관리
+  // ✨ [수정] 로그 최대 개수를 100개로 제한
+  static const int _maxLogs = 100;
   final List<NotificationLog> _logs = [];
   bool _hasUnread = false;
 
-  // ✨ [추가] 텍스트 정보 상태 변수
   int _line = 0;
   int _char = 0;
   int _totalChars = 0;
@@ -39,12 +37,10 @@ class StatusBarProvider with ChangeNotifier {
   List<NotificationLog> get logs => _logs;
   bool get hasUnread => _hasUnread;
 
-  // ✨ [추가] Getter for UI
   int get line => _line;
   int get char => _char;
   int get totalChars => _totalChars;
 
-  // ✨ [추가] 텍스트 정보 업데이트 메서드
   void updateTextInfo({int line = 0, int char = 0, int totalChars = 0}) {
     _line = line;
     _char = char;
@@ -52,7 +48,6 @@ class StatusBarProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  // ✨ [추가] 텍스트 정보 초기화 메서드
   void clearTextInfo() {
     _line = 0;
     _char = 0;
@@ -69,13 +64,16 @@ class StatusBarProvider with ChangeNotifier {
     _type = type;
     _isVisible = true;
 
-    // 새 알림을 로그에 추가하고, '읽지 않음' 상태로 설정
     final newLog = NotificationLog(
       message: message,
       type: type,
       timestamp: DateTime.now(),
     );
-    _logs.insert(0, newLog); // 최신 알림이 맨 위에 오도록
+    _logs.insert(0, newLog);
+    // ✨ [추가] 로그가 최대 개수를 초과하면 가장 오래된 로그를 제거합니다.
+    if (_logs.length > _maxLogs) {
+      _logs.removeLast();
+    }
     _hasUnread = true;
 
     notifyListeners();
@@ -87,7 +85,6 @@ class StatusBarProvider with ChangeNotifier {
     });
   }
 
-  // 알림 로그를 확인했을 때 호출할 함수
   void markAsRead() {
     if (_hasUnread) {
       _hasUnread = false;
