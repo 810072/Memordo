@@ -23,7 +23,8 @@ import '../viewmodels/history_viewmodel.dart';
 import '../viewmodels/calendar_viewmodel.dart';
 import '../viewmodels/graph_viewmodel.dart';
 import '../widgets/status_bar_widget.dart';
-import 'bottom_section_controller.dart'; // ✨ [추가]
+import 'bottom_section_controller.dart';
+import '../widgets/ai_summary_widget.dart';
 
 class MainLayout extends StatefulWidget {
   final ValueChanged<PageType> onPageSelected;
@@ -45,8 +46,13 @@ class _MainLayoutState extends State<MainLayout> {
   bool _isRightExpanded = true;
   double _rightSidebarWidth = 160.0;
   bool _isResizing = false;
+  bool _isHoveringResizer = false;
 
   final ScrollController _tabScrollController = ScrollController();
+
+  bool _isBottomPanelVisible = true;
+  double _bottomPanelHeight = 200.0;
+  bool _isResizingBottomPanel = false;
 
   @override
   void initState() {
@@ -63,6 +69,12 @@ class _MainLayoutState extends State<MainLayout> {
   void dispose() {
     _tabScrollController.dispose();
     super.dispose();
+  }
+
+  void _toggleBottomPanel() {
+    setState(() {
+      _isBottomPanelVisible = !_isBottomPanelVisible;
+    });
   }
 
   Widget _getPageWidget(PageType pageType) {
@@ -89,7 +101,6 @@ class _MainLayoutState extends State<MainLayout> {
 
   void _changePage(PageType pageType) {
     widget.onPageSelected(pageType);
-    // ✨ [수정] 페이지를 변경할 때마다 AI 요약 내용을 초기화합니다.
     context.read<BottomSectionController>().clearSummary();
     setState(() {
       _activePage = pageType;
@@ -183,6 +194,52 @@ class _MainLayoutState extends State<MainLayout> {
     );
   }
 
+  Widget _buildBottomPanel() {
+    final theme = Theme.of(context);
+    return Container(
+      height: _bottomPanelHeight,
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: theme.dividerColor)),
+      ),
+      child: Column(
+        children: [
+          GestureDetector(
+            onVerticalDragStart:
+                (_) => setState(() => _isResizingBottomPanel = true),
+            onVerticalDragUpdate: (details) {
+              setState(() {
+                _bottomPanelHeight -= details.delta.dy;
+                _bottomPanelHeight = _bottomPanelHeight.clamp(80.0, 500.0);
+              });
+            },
+            onVerticalDragEnd:
+                (_) => setState(() => _isResizingBottomPanel = false),
+            child: MouseRegion(
+              cursor: SystemMouseCursors.resizeUpDown,
+              child: Container(
+                height: 8,
+                color:
+                    _isResizingBottomPanel
+                        ? theme.primaryColor.withOpacity(0.3)
+                        : theme.cardColor,
+                alignment: Alignment.center,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Container(
+              color: theme.cardColor,
+              child: const Padding(
+                padding: EdgeInsets.fromLTRB(16, 4, 16, 12),
+                child: AiSummaryWidget(),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final pages =
@@ -197,7 +254,12 @@ class _MainLayoutState extends State<MainLayout> {
               children: [
                 Container(
                   width: 48,
-                  color: Theme.of(context).cardColor,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).cardColor,
+                    border: Border(
+                      right: BorderSide(color: dividerColor, width: 1),
+                    ),
+                  ),
                   child: Column(
                     children: [
                       Expanded(
@@ -210,8 +272,6 @@ class _MainLayoutState extends State<MainLayout> {
                     ],
                   ),
                 ),
-                VerticalDivider(thickness: 1, width: 1, color: dividerColor),
-
                 if (_showRightSidebar && _isRightExpanded)
                   Row(
                     children: [
@@ -272,30 +332,36 @@ class _MainLayoutState extends State<MainLayout> {
                           ],
                         ),
                       ),
-                      GestureDetector(
-                        onHorizontalDragStart:
-                            (_) => setState(() => _isResizing = true),
-                        onHorizontalDragUpdate: (details) {
-                          setState(() {
-                            _rightSidebarWidth += details.delta.dx;
-                            _rightSidebarWidth = _rightSidebarWidth.clamp(
-                              160.0,
-                              500.0,
-                            );
-                          });
-                        },
-                        onHorizontalDragEnd:
-                            (_) => setState(() => _isResizing = false),
-                        child: MouseRegion(
-                          cursor: SystemMouseCursors.resizeLeftRight,
+                      // ✨ [수정] 최종 수정된 구분선 위젯
+                      MouseRegion(
+                        onEnter:
+                            (_) => setState(() => _isHoveringResizer = true),
+                        onExit:
+                            (_) => setState(() => _isHoveringResizer = false),
+                        cursor: SystemMouseCursors.resizeLeftRight,
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.translucent,
+                          onHorizontalDragStart:
+                              (_) => setState(() => _isResizing = true),
+                          onHorizontalDragUpdate: (details) {
+                            setState(() {
+                              _rightSidebarWidth += details.delta.dx;
+                              _rightSidebarWidth = _rightSidebarWidth.clamp(
+                                160.0,
+                                500.0,
+                              );
+                            });
+                          },
+                          onHorizontalDragEnd:
+                              (_) => setState(() => _isResizing = false),
                           child: Container(
-                            width: 8,
+                            width: 1.0,
                             color: Colors.transparent,
-                            alignment: Alignment.center,
-                            child: Container(
+                            child: VerticalDivider(
                               width: 1,
+                              thickness: 1,
                               color:
-                                  _isResizing
+                                  (_isResizing || _isHoveringResizer)
                                       ? Theme.of(context).primaryColor
                                       : dividerColor,
                             ),
@@ -304,7 +370,6 @@ class _MainLayoutState extends State<MainLayout> {
                       ),
                     ],
                   ),
-
                 Expanded(
                   child: Column(
                     children: [
@@ -540,6 +605,7 @@ class _MainLayoutState extends State<MainLayout> {
                           children: pages,
                         ),
                       ),
+                      if (_isBottomPanelVisible) _buildBottomPanel(),
                     ],
                   ),
                 ),
@@ -548,6 +614,7 @@ class _MainLayoutState extends State<MainLayout> {
           ),
           StatusBarWidget(
             onBellPressed: () => _changePage(PageType.notifications),
+            onBottomPanelToggle: _toggleBottomPanel,
           ),
         ],
       ),

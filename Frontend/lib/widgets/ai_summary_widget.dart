@@ -35,31 +35,29 @@ class AiSummaryWidget extends StatelessWidget {
         final String summaryText =
             hasSummary ? controller.summaryText : '내용 요약 AI';
 
-        // ✨ [수정] Stack을 사용하여 복사 버튼을 요약 텍스트 위에 배치합니다.
         return Stack(
           children: [
-            // ✨ [수정] RichText 대신 SelectableText.rich를 사용하여 텍스트 선택 및 복사가 가능하도록 합니다.
             SingleChildScrollView(
-              child: SelectableText.rich(
-                TextSpan(
-                  children: [
-                    WidgetSpan(
-                      child: Padding(
-                        padding: const EdgeInsets.only(right: 12.0),
-                        child: Icon(
-                          Icons.auto_awesome,
-                          color: Colors.deepPurple.shade300,
-                          size: 20,
-                        ),
-                      ),
-                      alignment: PlaceholderAlignment.top,
+              // ✨ [수정] Row를 사용하여 아이콘과 텍스트를 분리하고 전체 너비를 차지하도록 함
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 아이콘 (선택/복사 불가)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8.0, top: 3.0),
+                    child: Icon(
+                      Icons.auto_awesome,
+                      color: Colors.deepPurple.shade300,
+                      size: 20,
                     ),
-                    TextSpan(text: summaryText, style: textStyle),
-                  ],
-                ),
+                  ),
+                  // 텍스트 (선택/복사 가능)
+                  Expanded(
+                    child: SelectableText(summaryText, style: textStyle),
+                  ),
+                ],
               ),
             ),
-            // ✨ [추가] 요약 내용이 있을 때만 복사 버튼을 표시합니다.
             if (hasSummary)
               Positioned(
                 bottom: 0,
@@ -71,7 +69,6 @@ class AiSummaryWidget extends StatelessWidget {
                     Clipboard.setData(
                       ClipboardData(text: controller.summaryText),
                     );
-                    // ✨ [수정] SnackBar 대신 StatusBarProvider를 사용하여 사용자에게 피드백을 줍니다.
                     context.read<StatusBarProvider>().showStatusMessage(
                       '요약 내용이 클립보드에 복사되었습니다.',
                       type: StatusType.success,

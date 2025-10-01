@@ -2,13 +2,17 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/status_bar_provider.dart';
-import '../providers/note_provider.dart'; // ✨ [추가] NoteProvider 임포트
+import '../providers/note_provider.dart';
 
 class StatusBarWidget extends StatelessWidget {
   final VoidCallback onBellPressed;
+  final VoidCallback onBottomPanelToggle;
 
-  const StatusBarWidget({Key? key, required this.onBellPressed})
-    : super(key: key);
+  const StatusBarWidget({
+    Key? key,
+    required this.onBellPressed,
+    required this.onBottomPanelToggle,
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -67,7 +71,23 @@ class StatusBarWidget extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                _buildTextInfo(context), // ✨ [수정] 위젯 호출
+                _buildTextInfo(context),
+                // ✨ [수정] 너비를 20으로 줄임
+                SizedBox(
+                  width: 20,
+                  height: 24,
+                  child: IconButton(
+                    padding: EdgeInsets.zero,
+                    icon: Icon(
+                      Icons.splitscreen_outlined,
+                      size: 16,
+                      color: Colors.grey.shade600,
+                    ),
+                    onPressed: onBottomPanelToggle,
+                    splashRadius: 15,
+                    tooltip: '하단 패널 열기/닫기',
+                  ),
+                ),
                 _buildNotificationBell(context),
               ],
             ),
@@ -77,17 +97,14 @@ class StatusBarWidget extends StatelessWidget {
     );
   }
 
-  // ✨ [수정] 텍스트 정보 표시 위젯 수정
   Widget _buildTextInfo(BuildContext context) {
-    // NoteProvider의 상태를 직접 구독하여 최신 정보를 표시
     return Consumer<NoteProvider>(
       builder: (context, noteProvider, child) {
-        // 표시할 정보가 없으면 (열린 노트가 없으면) 빈 컨테이너 반환
         if (noteProvider.controller == null) {
           return const SizedBox.shrink();
         }
         return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 0.0),
+          padding: const EdgeInsets.symmetric(horizontal: 8.0), // 좌우 패딩 추가
           child: Text(
             '현재 줄: ${noteProvider.currentLine}, 글자 수: ${noteProvider.totalLineChars} / 전체: ${noteProvider.totalChars}',
             style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
@@ -100,8 +117,9 @@ class StatusBarWidget extends StatelessWidget {
   Widget _buildNotificationBell(BuildContext context) {
     return Consumer<StatusBarProvider>(
       builder: (context, provider, child) {
+        // ✨ [수정] 너비를 20으로 줄임
         return SizedBox(
-          width: 40,
+          width: 20,
           height: 24,
           child: IconButton(
             padding: EdgeInsets.zero,

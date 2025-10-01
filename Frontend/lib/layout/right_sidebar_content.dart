@@ -7,7 +7,7 @@ import '../model/file_system_entry.dart';
 import '../providers/file_system_provider.dart';
 import '../widgets/expandable_folder_tile.dart';
 import '../layout/bottom_section_controller.dart';
-import '../widgets/ai_summary_widget.dart';
+// import '../widgets/ai_summary_widget.dart';
 import '../widgets/note_outline_view.dart';
 import '../widgets/scratchpad_view.dart';
 import '../features/page_type.dart';
@@ -53,13 +53,10 @@ class _RightSidebarContentState extends State<RightSidebarContent>
   final TextEditingController _editingController = TextEditingController();
   final FocusNode _editingFocusNode = FocusNode();
 
-  // ✨ [삭제] 드래그 상태 관리를 위한 _dragOverPath 변수를 삭제합니다.
-  // String? _dragOverPath;
-
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _bottomSectionController = Provider.of<BottomSectionController>(
@@ -238,7 +235,7 @@ class _RightSidebarContentState extends State<RightSidebarContent>
       case PageType.home:
         return _buildMemoSidebar(context);
       case PageType.history:
-        return _buildHistorySidebar(context);
+        return const SizedBox.shrink();
       case PageType.graph:
         return _buildGraphSidebar(context);
       case PageType.calendar:
@@ -253,49 +250,47 @@ class _RightSidebarContentState extends State<RightSidebarContent>
 
     return Column(
       children: [
+        // ✨ [수정] BoxDecoration을 사용하여 하단 테두리로 구분선 구현
         Container(
           height: 40,
-          color: Theme.of(context).cardColor,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.start,
-            children: [
-              Flexible(
-                child: TabBar(
-                  controller: _tabController,
-                  isScrollable: true,
-                  labelColor: Theme.of(context).primaryColor,
-                  unselectedLabelColor: Colors.grey.shade600,
-                  indicatorColor: Theme.of(context).primaryColor,
-                  indicatorWeight: 2.5,
-                  tabAlignment: TabAlignment.start,
-                  labelPadding: const EdgeInsets.symmetric(horizontal: 12.0),
-                  onTap: (index) {
-                    bottomCtrl.setActiveTab(index);
-                  },
-                  tabs: const [
-                    Tab(
-                      icon: Icon(Icons.folder_outlined, size: 16),
-                      iconMargin: EdgeInsets.zero,
-                    ),
-                    Tab(
-                      icon: Icon(Icons.format_list_bulleted, size: 16),
-                      iconMargin: EdgeInsets.zero,
-                    ),
-                    Tab(
-                      icon: Icon(Icons.auto_awesome_outlined, size: 16),
-                      iconMargin: EdgeInsets.zero,
-                    ),
-                    Tab(
-                      icon: Icon(Icons.edit_note, size: 16),
-                      iconMargin: EdgeInsets.zero,
-                    ),
-                  ],
-                ),
+          decoration: BoxDecoration(
+            color: Theme.of(context).cardColor,
+            border: Border(
+              bottom: BorderSide(
+                color: Theme.of(context).dividerColor,
+                width: 1,
+              ),
+            ),
+          ),
+          child: TabBar(
+            controller: _tabController,
+            isScrollable: false,
+            tabAlignment: TabAlignment.fill,
+            labelColor: Theme.of(context).primaryColor,
+            unselectedLabelColor: Colors.grey.shade600,
+            indicatorColor: Theme.of(context).primaryColor,
+            indicatorWeight: 2.5,
+            onTap: (index) {
+              bottomCtrl.setActiveTab(index);
+            },
+            tabs: const [
+              Tab(
+                icon: Icon(Icons.folder_outlined, size: 16),
+                iconMargin: EdgeInsets.zero,
+              ),
+              Tab(
+                icon: Icon(Icons.format_list_bulleted, size: 16),
+                iconMargin: EdgeInsets.zero,
+              ),
+              Tab(
+                icon: Icon(Icons.edit_note, size: 16),
+                iconMargin: EdgeInsets.zero,
               ),
             ],
           ),
         ),
-        Divider(height: 1, thickness: 1, color: Theme.of(context).dividerColor),
+        // ✨ [수정] 기존 구분선 위젯 제거
+        // Container(height: 1, color: Theme.of(context).dividerColor),
         Expanded(
           child: TabBarView(
             controller: _tabController,
@@ -303,22 +298,11 @@ class _RightSidebarContentState extends State<RightSidebarContent>
             children: [
               _buildFileListView(),
               const NoteOutlineView(),
-              const Padding(
-                padding: EdgeInsets.all(12.0),
-                child: AiSummaryWidget(),
-              ),
               const ScratchpadView(),
             ],
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildHistorySidebar(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.all(12.0),
-      child: AiSummaryWidget(),
     );
   }
 
@@ -421,7 +405,6 @@ class _RightSidebarContentState extends State<RightSidebarContent>
           )
         else
           Expanded(
-            // ✨ [수정] DragTarget의 onWillAccept와 onLeave에서 setState를 제거합니다.
             child: DragTarget<FileSystemEntry>(
               onWillAccept: (entry) => entry != null,
               onLeave: (entry) {},
@@ -434,7 +417,6 @@ class _RightSidebarContentState extends State<RightSidebarContent>
                   newParentPath: rootPath,
                 );
               },
-              // ✨ [수정] builder의 candidateData를 사용하여 드래그 오버 상태를 확인합니다.
               builder: (context, candidateData, rejectedData) {
                 final isDragOverRoot = candidateData.isNotEmpty;
                 return Container(
@@ -568,7 +550,6 @@ class _RightSidebarContentState extends State<RightSidebarContent>
     if (entry.isDirectory) {
       final isSelected = fileSystemProvider.selectedFolderPath == entry.path;
 
-      // ✨ [수정] DragTarget 로직을 개선합니다.
       tile = DragTarget<FileSystemEntry>(
         onWillAccept: (data) {
           if (data == null ||
@@ -587,7 +568,6 @@ class _RightSidebarContentState extends State<RightSidebarContent>
           );
         },
         builder: (context, candidateData, rejectedData) {
-          // ✨ [수정] builder의 candidateData로 드래그 오버 상태를 결정합니다.
           final isDragOver = candidateData.isNotEmpty;
           return ExpandableFolderTile(
             key: PageStorageKey(entry.path),
@@ -923,7 +903,6 @@ class _CalendarSidebarViewState extends State<CalendarSidebarView> {
             style: const TextStyle(fontSize: 13),
             overflow: TextOverflow.ellipsis,
           ),
-          // ✨ [추가] 수정된 시간을 표시하는 subtitle
           subtitle: Text(
             '수정된 시간: $formattedTime',
             style: TextStyle(fontSize: 11, color: Colors.grey.shade600),

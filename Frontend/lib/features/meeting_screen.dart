@@ -18,8 +18,9 @@ import '../providers/note_provider.dart';
 import '../providers/tab_provider.dart';
 import '../model/note_model.dart';
 import '../widgets/custom_popup_menu.dart';
-import '../providers/status_bar_provider.dart'; // ✨ [추가]
+import '../providers/status_bar_provider.dart';
 
+// --- Intents and Actions for Shortcuts ---
 class SaveIntent extends Intent {}
 
 class ToggleBoldIntent extends Intent {}
@@ -80,6 +81,7 @@ class OutdentAction extends Action<OutdentIntent> {
   }
 }
 
+// --- Main Widget ---
 class MeetingScreen extends StatefulWidget {
   final String? initialText;
   final String? filePath;
@@ -102,7 +104,6 @@ class _MeetingScreenState extends State<MeetingScreen> {
       text: tabProvider.activeTab?.title ?? '',
     );
     tabProvider.addListener(_onTabChange);
-    // ✨ [추가] NoteProvider 리스너 추가
     context.read<NoteProvider>().addListener(_onNoteChange);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -117,8 +118,21 @@ class _MeetingScreenState extends State<MeetingScreen> {
         listen: false,
       );
       fileProvider.addListener(_onSelectedFileChanged);
-      _onNoteChange(); // ✨ [추가] 초기 상태 업데이트
+      _onNoteChange();
     });
+  }
+
+  @override
+  void dispose() {
+    context.read<TabProvider>().removeListener(_onTabChange);
+    context.read<NoteProvider>().removeListener(_onNoteChange);
+    Provider.of<FileSystemProvider>(
+      context,
+      listen: false,
+    ).removeListener(_onSelectedFileChanged);
+    _titleController.dispose();
+    _titleFocusNode.dispose();
+    super.dispose();
   }
 
   void _onTabChange() {
@@ -130,10 +144,9 @@ class _MeetingScreenState extends State<MeetingScreen> {
     if (activeTab == null && _titleController.text.isNotEmpty) {
       _titleController.clear();
     }
-    _onNoteChange(); // ✨ [추가] 탭 변경 시 상태바 정보 업데이트
+    _onNoteChange();
   }
 
-  // ✨ [추가] NoteProvider의 변경을 감지하여 StatusBarProvider를 업데이트하는 함수
   void _onNoteChange() {
     if (!mounted) return;
     final noteProvider = context.read<NoteProvider>();
@@ -163,20 +176,6 @@ class _MeetingScreenState extends State<MeetingScreen> {
       );
       fileProvider.setSelectedFileForMeetingScreen(null);
     }
-  }
-
-  @override
-  void dispose() {
-    context.read<TabProvider>().removeListener(_onTabChange);
-    // ✨ [추가] NoteProvider 리스너 제거
-    context.read<NoteProvider>().removeListener(_onNoteChange);
-    Provider.of<FileSystemProvider>(
-      context,
-      listen: false,
-    ).removeListener(_onSelectedFileChanged);
-    _titleController.dispose();
-    _titleFocusNode.dispose();
-    super.dispose();
   }
 
   Map<String, TextStyle> _getMarkdownStyles(bool isDarkMode) {
@@ -304,22 +303,32 @@ class _MeetingScreenState extends State<MeetingScreen> {
       shortcuts: shortcuts,
       child: Actions(
         actions: actions,
-        child: Column(
-          children: [
-            _buildNewHeader(tabProvider),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20.0,
-                  vertical: 8.0,
-                ),
+        child: Container(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          child: Column(
+            children: [
+              _buildNewHeader(tabProvider),
+              // ✨ [수정] 스크롤 문제를 해결하기 위해 Expanded와 SingleChildScrollView를 함께 사용
+              Expanded(
                 child:
                     activeTab != null
-                        ? _buildMarkdownEditor(activeTab)
-                        : _buildEmptyScreen(),
+                        ? SingleChildScrollView(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20.0,
+                            vertical: 8.0,
+                          ),
+                          child: _buildMarkdownEditor(activeTab),
+                        )
+                        : Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20.0,
+                            vertical: 8.0,
+                          ),
+                          child: _buildEmptyScreen(),
+                        ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -479,7 +488,9 @@ class _MeetingScreenState extends State<MeetingScreen> {
         fontFamily: 'system-ui',
       ),
       maxLines: null,
-      expands: true,
+      // ✨ [수정] expands는 false로 설정하여 SingleChildScrollView가 스크롤을 제어하도록 함
+      expands: false,
+      keyboardType: TextInputType.multiline,
       textAlignVertical: TextAlignVertical.top,
       decoration: const InputDecoration.collapsed(
         hintText: "메모를 시작하세요...",
@@ -515,11 +526,11 @@ class _MeetingScreenState extends State<MeetingScreen> {
     final success = await fileProvider.renameEntry(
       context,
       entry,
-      newName + '.md',
+      '$newName.md',
     );
 
     if (success) {
-      final newPath = p.join(p.dirname(activeTab.filePath!), newName + '.md');
+      final newPath = p.join(p.dirname(activeTab.filePath!), '$newName.md');
       tabProvider.updateTabInfo(tabProvider.activeTabIndex, newPath);
       _titleController.text = newName;
     } else {
@@ -531,14 +542,11 @@ class _MeetingScreenState extends State<MeetingScreen> {
     final tabProvider = context.read<TabProvider>();
     final activeTab = tabProvider.activeTab;
     if (activeTab == null) return;
-    final statusBar = context.read<StatusBarProvider>(); // ✨ [수정]
+    final statusBar = context.read<StatusBarProvider>();
 
     final content = activeTab.controller.text;
     if (content.isEmpty) {
-      statusBar.showStatusMessage(
-        "저장할 내용이 없습니다.",
-        type: StatusType.error,
-      ); // ✨ [수정]
+      statusBar.showStatusMessage("저장할 내용이 없습니다.", type: StatusType.error);
       return;
     }
     final fileProvider = context.read<FileSystemProvider>();
@@ -569,32 +577,26 @@ class _MeetingScreenState extends State<MeetingScreen> {
         statusBar.showStatusMessage(
           "저장 완료: ${p.basename(path)} ✅",
           type: StatusType.success,
-        ); // ✨ [수정]
+        );
       } catch (e) {
         statusBar.showStatusMessage(
           "파일 저장 중 오류 발생: $e",
           type: StatusType.error,
-        ); // ✨ [수정]
+        );
       }
     } else {
-      statusBar.showStatusMessage(
-        "저장이 취소되었습니다.",
-        type: StatusType.info,
-      ); // ✨ [수정]
+      statusBar.showStatusMessage("저장이 취소되었습니다.", type: StatusType.info);
     }
   }
 
   Future<void> _loadMarkdownFromFilePicker() async {
-    final statusBar = context.read<StatusBarProvider>(); // ✨ [추가]
+    final statusBar = context.read<StatusBarProvider>();
     FilePickerResult? result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['md', 'txt'],
     );
     if (result == null) {
-      statusBar.showStatusMessage(
-        "파일 불러오기가 취소되었습니다.",
-        type: StatusType.info,
-      ); // ✨ [수정]
+      statusBar.showStatusMessage("파일 불러오기가 취소되었습니다.", type: StatusType.info);
       return;
     }
     String content;
@@ -618,12 +620,12 @@ class _MeetingScreenState extends State<MeetingScreen> {
     statusBar.showStatusMessage(
       "파일 불러오기 완료: ${p.basename(filePath ?? result.files.single.name)} ✅",
       type: StatusType.success,
-    ); // ✨ [수정]
+    );
   }
 
   Future<void> _summarizeContent() async {
     final activeTab = context.read<TabProvider>().activeTab;
-    final statusBar = context.read<StatusBarProvider>(); // ✨ [추가]
+    final statusBar = context.read<StatusBarProvider>();
     if (activeTab == null) return;
 
     final content = activeTab.controller.text.trim();
@@ -631,13 +633,12 @@ class _MeetingScreenState extends State<MeetingScreen> {
       statusBar.showStatusMessage(
         '요약할 내용이 너무 짧습니다 (최소 50자 필요).',
         type: StatusType.error,
-      ); // ✨ [수정]
+      );
       return;
     }
     final bottomController = context.read<BottomSectionController>();
     bottomController.setIsLoading(true);
     bottomController.updateSummary('AI가 텍스트를 요약 중입니다...');
-    bottomController.setActiveTab(2);
     try {
       final summary = await callBackendTask(
         taskType: "summarize",
@@ -646,16 +647,11 @@ class _MeetingScreenState extends State<MeetingScreen> {
       bottomController.updateSummary(summary ?? '요약에 실패했거나 내용이 없습니다.');
     } catch (e) {
       bottomController.updateSummary('요약 중 오류 발생: $e');
-      statusBar.showStatusMessage(
-        '텍스트 요약 중 오류 발생: $e',
-        type: StatusType.error,
-      ); // ✨ [수정]
+      statusBar.showStatusMessage('텍스트 요약 중 오류 발생: $e', type: StatusType.error);
     } finally {
       bottomController.setIsLoading(false);
     }
   }
-
-  // ⛔️ [삭제] 이 파일의 _showSnackBar 메서드는 더 이상 필요 없으므로 삭제합니다.
 
   Future<String> _getNotesDirectoryPath() async {
     final home =
