@@ -32,8 +32,7 @@ class AiSummaryWidget extends StatelessWidget {
           height: 1.6,
         );
 
-        final String summaryText =
-            hasSummary ? controller.summaryText : '내용 요약 AI';
+        final String summaryText = hasSummary ? controller.summaryText : '';
 
         return Stack(
           children: [

@@ -50,7 +50,7 @@ class _MainLayoutState extends State<MainLayout> {
 
   final ScrollController _tabScrollController = ScrollController();
 
-  bool _isBottomPanelVisible = true;
+  bool _isBottomPanelVisible = false;
   double _bottomPanelHeight = 200.0;
   bool _isResizingBottomPanel = false;
 
@@ -58,6 +58,10 @@ class _MainLayoutState extends State<MainLayout> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      final bottomController = context.read<BottomSectionController>();
+
+      bottomController.addListener(_onBottomControllerUpdate);
+
       Provider.of<TokenStatusProvider>(
         context,
         listen: false,
@@ -68,7 +72,19 @@ class _MainLayoutState extends State<MainLayout> {
   @override
   void dispose() {
     _tabScrollController.dispose();
+    context.read<BottomSectionController>().removeListener(
+      _onBottomControllerUpdate,
+    );
     super.dispose();
+  }
+
+  void _onBottomControllerUpdate() {
+    final controller = context.read<BottomSectionController>();
+    if (controller.isLoading && !_isBottomPanelVisible) {
+      setState(() {
+        _isBottomPanelVisible = true;
+      });
+    }
   }
 
   void _toggleBottomPanel() {
@@ -194,15 +210,18 @@ class _MainLayoutState extends State<MainLayout> {
     );
   }
 
-  Widget _buildBottomPanel() {
+  // ✨ [수정] 구분선 제거 및 사이즈 조절 핸들러 범위 수정
+  Widget _buildSummaryPanel() {
     final theme = Theme.of(context);
     return Container(
       height: _bottomPanelHeight,
       decoration: BoxDecoration(
+        color: theme.cardColor,
         border: Border(top: BorderSide(color: theme.dividerColor)),
       ),
       child: Column(
         children: [
+          // 사이즈 조절을 위한 핸들러 영역
           GestureDetector(
             onVerticalDragStart:
                 (_) => setState(() => _isResizingBottomPanel = true),
@@ -221,18 +240,44 @@ class _MainLayoutState extends State<MainLayout> {
                 color:
                     _isResizingBottomPanel
                         ? theme.primaryColor.withOpacity(0.3)
-                        : theme.cardColor,
-                alignment: Alignment.center,
+                        : Colors.transparent,
               ),
             ),
           ),
+          // 헤더 영역
+          Container(
+            height: 27, // 헤더 높이 (기존 35에서 핸들러 높이 8만큼 감소)
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                Text(
+                  'AI 요약',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: theme.textTheme.bodyLarge?.color,
+                  ),
+                ),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.close, size: 18),
+                  tooltip: '닫기',
+                  splashRadius: 18,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(
+                    maxHeight: 27,
+                    maxWidth: 27,
+                  ),
+                  onPressed: _toggleBottomPanel,
+                ),
+              ],
+            ),
+          ),
+          // AI 요약 내용
           Expanded(
-            child: Container(
-              color: theme.cardColor,
-              child: const Padding(
-                padding: EdgeInsets.fromLTRB(16, 4, 16, 12),
-                child: AiSummaryWidget(),
-              ),
+            child: const Padding(
+              padding: EdgeInsets.fromLTRB(16, 4, 16, 12),
+              child: AiSummaryWidget(),
             ),
           ),
         ],
@@ -332,7 +377,6 @@ class _MainLayoutState extends State<MainLayout> {
                           ],
                         ),
                       ),
-                      // ✨ [수정] 최종 수정된 구분선 위젯
                       MouseRegion(
                         onEnter:
                             (_) => setState(() => _isHoveringResizer = true),
@@ -605,7 +649,7 @@ class _MainLayoutState extends State<MainLayout> {
                           children: pages,
                         ),
                       ),
-                      if (_isBottomPanelVisible) _buildBottomPanel(),
+                      if (_isBottomPanelVisible) _buildSummaryPanel(),
                     ],
                   ),
                 ),
