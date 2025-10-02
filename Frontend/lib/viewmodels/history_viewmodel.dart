@@ -9,31 +9,29 @@ import '../layout/bottom_section_controller.dart';
 import '../utils/ai_service.dart';
 import '../providers/status_bar_provider.dart';
 
-// ✨ [추가] 날짜 필터 기간을 위한 열거형
 enum DateFilterPeriod { today, thisWeek, thisMonth, thisYear }
 
 class HistoryViewModel with ChangeNotifier {
-  List<Map<String, dynamic>> _visitHistory = []; // 원본 데이터
-  List<Map<String, dynamic>> _filteredHistory = []; // 필터링된 데이터
+  List<Map<String, dynamic>> _visitHistory = [];
+  List<Map<String, dynamic>> _filteredHistory = [];
   String _status = '방문 기록을 불러오세요.';
   bool _isLoading = false;
   final Set<String> _selectedUniqueKeys = {};
-  List<String> _availableDomains = [];
 
-  // ✨ [수정] 필터 상태 변수
+  // ✨ [수정] 필터 상태 변수: 도메인을 Set<String>으로 변경
   String _searchQuery = '';
-  DateFilterPeriod? _selectedPeriod; // DatePicker 대신 기간 Enum 사용
-  String? _selectedDomain;
+  DateFilterPeriod? _selectedPeriod;
+  Set<String> _selectedDomains = {};
 
   List<Map<String, dynamic>> get filteredHistory => _filteredHistory;
   String get status => _status;
   bool get isLoading => _isLoading;
   Set<String> get selectedUniqueKeys => _selectedUniqueKeys;
-  List<String> get availableDomains => _availableDomains;
+  // ✨ [삭제] availableDomains getter 제거
   bool get isFilterActive =>
       _searchQuery.isNotEmpty ||
       _selectedPeriod != null ||
-      _selectedDomain != null;
+      _selectedDomains.isNotEmpty;
 
   @override
   void dispose() {
@@ -56,19 +54,18 @@ class HistoryViewModel with ChangeNotifier {
     notifyListeners();
   }
 
-  // ✨ [수정] 필터 적용 함수
+  // ✨ [수정] 필터 적용 함수: Set<String>을 받도록 변경
   void applyFilters({
     String? query,
     DateFilterPeriod? period,
-    String? domain,
+    Set<String>? domains,
     bool isPeriodChange = false,
   }) {
     _searchQuery = query ?? _searchQuery;
-    // isPeriodChange 플래그를 통해 기간 선택이 명시적으로 변경되었는지 확인
     if (isPeriodChange) {
       _selectedPeriod = period;
     }
-    _selectedDomain = domain;
+    _selectedDomains = domains ?? _selectedDomains;
 
     DateTime? startDate;
     final now = DateTime.now();
@@ -79,7 +76,6 @@ class HistoryViewModel with ChangeNotifier {
           startDate = DateTime(now.year, now.month, now.day);
           break;
         case DateFilterPeriod.thisWeek:
-          // 월요일을 주의 시작으로 간주
           startDate = now.subtract(Duration(days: now.weekday - 1));
           startDate = DateTime(startDate.year, startDate.month, startDate.day);
           break;
@@ -96,30 +92,30 @@ class HistoryViewModel with ChangeNotifier {
 
     _filteredHistory =
         _visitHistory.where((item) {
-          // 1. 텍스트 검색 필터
           final title = item['title']?.toString().toLowerCase() ?? '';
           final url = item['url']?.toString().toLowerCase() ?? '';
           final textMatch =
               title.contains(lowerCaseQuery) || url.contains(lowerCaseQuery);
           if (!textMatch) return false;
 
-          // 2. 날짜 필터
           final timestampStr =
               item['timestamp'] ?? item['visitTime']?.toString();
           if (startDate != null) {
-            if (timestampStr == null) return false; // 날짜 필터가 있는데 타임스탬프 없으면 제외
+            if (timestampStr == null) return false;
             final visitDate = DateTime.parse(timestampStr).toLocal();
             if (visitDate.isBefore(startDate)) {
               return false;
             }
           }
 
-          // 3. 도메인 필터
-          if (_selectedDomain != null && _selectedDomain!.isNotEmpty) {
+          // ✨ [수정] 다중 도메인 필터링 로직
+          if (_selectedDomains.isNotEmpty) {
             final itemUrl = item['url']?.toString() ?? '';
             try {
               final itemHost = Uri.parse(itemUrl).host;
-              if (itemHost != _selectedDomain) {
+              if (!_selectedDomains.any(
+                (domain) => itemHost.contains(domain),
+              )) {
                 return false;
               }
             } catch (e) {
@@ -197,7 +193,7 @@ class HistoryViewModel with ChangeNotifier {
 
           _visitHistory = uniqueHistory;
           _filteredHistory = List.from(_visitHistory);
-          _updateAvailableDomains();
+          // ✨ [삭제] _updateAvailableDomains() 호출 제거
           _status =
               _visitHistory.isEmpty
                   ? '방문 기록이 없습니다.'
@@ -214,29 +210,10 @@ class HistoryViewModel with ChangeNotifier {
     }
   }
 
-  void _updateAvailableDomains() {
-    if (_visitHistory.isEmpty) return;
-    final allUrls = _visitHistory
-        .map((item) => item['url']?.toString() ?? '')
-        .where((url) => url.isNotEmpty);
-    final allDomains =
-        allUrls
-            .map((url) {
-              try {
-                return Uri.parse(url).host;
-              } catch (e) {
-                return null;
-              }
-            })
-            .whereType<String>()
-            .where((host) => host.isNotEmpty)
-            .toSet()
-            .toList();
-    allDomains.sort();
-    _availableDomains = allDomains;
-  }
+  // ✨ [삭제] _updateAvailableDomains 메서드 전체 삭제
 
   Future<void> summarizeSelection(BuildContext context) async {
+    // ... (기존과 동일)
     final bottomController = context.read<BottomSectionController>();
     final statusBar = context.read<StatusBarProvider>();
 
@@ -299,6 +276,7 @@ class HistoryViewModel with ChangeNotifier {
     Uri initialUrl,
     String token,
   ) async {
+    // ... (기존과 동일)
     List<dynamic> allFiles = [];
     String? nextPageToken;
 
@@ -330,6 +308,7 @@ class HistoryViewModel with ChangeNotifier {
   }
 
   Future<String?> _getValidGoogleAccessToken() async {
+    // ... (기존과 동일)
     var googleAccessToken = await getStoredGoogleAccessToken();
     if (googleAccessToken == null || googleAccessToken.isEmpty) {
       await refreshGoogleAccessTokenIfNeeded();
@@ -339,6 +318,7 @@ class HistoryViewModel with ChangeNotifier {
   }
 
   Future<String?> _getFolderIdByName(String folderName, String token) async {
+    // ... (기존과 동일)
     final url = Uri.parse(
       'https://www.googleapis.com/drive/v3/files'
       '?q=mimeType=%27application/vnd.google-apps.folder%27+and+name=%27$folderName%27'
@@ -363,6 +343,7 @@ class HistoryViewModel with ChangeNotifier {
     String token,
     String fileId,
   ) async {
+    // ... (기존과 동일)
     final url = Uri.parse(
       'https://www.googleapis.com/drive/v3/files/$fileId?alt=media',
     );

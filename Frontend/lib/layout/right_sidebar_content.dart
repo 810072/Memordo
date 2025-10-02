@@ -56,7 +56,25 @@ class _RightSidebarContentState extends State<RightSidebarContent>
   final TextEditingController _historySearchController =
       TextEditingController();
   DateFilterPeriod? _selectedPeriod;
-  String? _selectedDomain;
+  // ✨ [수정] 다중 선택을 위해 Set<String>으로 변경
+  Set<String> _selectedDomains = {};
+
+  bool _isDateFilterExpanded = false;
+  bool _isDomainFilterExpanded = false;
+
+  // ✨ [추가] 유명 도메인 목록
+  final List<String> _famousDomains = [
+    'google.com',
+    'youtube.com',
+    'facebook.com',
+    'instagram.com',
+    'wikipedia.org',
+    'x.com',
+    'reddit.com',
+    'amazon.com',
+    'naver.com',
+    'bing.com',
+  ];
 
   @override
   void initState() {
@@ -79,7 +97,7 @@ class _RightSidebarContentState extends State<RightSidebarContent>
     historyViewModel.applyFilters(
       query: _historySearchController.text,
       period: _selectedPeriod,
-      domain: _selectedDomain,
+      domains: _selectedDomains,
     );
   }
 
@@ -101,6 +119,7 @@ class _RightSidebarContentState extends State<RightSidebarContent>
     super.dispose();
   }
 
+  // ... (파일 생성/수정 관련 메서드는 기존과 동일)
   void _startCreatingNewFile() {
     if (_editingPath != null) return;
     final provider = context.read<FileSystemProvider>();
@@ -262,11 +281,9 @@ class _RightSidebarContentState extends State<RightSidebarContent>
     }
   }
 
-  // ✨ [수정] Wallpaper Engine 스타일로 필터 사이드바 전체 재구성
   Widget _buildHistorySidebar(BuildContext context) {
     final historyViewModel = context.watch<HistoryViewModel>();
     final theme = Theme.of(context);
-    final isDarkMode = theme.brightness == Brightness.dark;
 
     return Column(
       children: [
@@ -293,7 +310,6 @@ class _RightSidebarContentState extends State<RightSidebarContent>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 1. 검색창
                 TextField(
                   controller: _historySearchController,
                   style: const TextStyle(color: Colors.white, fontSize: 14),
@@ -321,24 +337,22 @@ class _RightSidebarContentState extends State<RightSidebarContent>
                     ),
                   ),
                 ),
-                const SizedBox(height: 8),
-
-                // 2. 필터 초기화 버튼
+                const SizedBox(height: 5.6),
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
-                    icon: const Icon(Icons.refresh, size: 18),
+                    icon: const Icon(Icons.refresh, size: 16),
                     label: const Text('필터 초기화'),
                     onPressed: () {
                       setState(() {
                         _historySearchController.clear();
                         _selectedPeriod = null;
-                        _selectedDomain = null;
+                        _selectedDomains.clear(); // ✨ [수정] Set 초기화
                       });
                       historyViewModel.applyFilters(
                         query: '',
                         period: null,
-                        domain: null,
+                        domains: {}, // ✨ [수정] 빈 Set 전달
                         isPeriodChange: true,
                       );
                     },
@@ -348,84 +362,37 @@ class _RightSidebarContentState extends State<RightSidebarContent>
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(4.0),
                       ),
-                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      textStyle: const TextStyle(fontSize: 12),
                     ),
                   ),
                 ),
-                const SizedBox(height: 12),
-
-                // 3. 접이식 필터 메뉴
-                Theme(
-                  data: theme.copyWith(dividerColor: Colors.transparent),
-                  child: Column(
-                    children: [
-                      _buildExpansionTile(
-                        isDarkMode: isDarkMode,
-                        title: '날짜 범위',
-                        children: [
-                          _buildPeriodCheckbox(DateFilterPeriod.today, '오늘'),
-                          _buildPeriodCheckbox(
-                            DateFilterPeriod.thisWeek,
-                            '이번 주',
-                          ),
-                          _buildPeriodCheckbox(
-                            DateFilterPeriod.thisMonth,
-                            '이번 달',
-                          ),
-                          _buildPeriodCheckbox(DateFilterPeriod.thisYear, '올해'),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      _buildExpansionTile(
-                        isDarkMode: isDarkMode,
-                        title: '도메인',
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10.0,
-                            ),
-                            color:
-                                isDarkMode
-                                    ? const Color(0xFF2D2D2D)
-                                    : Colors.grey.shade200,
-                            child: DropdownButtonFormField<String>(
-                              value: _selectedDomain,
-                              isExpanded: true,
-                              decoration: const InputDecoration(
-                                border: InputBorder.none,
-                                contentPadding: EdgeInsets.zero,
-                              ),
-                              hint: const Text('전체'),
-                              items:
-                                  historyViewModel.availableDomains.map((
-                                    domain,
-                                  ) {
-                                    return DropdownMenuItem(
-                                      value: domain,
-                                      child: Text(
-                                        domain,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    );
-                                  }).toList(),
-                              onChanged: (value) {
-                                setState(() => _selectedDomain = value);
-                                historyViewModel.applyFilters(
-                                  period: _selectedPeriod,
-                                  domain: _selectedDomain,
-                                );
-                              },
-                              icon: const Icon(
-                                Icons.arrow_drop_down,
-                                color: Colors.white,
-                              ),
-                              dropdownColor: const Color(0xFF2D2D2D),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+                const SizedBox(height: 6),
+                _buildCompactExpansionTile(
+                  title: '날짜 범위',
+                  isExpanded: _isDateFilterExpanded,
+                  onExpansionChanged: (expanded) {
+                    setState(() => _isDateFilterExpanded = expanded);
+                  },
+                  children: [
+                    _buildPeriodCheckbox(DateFilterPeriod.today, '오늘'),
+                    _buildPeriodCheckbox(DateFilterPeriod.thisWeek, '이번 주'),
+                    _buildPeriodCheckbox(DateFilterPeriod.thisMonth, '이번 달'),
+                    _buildPeriodCheckbox(DateFilterPeriod.thisYear, '올해'),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                // ✨ [수정] 도메인 필터 UI를 체크박스 리스트로 변경
+                _buildCompactExpansionTile(
+                  title: '도메인',
+                  isExpanded: _isDomainFilterExpanded,
+                  onExpansionChanged: (expanded) {
+                    setState(() => _isDomainFilterExpanded = expanded);
+                  },
+                  children:
+                      _famousDomains.map((domain) {
+                        return _buildDomainCheckbox(domain);
+                      }).toList(),
                 ),
               ],
             ),
@@ -435,54 +402,152 @@ class _RightSidebarContentState extends State<RightSidebarContent>
     );
   }
 
-  // ✨ [추가] 접이식 타일 위젯
-  Widget _buildExpansionTile({
-    required bool isDarkMode,
+  Widget _buildCompactExpansionTile({
     required String title,
+    required bool isExpanded,
+    required ValueChanged<bool> onExpansionChanged,
     required List<Widget> children,
   }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: isDarkMode ? const Color(0xFF202020) : Colors.grey.shade100,
-        border: Border.all(
-          color: isDarkMode ? Colors.grey.shade700 : Colors.grey.shade300,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InkWell(
+          onTap: () => onExpansionChanged(!isExpanded),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4.0),
+            child: Row(
+              children: [
+                Icon(
+                  isExpanded
+                      ? Icons.keyboard_arrow_down
+                      : Icons.keyboard_arrow_right,
+                  size: 20,
+                  color: Colors.grey.shade400,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: ExpansionTile(
-        title: Text(
-          title,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeInOut,
+          child:
+              isExpanded
+                  ? Padding(
+                    padding: const EdgeInsets.only(left: 16.0, top: 4.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: children,
+                    ),
+                  )
+                  : const SizedBox.shrink(),
         ),
-        childrenPadding: const EdgeInsets.all(8).copyWith(top: 0),
-        tilePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
-        iconColor: Colors.white,
-        collapsedIconColor: Colors.grey.shade400,
-        children: children,
-      ),
+      ],
     );
   }
 
   Widget _buildPeriodCheckbox(DateFilterPeriod period, String title) {
     final historyViewModel = context.read<HistoryViewModel>();
-    return CheckboxListTile(
-      title: Text(title, style: const TextStyle(fontSize: 14)),
-      value: _selectedPeriod == period,
-      onChanged: (bool? value) {
-        final newPeriod = (value == true) ? period : null;
+    return InkWell(
+      onTap: () {
+        final newPeriod = (_selectedPeriod == period) ? null : period;
         setState(() {
           _selectedPeriod = newPeriod;
         });
         historyViewModel.applyFilters(
           period: newPeriod,
-          domain: _selectedDomain,
+          domains: _selectedDomains,
           isPeriodChange: true,
         );
       },
-      controlAffinity: ListTileControlAffinity.leading,
-      dense: true,
-      contentPadding: EdgeInsets.zero,
-      activeColor: const Color(0xFF0078D4),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2.0),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 24,
+              height: 24,
+              child: Checkbox(
+                value: _selectedPeriod == period,
+                onChanged: (bool? value) {
+                  final newPeriod = (value == true) ? period : null;
+                  setState(() {
+                    _selectedPeriod = newPeriod;
+                  });
+                  historyViewModel.applyFilters(
+                    period: newPeriod,
+                    domains: _selectedDomains,
+                    isPeriodChange: true,
+                  );
+                },
+                activeColor: const Color(0xFF0078D4),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(title, style: const TextStyle(fontSize: 14)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ✨ [추가] 도메인 체크박스 UI를 만드는 헬퍼 위젯
+  Widget _buildDomainCheckbox(String domain) {
+    final historyViewModel = context.read<HistoryViewModel>();
+    final bool isSelected = _selectedDomains.contains(domain);
+
+    return InkWell(
+      onTap: () {
+        setState(() {
+          if (isSelected) {
+            _selectedDomains.remove(domain);
+          } else {
+            _selectedDomains.add(domain);
+          }
+        });
+        historyViewModel.applyFilters(
+          period: _selectedPeriod,
+          domains: _selectedDomains,
+        );
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2.0),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 24,
+              height: 24,
+              child: Checkbox(
+                value: isSelected,
+                onChanged: (bool? value) {
+                  setState(() {
+                    if (value == true) {
+                      _selectedDomains.add(domain);
+                    } else {
+                      _selectedDomains.remove(domain);
+                    }
+                  });
+                  historyViewModel.applyFilters(
+                    period: _selectedPeriod,
+                    domains: _selectedDomains,
+                  );
+                },
+                activeColor: const Color(0xFF0078D4),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(domain, style: const TextStyle(fontSize: 14)),
+          ],
+        ),
+      ),
     );
   }
 
