@@ -7,13 +7,13 @@ import '../model/file_system_entry.dart';
 import '../providers/file_system_provider.dart';
 import '../widgets/expandable_folder_tile.dart';
 import '../layout/bottom_section_controller.dart';
-// import '../widgets/ai_summary_widget.dart';
 import '../widgets/note_outline_view.dart';
 import '../widgets/scratchpad_view.dart';
 import '../features/page_type.dart';
 import '../widgets/custom_popup_menu.dart';
 import '../viewmodels/calendar_viewmodel.dart';
 import '../viewmodels/calendar_sidebar_viewmodel.dart';
+import '../viewmodels/history_viewmodel.dart';
 
 class RightSidebarContent extends StatefulWidget {
   final PageType activePage;
@@ -53,6 +53,11 @@ class _RightSidebarContentState extends State<RightSidebarContent>
   final TextEditingController _editingController = TextEditingController();
   final FocusNode _editingFocusNode = FocusNode();
 
+  final TextEditingController _historySearchController =
+      TextEditingController();
+  DateFilterPeriod? _selectedPeriod;
+  String? _selectedDomain;
+
   @override
   void initState() {
     super.initState();
@@ -65,7 +70,17 @@ class _RightSidebarContentState extends State<RightSidebarContent>
       );
       _bottomSectionController.addListener(_onControllerUpdate);
       _tabController.index = _bottomSectionController.activeRightSidebarTab;
+      _historySearchController.addListener(_onHistorySearchChanged);
     });
+  }
+
+  void _onHistorySearchChanged() {
+    final historyViewModel = context.read<HistoryViewModel>();
+    historyViewModel.applyFilters(
+      query: _historySearchController.text,
+      period: _selectedPeriod,
+      domain: _selectedDomain,
+    );
   }
 
   void _onControllerUpdate() {
@@ -81,6 +96,8 @@ class _RightSidebarContentState extends State<RightSidebarContent>
     _tabController.dispose();
     _editingController.dispose();
     _editingFocusNode.dispose();
+    _historySearchController.removeListener(_onHistorySearchChanged);
+    _historySearchController.dispose();
     super.dispose();
   }
 
@@ -235,7 +252,7 @@ class _RightSidebarContentState extends State<RightSidebarContent>
       case PageType.home:
         return _buildMemoSidebar(context);
       case PageType.history:
-        return const SizedBox.shrink();
+        return _buildHistorySidebar(context);
       case PageType.graph:
         return _buildGraphSidebar(context);
       case PageType.calendar:
@@ -245,12 +262,235 @@ class _RightSidebarContentState extends State<RightSidebarContent>
     }
   }
 
+  // ✨ [수정] Wallpaper Engine 스타일로 필터 사이드바 전체 재구성
+  Widget _buildHistorySidebar(BuildContext context) {
+    final historyViewModel = context.watch<HistoryViewModel>();
+    final theme = Theme.of(context);
+    final isDarkMode = theme.brightness == Brightness.dark;
+
+    return Column(
+      children: [
+        Container(
+          height: 40,
+          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+          decoration: BoxDecoration(
+            color: theme.cardColor,
+            border: Border(
+              bottom: BorderSide(color: theme.dividerColor, width: 1),
+            ),
+          ),
+          child: const Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              "필터",
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ),
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(12.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 1. 검색창
+                TextField(
+                  controller: _historySearchController,
+                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                  decoration: InputDecoration(
+                    hintText: '검색...',
+                    hintStyle: TextStyle(color: Colors.grey.shade400),
+                    filled: true,
+                    fillColor: Colors.black.withOpacity(0.5),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(4),
+                      borderSide: BorderSide(color: Colors.grey.shade700),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(4),
+                      borderSide: BorderSide(color: Colors.grey.shade700),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(4),
+                      borderSide: BorderSide(color: theme.primaryColor),
+                    ),
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+
+                // 2. 필터 초기화 버튼
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.refresh, size: 18),
+                    label: const Text('필터 초기화'),
+                    onPressed: () {
+                      setState(() {
+                        _historySearchController.clear();
+                        _selectedPeriod = null;
+                        _selectedDomain = null;
+                      });
+                      historyViewModel.applyFilters(
+                        query: '',
+                        period: null,
+                        domain: null,
+                        isPeriodChange: true,
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF0078D4),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(4.0),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // 3. 접이식 필터 메뉴
+                Theme(
+                  data: theme.copyWith(dividerColor: Colors.transparent),
+                  child: Column(
+                    children: [
+                      _buildExpansionTile(
+                        isDarkMode: isDarkMode,
+                        title: '날짜 범위',
+                        children: [
+                          _buildPeriodCheckbox(DateFilterPeriod.today, '오늘'),
+                          _buildPeriodCheckbox(
+                            DateFilterPeriod.thisWeek,
+                            '이번 주',
+                          ),
+                          _buildPeriodCheckbox(
+                            DateFilterPeriod.thisMonth,
+                            '이번 달',
+                          ),
+                          _buildPeriodCheckbox(DateFilterPeriod.thisYear, '올해'),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      _buildExpansionTile(
+                        isDarkMode: isDarkMode,
+                        title: '도메인',
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10.0,
+                            ),
+                            color:
+                                isDarkMode
+                                    ? const Color(0xFF2D2D2D)
+                                    : Colors.grey.shade200,
+                            child: DropdownButtonFormField<String>(
+                              value: _selectedDomain,
+                              isExpanded: true,
+                              decoration: const InputDecoration(
+                                border: InputBorder.none,
+                                contentPadding: EdgeInsets.zero,
+                              ),
+                              hint: const Text('전체'),
+                              items:
+                                  historyViewModel.availableDomains.map((
+                                    domain,
+                                  ) {
+                                    return DropdownMenuItem(
+                                      value: domain,
+                                      child: Text(
+                                        domain,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    );
+                                  }).toList(),
+                              onChanged: (value) {
+                                setState(() => _selectedDomain = value);
+                                historyViewModel.applyFilters(
+                                  period: _selectedPeriod,
+                                  domain: _selectedDomain,
+                                );
+                              },
+                              icon: const Icon(
+                                Icons.arrow_drop_down,
+                                color: Colors.white,
+                              ),
+                              dropdownColor: const Color(0xFF2D2D2D),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ✨ [추가] 접이식 타일 위젯
+  Widget _buildExpansionTile({
+    required bool isDarkMode,
+    required String title,
+    required List<Widget> children,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: isDarkMode ? const Color(0xFF202020) : Colors.grey.shade100,
+        border: Border.all(
+          color: isDarkMode ? Colors.grey.shade700 : Colors.grey.shade300,
+        ),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: ExpansionTile(
+        title: Text(
+          title,
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+        ),
+        childrenPadding: const EdgeInsets.all(8).copyWith(top: 0),
+        tilePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+        iconColor: Colors.white,
+        collapsedIconColor: Colors.grey.shade400,
+        children: children,
+      ),
+    );
+  }
+
+  Widget _buildPeriodCheckbox(DateFilterPeriod period, String title) {
+    final historyViewModel = context.read<HistoryViewModel>();
+    return CheckboxListTile(
+      title: Text(title, style: const TextStyle(fontSize: 14)),
+      value: _selectedPeriod == period,
+      onChanged: (bool? value) {
+        final newPeriod = (value == true) ? period : null;
+        setState(() {
+          _selectedPeriod = newPeriod;
+        });
+        historyViewModel.applyFilters(
+          period: newPeriod,
+          domain: _selectedDomain,
+          isPeriodChange: true,
+        );
+      },
+      controlAffinity: ListTileControlAffinity.leading,
+      dense: true,
+      contentPadding: EdgeInsets.zero,
+      activeColor: const Color(0xFF0078D4),
+    );
+  }
+
   Widget _buildMemoSidebar(BuildContext context) {
     final bottomCtrl = Provider.of<BottomSectionController>(context);
 
     return Column(
       children: [
-        // ✨ [수정] BoxDecoration을 사용하여 하단 테두리로 구분선 구현
         Container(
           height: 40,
           decoration: BoxDecoration(
@@ -289,8 +529,6 @@ class _RightSidebarContentState extends State<RightSidebarContent>
             ],
           ),
         ),
-        // ✨ [수정] 기존 구분선 위젯 제거
-        // Container(height: 1, color: Theme.of(context).dividerColor),
         Expanded(
           child: TabBarView(
             controller: _tabController,

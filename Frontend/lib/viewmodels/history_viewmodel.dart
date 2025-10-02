@@ -9,21 +9,36 @@ import '../layout/bottom_section_controller.dart';
 import '../utils/ai_service.dart';
 import '../providers/status_bar_provider.dart';
 
+// ✨ [추가] 날짜 필터 기간을 위한 열거형
+enum DateFilterPeriod { today, thisWeek, thisMonth, thisYear }
+
 class HistoryViewModel with ChangeNotifier {
-  List<Map<String, dynamic>> _visitHistory = [];
+  List<Map<String, dynamic>> _visitHistory = []; // 원본 데이터
+  List<Map<String, dynamic>> _filteredHistory = []; // 필터링된 데이터
   String _status = '방문 기록을 불러오세요.';
   bool _isLoading = false;
   final Set<String> _selectedUniqueKeys = {};
+  List<String> _availableDomains = [];
 
-  List<Map<String, dynamic>> get visitHistory => _visitHistory;
+  // ✨ [수정] 필터 상태 변수
+  String _searchQuery = '';
+  DateFilterPeriod? _selectedPeriod; // DatePicker 대신 기간 Enum 사용
+  String? _selectedDomain;
+
+  List<Map<String, dynamic>> get filteredHistory => _filteredHistory;
   String get status => _status;
   bool get isLoading => _isLoading;
   Set<String> get selectedUniqueKeys => _selectedUniqueKeys;
+  List<String> get availableDomains => _availableDomains;
+  bool get isFilterActive =>
+      _searchQuery.isNotEmpty ||
+      _selectedPeriod != null ||
+      _selectedDomain != null;
 
-  // ✨ [추가] ViewModel이 소멸될 때 데이터를 비우는 로직
   @override
   void dispose() {
     _visitHistory.clear();
+    _filteredHistory.clear();
     super.dispose();
   }
 
@@ -41,13 +56,89 @@ class HistoryViewModel with ChangeNotifier {
     notifyListeners();
   }
 
+  // ✨ [수정] 필터 적용 함수
+  void applyFilters({
+    String? query,
+    DateFilterPeriod? period,
+    String? domain,
+    bool isPeriodChange = false,
+  }) {
+    _searchQuery = query ?? _searchQuery;
+    // isPeriodChange 플래그를 통해 기간 선택이 명시적으로 변경되었는지 확인
+    if (isPeriodChange) {
+      _selectedPeriod = period;
+    }
+    _selectedDomain = domain;
+
+    DateTime? startDate;
+    final now = DateTime.now();
+
+    if (_selectedPeriod != null) {
+      switch (_selectedPeriod!) {
+        case DateFilterPeriod.today:
+          startDate = DateTime(now.year, now.month, now.day);
+          break;
+        case DateFilterPeriod.thisWeek:
+          // 월요일을 주의 시작으로 간주
+          startDate = now.subtract(Duration(days: now.weekday - 1));
+          startDate = DateTime(startDate.year, startDate.month, startDate.day);
+          break;
+        case DateFilterPeriod.thisMonth:
+          startDate = DateTime(now.year, now.month, 1);
+          break;
+        case DateFilterPeriod.thisYear:
+          startDate = DateTime(now.year, 1, 1);
+          break;
+      }
+    }
+
+    final lowerCaseQuery = _searchQuery.toLowerCase();
+
+    _filteredHistory =
+        _visitHistory.where((item) {
+          // 1. 텍스트 검색 필터
+          final title = item['title']?.toString().toLowerCase() ?? '';
+          final url = item['url']?.toString().toLowerCase() ?? '';
+          final textMatch =
+              title.contains(lowerCaseQuery) || url.contains(lowerCaseQuery);
+          if (!textMatch) return false;
+
+          // 2. 날짜 필터
+          final timestampStr =
+              item['timestamp'] ?? item['visitTime']?.toString();
+          if (startDate != null) {
+            if (timestampStr == null) return false; // 날짜 필터가 있는데 타임스탬프 없으면 제외
+            final visitDate = DateTime.parse(timestampStr).toLocal();
+            if (visitDate.isBefore(startDate)) {
+              return false;
+            }
+          }
+
+          // 3. 도메인 필터
+          if (_selectedDomain != null && _selectedDomain!.isNotEmpty) {
+            final itemUrl = item['url']?.toString() ?? '';
+            try {
+              final itemHost = Uri.parse(itemUrl).host;
+              if (itemHost != _selectedDomain) {
+                return false;
+              }
+            } catch (e) {
+              return false;
+            }
+          }
+          return true;
+        }).toList();
+    notifyListeners();
+  }
+
   Future<void> loadVisitHistory() async {
     if (_isLoading) return;
 
     _isLoading = true;
     _status = '방문 기록 불러오는 중...';
     _selectedUniqueKeys.clear();
-    _visitHistory.clear(); // ✨ [추가] 불러오기 전에 기존 데이터 초기화
+    _visitHistory.clear();
+    _filteredHistory.clear();
     notifyListeners();
 
     try {
@@ -60,6 +151,7 @@ class HistoryViewModel with ChangeNotifier {
       final folderId = await _getFolderIdByName(folderName, googleAccessToken);
       if (folderId == null) {
         _visitHistory = [];
+        _filteredHistory = [];
         _status = "'memordo' 폴더를 찾을 수 없습니다. 확장 프로그램에서 폴더를 생성해주세요.";
       } else {
         final url = Uri.parse(
@@ -70,6 +162,7 @@ class HistoryViewModel with ChangeNotifier {
 
         if (allFiles.isEmpty) {
           _visitHistory = [];
+          _filteredHistory = [];
           _status = '방문 기록 파일(.jsonl)이 없습니다.';
         } else {
           final List<Map<String, dynamic>> allHistory = [];
@@ -88,8 +181,8 @@ class HistoryViewModel with ChangeNotifier {
           for (var item in allHistory) {
             final timestamp =
                 item['timestamp'] ?? item['visitTime']?.toString() ?? '';
-            final url = item['url']?.toString() ?? '';
-            final uniqueKey = '$timestamp-$url';
+            final urlValue = item['url']?.toString() ?? '';
+            final uniqueKey = '$timestamp-$urlValue';
 
             if (uniqueKeys.add(uniqueKey)) {
               uniqueHistory.add(item);
@@ -103,6 +196,8 @@ class HistoryViewModel with ChangeNotifier {
           });
 
           _visitHistory = uniqueHistory;
+          _filteredHistory = List.from(_visitHistory);
+          _updateAvailableDomains();
           _status =
               _visitHistory.isEmpty
                   ? '방문 기록이 없습니다.'
@@ -112,10 +207,33 @@ class HistoryViewModel with ChangeNotifier {
     } catch (e) {
       _status = '오류 발생: ${e.toString()}';
       _visitHistory = [];
+      _filteredHistory = [];
     } finally {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  void _updateAvailableDomains() {
+    if (_visitHistory.isEmpty) return;
+    final allUrls = _visitHistory
+        .map((item) => item['url']?.toString() ?? '')
+        .where((url) => url.isNotEmpty);
+    final allDomains =
+        allUrls
+            .map((url) {
+              try {
+                return Uri.parse(url).host;
+              } catch (e) {
+                return null;
+              }
+            })
+            .whereType<String>()
+            .where((host) => host.isNotEmpty)
+            .toSet()
+            .toList();
+    allDomains.sort();
+    _availableDomains = allDomains;
   }
 
   Future<void> summarizeSelection(BuildContext context) async {

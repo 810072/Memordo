@@ -44,7 +44,7 @@ class _MainLayoutState extends State<MainLayout> {
   PageType _activePage = PageType.home;
 
   bool _isRightExpanded = true;
-  double _rightSidebarWidth = 160.0;
+  double _rightSidebarWidth = 180.0;
   bool _isResizing = false;
   bool _isHoveringResizer = false;
 
@@ -175,7 +175,7 @@ class _MainLayoutState extends State<MainLayout> {
                       ),
                       childWhenDragging: Container(
                         height: 40,
-                        width: 160,
+                        width: 180,
                         decoration: BoxDecoration(
                           color: Colors.grey.withOpacity(0.1),
                         ),
@@ -210,7 +210,6 @@ class _MainLayoutState extends State<MainLayout> {
     );
   }
 
-  // ✨ [수정] 구분선 제거 및 사이즈 조절 핸들러 범위 수정
   Widget _buildSummaryPanel() {
     final theme = Theme.of(context);
     return Container(
@@ -221,7 +220,6 @@ class _MainLayoutState extends State<MainLayout> {
       ),
       child: Column(
         children: [
-          // 사이즈 조절을 위한 핸들러 영역
           GestureDetector(
             onVerticalDragStart:
                 (_) => setState(() => _isResizingBottomPanel = true),
@@ -244,9 +242,8 @@ class _MainLayoutState extends State<MainLayout> {
               ),
             ),
           ),
-          // 헤더 영역
           Container(
-            height: 27, // 헤더 높이 (기존 35에서 핸들러 높이 8만큼 감소)
+            height: 27,
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
               children: [
@@ -273,7 +270,6 @@ class _MainLayoutState extends State<MainLayout> {
               ],
             ),
           ),
-          // AI 요약 내용
           Expanded(
             child: const Padding(
               padding: EdgeInsets.fromLTRB(16, 4, 16, 12),
@@ -290,6 +286,10 @@ class _MainLayoutState extends State<MainLayout> {
     final pages =
         PageType.values.map((pageType) => _getPageWidget(pageType)).toList();
     final dividerColor = Theme.of(context).dividerColor;
+
+    final isHistoryPage = _activePage == PageType.history;
+    final double currentSidebarWidth =
+        isHistoryPage ? 180.0 : _rightSidebarWidth;
 
     return Scaffold(
       body: Column(
@@ -321,7 +321,7 @@ class _MainLayoutState extends State<MainLayout> {
                   Row(
                     children: [
                       Container(
-                        width: _rightSidebarWidth,
+                        width: currentSidebarWidth,
                         color: Theme.of(context).cardColor,
                         child: Column(
                           children: [
@@ -377,41 +377,49 @@ class _MainLayoutState extends State<MainLayout> {
                           ],
                         ),
                       ),
-                      MouseRegion(
-                        onEnter:
-                            (_) => setState(() => _isHoveringResizer = true),
-                        onExit:
-                            (_) => setState(() => _isHoveringResizer = false),
-                        cursor: SystemMouseCursors.resizeLeftRight,
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.translucent,
-                          onHorizontalDragStart:
-                              (_) => setState(() => _isResizing = true),
-                          onHorizontalDragUpdate: (details) {
-                            setState(() {
-                              _rightSidebarWidth += details.delta.dx;
-                              _rightSidebarWidth = _rightSidebarWidth.clamp(
-                                160.0,
-                                500.0,
-                              );
-                            });
-                          },
-                          onHorizontalDragEnd:
-                              (_) => setState(() => _isResizing = false),
-                          child: Container(
-                            width: 1.0,
-                            color: Colors.transparent,
-                            child: VerticalDivider(
-                              width: 1,
-                              thickness: 1,
-                              color:
-                                  (_isResizing || _isHoveringResizer)
-                                      ? Theme.of(context).primaryColor
-                                      : dividerColor,
+                      // ✨ [수정] History 페이지에서는 단순 구분선만, 다른 페이지에서는 리사이즈 가능한 구분선 표시
+                      if (isHistoryPage)
+                        VerticalDivider(
+                          width: 1,
+                          thickness: 1,
+                          color: dividerColor,
+                        )
+                      else
+                        MouseRegion(
+                          onEnter:
+                              (_) => setState(() => _isHoveringResizer = true),
+                          onExit:
+                              (_) => setState(() => _isHoveringResizer = false),
+                          cursor: SystemMouseCursors.resizeLeftRight,
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.translucent,
+                            onHorizontalDragStart:
+                                (_) => setState(() => _isResizing = true),
+                            onHorizontalDragUpdate: (details) {
+                              setState(() {
+                                _rightSidebarWidth += details.delta.dx;
+                                _rightSidebarWidth = _rightSidebarWidth.clamp(
+                                  180.0,
+                                  500.0,
+                                );
+                              });
+                            },
+                            onHorizontalDragEnd:
+                                (_) => setState(() => _isResizing = false),
+                            child: Container(
+                              width: 1.0,
+                              color: Colors.transparent,
+                              child: VerticalDivider(
+                                width: 1,
+                                thickness: 1,
+                                color:
+                                    (_isResizing || _isHoveringResizer)
+                                        ? Theme.of(context).primaryColor
+                                        : dividerColor,
+                              ),
                             ),
                           ),
                         ),
-                      ),
                     ],
                   ),
                 Expanded(

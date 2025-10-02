@@ -1,7 +1,5 @@
 // lib/features/history.dart
 
-import 'dart:async';
-
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -28,10 +26,6 @@ class HistoryView extends StatefulWidget {
 }
 
 class _HistoryViewState extends State<HistoryView> {
-  final TextEditingController _searchController = TextEditingController();
-  Timer? _debounce;
-  List<Map<String, dynamic>> _filteredHistory = [];
-
   bool _wasAuthenticated = false;
 
   @override
@@ -42,47 +36,8 @@ class _HistoryViewState extends State<HistoryView> {
       final historyViewModel = context.read<HistoryViewModel>();
       _wasAuthenticated = tokenProvider.isAuthenticated;
 
-      if (_wasAuthenticated) {
-        historyViewModel.loadVisitHistory().then((_) {
-          if (mounted) {
-            _filterHistory('');
-          }
-        });
-      }
-    });
-    _searchController.addListener(_onSearchChanged);
-  }
-
-  @override
-  void dispose() {
-    _searchController.removeListener(_onSearchChanged);
-    _searchController.dispose();
-    _debounce?.cancel();
-    super.dispose();
-  }
-
-  void _onSearchChanged() {
-    if (_debounce?.isActive ?? false) _debounce!.cancel();
-    _debounce = Timer(const Duration(milliseconds: 300), () {
-      _filterHistory(_searchController.text);
-    });
-  }
-
-  void _filterHistory(String query) {
-    final viewModel = context.read<HistoryViewModel>();
-    final lowerCaseQuery = query.toLowerCase();
-
-    setState(() {
-      if (lowerCaseQuery.isEmpty) {
-        _filteredHistory = List.from(viewModel.visitHistory);
-      } else {
-        _filteredHistory =
-            viewModel.visitHistory.where((item) {
-              final title = item['title']?.toString().toLowerCase() ?? '';
-              final url = item['url']?.toString().toLowerCase() ?? '';
-              return title.contains(lowerCaseQuery) ||
-                  url.contains(lowerCaseQuery);
-            }).toList();
+      if (_wasAuthenticated && historyViewModel.filteredHistory.isEmpty) {
+        historyViewModel.loadVisitHistory();
       }
     });
   }
@@ -94,18 +49,13 @@ class _HistoryViewState extends State<HistoryView> {
 
     if (tokenProvider.isAuthenticated && !_wasAuthenticated) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        viewModel.loadVisitHistory().then((_) {
-          if (mounted) {
-            _filterHistory(_searchController.text);
-            viewModel.clearSelection();
-          }
-        });
+        viewModel.loadVisitHistory();
       });
     }
     _wasAuthenticated = tokenProvider.isAuthenticated;
 
     final Map<String, List<Map<String, dynamic>>> groupedByDate = {};
-    for (var item in _filteredHistory) {
+    for (var item in viewModel.filteredHistory) {
       final timestamp = item['timestamp'] ?? item['visitTime']?.toString();
       if (timestamp == null || timestamp.length < 10) continue;
       final date = timestamp.substring(0, 10);
@@ -114,81 +64,37 @@ class _HistoryViewState extends State<HistoryView> {
     final sortedDates =
         groupedByDate.keys.toList()..sort((a, b) => b.compareTo(a));
 
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-          child: TextField(
-            controller: _searchController,
-            decoration: InputDecoration(
-              hintText: '방문 기록 검색...',
-              prefixIcon: const Icon(Icons.search, size: 20),
-              suffixIcon:
-                  _searchController.text.isNotEmpty
-                      ? IconButton(
-                        icon: const Icon(Icons.clear, size: 20),
-                        onPressed: () {
-                          _searchController.clear();
-                        },
-                      )
-                      : null,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: Colors.grey.shade300),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(
-                  color: Theme.of(context).primaryColor,
-                  width: 2,
-                ),
-              ),
-              isDense: true,
-              contentPadding: const EdgeInsets.symmetric(
-                vertical: 8.0,
-                horizontal: 12.0,
-              ),
+    return !tokenProvider.isAuthenticated
+        ? _buildLoginPrompt(context)
+        : viewModel.isLoading
+        ? Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              Text(viewModel.status),
+            ],
+          ),
+        )
+        : viewModel.filteredHistory.isEmpty
+        ? Center(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Text(
+              viewModel.isFilterActive ? '필터 결과가 없습니다.' : viewModel.status,
             ),
           ),
-        ),
-        Expanded(
-          child:
-              !tokenProvider.isAuthenticated
-                  ? _buildLoginPrompt(context)
-                  : viewModel.isLoading
-                  ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const CircularProgressIndicator(),
-                        const SizedBox(height: 16),
-                        Text(viewModel.status),
-                      ],
-                    ),
-                  )
-                  : _filteredHistory.isEmpty
-                  ? Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Text(
-                        _searchController.text.isNotEmpty
-                            ? '검색 결과가 없습니다.'
-                            : viewModel.status,
-                      ),
-                    ),
-                  )
-                  : ListView.builder(
-                    padding: const EdgeInsets.all(16.0),
-                    itemCount: sortedDates.length,
-                    itemBuilder: (context, index) {
-                      final date = sortedDates[index];
-                      final itemsOnDate = groupedByDate[date]!;
-                      return _buildDateGroup(context, date, itemsOnDate);
-                    },
-                  ),
-        ),
-      ],
-    );
+        )
+        : ListView.builder(
+          padding: const EdgeInsets.all(16.0),
+          itemCount: sortedDates.length,
+          itemBuilder: (context, index) {
+            final date = sortedDates[index];
+            final itemsOnDate = groupedByDate[date]!;
+            return _buildDateGroup(context, date, itemsOnDate);
+          },
+        );
   }
 
   Widget _buildDateGroup(
@@ -334,7 +240,7 @@ class _HistoryViewState extends State<HistoryView> {
             onPressed: () {
               showDialog(
                 context: context,
-                barrierDismissible: false, // ✨ [추가]
+                barrierDismissible: false,
                 builder: (BuildContext context) {
                   return const AuthDialog();
                 },
