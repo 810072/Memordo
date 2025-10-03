@@ -61,8 +61,14 @@ class _HistoryViewState extends State<HistoryView> {
       final date = timestamp.substring(0, 10);
       groupedByDate.putIfAbsent(date, () => []).add(item);
     }
-    final sortedDates =
-        groupedByDate.keys.toList()..sort((a, b) => b.compareTo(a));
+
+    // ✨ [수정] ViewModel의 sortOrder에 따라 날짜 그룹의 순서를 결정
+    final sortedDates = groupedByDate.keys.toList();
+    if (viewModel.sortOrder == SortOrder.latest) {
+      sortedDates.sort((a, b) => b.compareTo(a));
+    } else {
+      sortedDates.sort((a, b) => a.compareTo(b));
+    }
 
     return !tokenProvider.isAuthenticated
         ? _buildLoginPrompt(context)
@@ -102,6 +108,7 @@ class _HistoryViewState extends State<HistoryView> {
     String date,
     List<Map<String, dynamic>> items,
   ) {
+    // ... (기존과 동일)
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -123,6 +130,7 @@ class _HistoryViewState extends State<HistoryView> {
   }
 
   Widget _buildHistoryItem(Map<String, dynamic> item) {
+    // ... (기존과 동일)
     final title =
         item['title']?.toString() ?? item['url']?.toString() ?? '제목 없음';
     final url = item['url']?.toString() ?? '';
@@ -217,6 +225,7 @@ class _HistoryViewState extends State<HistoryView> {
   }
 
   Widget _buildLoginPrompt(BuildContext context) {
+    // ... (기존과 동일)
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -258,6 +267,7 @@ class _HistoryViewState extends State<HistoryView> {
   }
 
   String _formatDateKorean(String yyyyMMdd) {
+    // ... (기존과 동일)
     try {
       final date = DateTime.parse(yyyyMMdd);
       const weekdays = ['월', '화', '수', '목', '금', '토', '일'];
@@ -268,6 +278,7 @@ class _HistoryViewState extends State<HistoryView> {
   }
 
   String _formatTime(String? isoString) {
+    // ... (기존과 동일)
     if (isoString == null) return '';
     try {
       DateTime dateTime = DateTime.parse(isoString).toLocal();

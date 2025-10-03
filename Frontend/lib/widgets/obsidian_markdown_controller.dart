@@ -11,13 +11,10 @@ import 'package:url_launcher/url_launcher.dart';
 /// like list continuation and provides methods for programmatic styling changes,
 /// ensuring high performance and cursor stability.
 class ObsidianMarkdownController extends TextEditingController {
-  // ✨ [수정] _styleMap을 final이 아닌 일반 멤버 변수로 변경하여 업데이트가 가능하도록 합니다.
   Map<String, TextStyle> _styleMap;
   TextEditingValue _previousValue = const TextEditingValue();
   bool _isProgrammaticChange = false;
 
-  // Regex for styling and smart editing features.
-  // 헤더, 리스트, 인용구의 정규식을 수정하여 마커, 공백, 내용을 별도의 그룹으로 캡처하도록 변경했습니다.
   static final Map<String, RegExp> _stylingRegexMap = {
     'header': RegExp(r'^(#{1,6})(\s+)(.*)', multiLine: true),
     'list': RegExp(r'^(\s*[-*+•]|\s*\d+\.)(\s+)(.*)', multiLine: true),
@@ -41,14 +38,10 @@ class ObsidianMarkdownController extends TextEditingController {
     addListener(_mainListener);
   }
 
-  // ✨ [추가] 외부에서 스타일 맵을 업데이트하고, UI 갱신을 트리거하는 메서드
+  // ✨ [수정] notifyListeners() 호출을 제거하여 빌드 중 상태 변경 오류를 해결합니다.
   void updateStyles(Map<String, TextStyle> newStyles) {
-    // 스타일이 실제로 변경되었는지 확인하여 불필요한 재빌드를 방지합니다. (선택적 최적화)
     if (newStyles.toString() != _styleMap.toString()) {
       _styleMap = newStyles;
-      // notifyListeners()를 호출하여 컨트롤러를 사용하는 TextField가
-      // buildTextSpan을 다시 호출하도록 강제합니다.
-      notifyListeners();
     }
   }
 
@@ -71,7 +64,6 @@ class ObsidianMarkdownController extends TextEditingController {
       return;
     }
 
-    // Handle Enter key press for list continuation
     if (text.length > _previousValue.text.length &&
         text.substring(_previousValue.selection.start, selection.start) ==
             '\n') {
@@ -95,12 +87,11 @@ class ObsidianMarkdownController extends TextEditingController {
       final marker = match.group(2) ?? '';
       final content = match.group(3) ?? '';
 
-      // If the list item content is empty, terminate the list.
       if (content.trim().isEmpty) {
         _runProgrammaticChange(() {
           final textBefore = text.substring(0, startOfLine);
           final textAfter = text.substring(selection.end);
-          this.text = textBefore + textAfter; // Remove the list item line
+          this.text = textBefore + textAfter;
           selection = TextSelection.fromPosition(
             TextPosition(offset: startOfLine),
           );
@@ -121,7 +112,7 @@ class ObsidianMarkdownController extends TextEditingController {
       _runProgrammaticChange(() {
         final newText =
             text.substring(0, selection.start) +
-            textToInsert.substring(1) + // Insert text without extra newline
+            textToInsert.substring(1) +
             text.substring(selection.end);
         final newOffset = selection.start + textToInsert.length - 1;
 
@@ -135,13 +126,11 @@ class ObsidianMarkdownController extends TextEditingController {
     }
   }
 
-  /// Runs a programmatic text change and prevents listener loops.
   void _runProgrammaticChange(VoidCallback action) {
     _isProgrammaticChange = true;
     action();
   }
 
-  /// Toggles inline markdown syntax for the current selection.
   void toggleInlineSyntax(String prefix, String suffix) {
     _runProgrammaticChange(() {
       final currentSelection = selection;
@@ -157,14 +146,12 @@ class ObsidianMarkdownController extends TextEditingController {
       int newEnd;
 
       if (startsWith && endsWith) {
-        // Remove syntax
         newText = selectedText.substring(
           prefix.length,
           selectedText.length - suffix.length,
         );
         newEnd = newStart + newText.length;
       } else {
-        // Add syntax
         newText = '$prefix$selectedText$suffix';
         newEnd = newStart + newText.length;
       }
@@ -177,11 +164,9 @@ class ObsidianMarkdownController extends TextEditingController {
     });
   }
 
-  /// Adjusts the indentation level of a list item.
   void indentList(bool isIndent) {
     _runProgrammaticChange(() {
       final currentSelection = selection;
-      // ✨ 커서가 맨 앞일 경우, 들여쓰기를 실행하지 않도록 수정
       if (currentSelection.start == 0) return;
       final startOfLine =
           text.lastIndexOf('\n', currentSelection.start - 1) + 1;
@@ -190,7 +175,7 @@ class ObsidianMarkdownController extends TextEditingController {
       final currentLine = text.substring(startOfLine, lineEnd);
 
       final match = _listContinuationRegex.firstMatch(currentLine);
-      if (match == null && !isIndent) return; // Can't outdent non-list item
+      if (match == null && !isIndent) return;
 
       String newText;
       int offsetChange;
@@ -206,7 +191,7 @@ class ObsidianMarkdownController extends TextEditingController {
           newText = currentLine.substring(1);
           offsetChange = -1;
         } else {
-          return; // No indentation to remove
+          return;
         }
       }
 
@@ -286,8 +271,6 @@ class ObsidianMarkdownController extends TextEditingController {
     return TextSpan(children: spans, style: defaultStyle);
   }
 
-  /// This method now separates markdown syntax from content to apply different styles.
-  /// This preserves the original text length and structure, fixing cursor position issues.
   TextSpan _createStyledSpan(
     RegExpMatch match,
     String type,
@@ -301,7 +284,6 @@ class ObsidianMarkdownController extends TextEditingController {
       style = _styleMap[type] ?? defaultStyle;
     }
 
-    // Style for markdown syntax characters (e.g., '#', '**')
     final syntaxStyle = TextStyle(color: Colors.grey.shade400);
 
     switch (type) {
@@ -331,13 +313,13 @@ class ObsidianMarkdownController extends TextEditingController {
         );
       case 'code':
         return TextSpan(
-          style: style, // Apply background color to the whole span
+          style: style,
           children: [
             TextSpan(
               text: '`',
               style: syntaxStyle.copyWith(backgroundColor: Colors.transparent),
             ),
-            TextSpan(text: match.group(1) ?? ''), // Inherits parent's style
+            TextSpan(text: match.group(1) ?? ''),
             TextSpan(
               text: '`',
               style: syntaxStyle.copyWith(backgroundColor: Colors.transparent),
@@ -375,10 +357,8 @@ class ObsidianMarkdownController extends TextEditingController {
         final space = match.group(2) ?? '';
         final content = match.group(3) ?? '';
         return TextSpan(
-          style:
-              style, // Apply main style (font size, height) to the whole line
+          style: style,
           children: [
-            // 마커는 부모 스타일(크기)을 상속받되, 색상만 변경합니다.
             TextSpan(
               text: marker,
               style: syntaxStyle.copyWith(
@@ -386,19 +366,16 @@ class ObsidianMarkdownController extends TextEditingController {
                 height: style.height,
               ),
             ),
-            // 공백과 내용은 부모의 스타일을 그대로 상속받습니다.
             TextSpan(text: space),
             TextSpan(text: content),
           ],
         );
       default:
-        // Fallback for any unhandled types
         return TextSpan(text: match.group(0)!, style: defaultStyle);
     }
   }
 }
 
-// Helper class to hold match data
 class _Match {
   final RegExpMatch match;
   final String type;

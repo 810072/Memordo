@@ -11,6 +11,8 @@ import '../providers/status_bar_provider.dart';
 
 enum DateFilterPeriod { today, thisWeek, thisMonth, thisYear }
 
+enum SortOrder { latest, oldest }
+
 class HistoryViewModel with ChangeNotifier {
   List<Map<String, dynamic>> _visitHistory = [];
   List<Map<String, dynamic>> _filteredHistory = [];
@@ -18,20 +20,23 @@ class HistoryViewModel with ChangeNotifier {
   bool _isLoading = false;
   final Set<String> _selectedUniqueKeys = {};
 
-  // ✨ [수정] 필터 상태 변수: 도메인을 Set<String>으로 변경
   String _searchQuery = '';
   DateFilterPeriod? _selectedPeriod;
   Set<String> _selectedDomains = {};
+  Set<String> _selectedTags = {};
+  SortOrder _sortOrder = SortOrder.latest;
 
   List<Map<String, dynamic>> get filteredHistory => _filteredHistory;
   String get status => _status;
   bool get isLoading => _isLoading;
   Set<String> get selectedUniqueKeys => _selectedUniqueKeys;
-  // ✨ [삭제] availableDomains getter 제거
   bool get isFilterActive =>
       _searchQuery.isNotEmpty ||
       _selectedPeriod != null ||
-      _selectedDomains.isNotEmpty;
+      _selectedDomains.isNotEmpty ||
+      _selectedTags.isNotEmpty;
+  // ✨ [추가] View에서 정렬 순서를 알 수 있도록 getter 추가
+  SortOrder get sortOrder => _sortOrder;
 
   @override
   void dispose() {
@@ -54,11 +59,13 @@ class HistoryViewModel with ChangeNotifier {
     notifyListeners();
   }
 
-  // ✨ [수정] 필터 적용 함수: Set<String>을 받도록 변경
+  // ✨ [수정] 필터링 후 정렬 로직 제거 (View에서 처리하도록 변경)
   void applyFilters({
     String? query,
     DateFilterPeriod? period,
     Set<String>? domains,
+    Set<String>? tags,
+    SortOrder? sortOrder,
     bool isPeriodChange = false,
   }) {
     _searchQuery = query ?? _searchQuery;
@@ -66,6 +73,8 @@ class HistoryViewModel with ChangeNotifier {
       _selectedPeriod = period;
     }
     _selectedDomains = domains ?? _selectedDomains;
+    _selectedTags = tags ?? _selectedTags;
+    _sortOrder = sortOrder ?? _sortOrder;
 
     DateTime? startDate;
     final now = DateTime.now();
@@ -94,6 +103,7 @@ class HistoryViewModel with ChangeNotifier {
         _visitHistory.where((item) {
           final title = item['title']?.toString().toLowerCase() ?? '';
           final url = item['url']?.toString().toLowerCase() ?? '';
+
           final textMatch =
               title.contains(lowerCaseQuery) || url.contains(lowerCaseQuery);
           if (!textMatch) return false;
@@ -108,11 +118,9 @@ class HistoryViewModel with ChangeNotifier {
             }
           }
 
-          // ✨ [수정] 다중 도메인 필터링 로직
           if (_selectedDomains.isNotEmpty) {
-            final itemUrl = item['url']?.toString() ?? '';
             try {
-              final itemHost = Uri.parse(itemUrl).host;
+              final itemHost = Uri.parse(url).host;
               if (!_selectedDomains.any(
                 (domain) => itemHost.contains(domain),
               )) {
@@ -122,8 +130,18 @@ class HistoryViewModel with ChangeNotifier {
               return false;
             }
           }
+
+          if (_selectedTags.isNotEmpty) {
+            if (!_selectedTags.any(
+              (tag) => title.contains(tag.toLowerCase()),
+            )) {
+              return false;
+            }
+          }
+
           return true;
         }).toList();
+
     notifyListeners();
   }
 
@@ -193,7 +211,6 @@ class HistoryViewModel with ChangeNotifier {
 
           _visitHistory = uniqueHistory;
           _filteredHistory = List.from(_visitHistory);
-          // ✨ [삭제] _updateAvailableDomains() 호출 제거
           _status =
               _visitHistory.isEmpty
                   ? '방문 기록이 없습니다.'
@@ -209,8 +226,6 @@ class HistoryViewModel with ChangeNotifier {
       notifyListeners();
     }
   }
-
-  // ✨ [삭제] _updateAvailableDomains 메서드 전체 삭제
 
   Future<void> summarizeSelection(BuildContext context) async {
     // ... (기존과 동일)

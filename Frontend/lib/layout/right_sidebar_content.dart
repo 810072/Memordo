@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../model/file_system_entry.dart';
 import '../providers/file_system_provider.dart';
 import '../widgets/expandable_folder_tile.dart';
@@ -56,14 +57,23 @@ class _RightSidebarContentState extends State<RightSidebarContent>
   final TextEditingController _historySearchController =
       TextEditingController();
   DateFilterPeriod? _selectedPeriod;
-  // ✨ [수정] 다중 선택을 위해 Set<String>으로 변경
   Set<String> _selectedDomains = {};
+  Set<String> _selectedTags = {};
+  bool _isTagFilterExpanded = false;
 
-  bool _isDateFilterExpanded = false;
-  bool _isDomainFilterExpanded = false;
-
-  // ✨ [추가] 유명 도메인 목록
-  final List<String> _famousDomains = [
+  List<String> _popularTags = [
+    '공부',
+    '업무',
+    '뉴스',
+    '기술',
+    '쇼핑',
+    '여행',
+    '요리',
+    '건강',
+    '영화',
+    '책',
+  ];
+  List<String> _famousDomains = [
     'google.com',
     'youtube.com',
     'facebook.com',
@@ -75,11 +85,29 @@ class _RightSidebarContentState extends State<RightSidebarContent>
     'naver.com',
     'bing.com',
   ];
+  List<String> _customTags = [];
+  List<String> _customDomains = [];
+
+  bool _isDateFilterExpanded = false;
+  bool _isDomainFilterExpanded = false;
+
+  bool _isAddingDomain = false;
+  bool _isAddingTag = false;
+  final TextEditingController _domainInputController = TextEditingController();
+  final TextEditingController _tagInputController = TextEditingController();
+  final FocusNode _domainFocusNode = FocusNode();
+  final FocusNode _tagFocusNode = FocusNode();
+
+  SortOrder _sortOrder = SortOrder.latest;
+
+  String? _hoveredDomain;
+  String? _hoveredTag;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _loadCustomFilters();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _bottomSectionController = Provider.of<BottomSectionController>(
@@ -92,12 +120,28 @@ class _RightSidebarContentState extends State<RightSidebarContent>
     });
   }
 
+  Future<void> _loadCustomFilters() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _customDomains = prefs.getStringList('custom_domains') ?? [];
+      _customTags = prefs.getStringList('custom_tags') ?? [];
+    });
+  }
+
+  Future<void> _saveCustomFilters() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('custom_domains', _customDomains);
+    await prefs.setStringList('custom_tags', _customTags);
+  }
+
   void _onHistorySearchChanged() {
     final historyViewModel = context.read<HistoryViewModel>();
     historyViewModel.applyFilters(
       query: _historySearchController.text,
       period: _selectedPeriod,
       domains: _selectedDomains,
+      tags: _selectedTags,
+      sortOrder: _sortOrder,
     );
   }
 
@@ -116,10 +160,13 @@ class _RightSidebarContentState extends State<RightSidebarContent>
     _editingFocusNode.dispose();
     _historySearchController.removeListener(_onHistorySearchChanged);
     _historySearchController.dispose();
+    _domainInputController.dispose();
+    _tagInputController.dispose();
+    _domainFocusNode.dispose();
+    _tagFocusNode.dispose();
     super.dispose();
   }
 
-  // ... (파일 생성/수정 관련 메서드는 기존과 동일)
   void _startCreatingNewFile() {
     if (_editingPath != null) return;
     final provider = context.read<FileSystemProvider>();
@@ -306,34 +353,40 @@ class _RightSidebarContentState extends State<RightSidebarContent>
         ),
         Expanded(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(12.0),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 12.0,
+              vertical: 8.0,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 TextField(
                   controller: _historySearchController,
-                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                  style: const TextStyle(color: Colors.black, fontSize: 14),
                   decoration: InputDecoration(
                     hintText: '검색...',
-                    hintStyle: TextStyle(color: Colors.grey.shade400),
+                    hintStyle: TextStyle(color: Colors.grey.shade600),
                     filled: true,
-                    fillColor: Colors.black.withOpacity(0.5),
+                    fillColor: Colors.white,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(4),
-                      borderSide: BorderSide(color: Colors.grey.shade700),
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
                     ),
                     enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(4),
-                      borderSide: BorderSide(color: Colors.grey.shade700),
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
                     ),
                     focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(4),
-                      borderSide: BorderSide(color: theme.primaryColor),
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(
+                        color: theme.primaryColor,
+                        width: 2,
+                      ),
                     ),
                     isDense: true,
                     contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 8,
+                      horizontal: 12.0,
+                      vertical: 8.0,
                     ),
                   ),
                 ),
@@ -347,12 +400,16 @@ class _RightSidebarContentState extends State<RightSidebarContent>
                       setState(() {
                         _historySearchController.clear();
                         _selectedPeriod = null;
-                        _selectedDomains.clear(); // ✨ [수정] Set 초기화
+                        _selectedDomains.clear();
+                        _selectedTags.clear();
+                        _sortOrder = SortOrder.latest;
                       });
                       historyViewModel.applyFilters(
                         query: '',
                         period: null,
-                        domains: {}, // ✨ [수정] 빈 Set 전달
+                        domains: {},
+                        tags: {},
+                        sortOrder: SortOrder.latest,
                         isPeriodChange: true,
                       );
                     },
@@ -379,20 +436,64 @@ class _RightSidebarContentState extends State<RightSidebarContent>
                     _buildPeriodCheckbox(DateFilterPeriod.thisWeek, '이번 주'),
                     _buildPeriodCheckbox(DateFilterPeriod.thisMonth, '이번 달'),
                     _buildPeriodCheckbox(DateFilterPeriod.thisYear, '올해'),
+                    const Divider(),
+                    _buildSortOrderRadio(SortOrder.latest, '최신순'),
+                    _buildSortOrderRadio(SortOrder.oldest, '과거순'),
                   ],
                 ),
                 const SizedBox(height: 4),
-                // ✨ [수정] 도메인 필터 UI를 체크박스 리스트로 변경
                 _buildCompactExpansionTile(
                   title: '도메인',
                   isExpanded: _isDomainFilterExpanded,
                   onExpansionChanged: (expanded) {
                     setState(() => _isDomainFilterExpanded = expanded);
                   },
-                  children:
-                      _famousDomains.map((domain) {
-                        return _buildDomainCheckbox(domain);
-                      }).toList(),
+                  onAdd: () {
+                    setState(() => _isAddingDomain = !_isAddingDomain);
+                    if (_isAddingDomain) {
+                      _domainFocusNode.requestFocus();
+                    }
+                  },
+                  children: [
+                    if (_isAddingDomain) _buildDomainInputField(),
+                    ..._famousDomains
+                        .map(
+                          (domain) =>
+                              _buildDomainCheckbox(domain, isCustom: false),
+                        )
+                        .toList(),
+                    if (_customDomains.isNotEmpty) const Divider(),
+                    ..._customDomains
+                        .map(
+                          (domain) =>
+                              _buildDomainCheckbox(domain, isCustom: true),
+                        )
+                        .toList(),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                _buildCompactExpansionTile(
+                  title: '태그',
+                  isExpanded: _isTagFilterExpanded,
+                  onExpansionChanged: (expanded) {
+                    setState(() => _isTagFilterExpanded = expanded);
+                  },
+                  onAdd: () {
+                    setState(() => _isAddingTag = !_isAddingTag);
+                    if (_isAddingTag) {
+                      _tagFocusNode.requestFocus();
+                    }
+                  },
+                  children: [
+                    if (_isAddingTag) _buildTagInputField(),
+                    ..._popularTags
+                        .map((tag) => _buildTagCheckbox(tag, isCustom: false))
+                        .toList(),
+                    if (_customTags.isNotEmpty) const Divider(),
+                    ..._customTags
+                        .map((tag) => _buildTagCheckbox(tag, isCustom: true))
+                        .toList(),
+                  ],
                 ),
               ],
             ),
@@ -407,6 +508,7 @@ class _RightSidebarContentState extends State<RightSidebarContent>
     required bool isExpanded,
     required ValueChanged<bool> onExpansionChanged,
     required List<Widget> children,
+    VoidCallback? onAdd,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -425,13 +527,23 @@ class _RightSidebarContentState extends State<RightSidebarContent>
                   color: Colors.grey.shade400,
                 ),
                 const SizedBox(width: 4),
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
                   ),
                 ),
+                if (onAdd != null)
+                  IconButton(
+                    icon: const Icon(Icons.add, size: 16),
+                    onPressed: onAdd,
+                    splashRadius: 16,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
               ],
             ),
           ),
@@ -442,7 +554,8 @@ class _RightSidebarContentState extends State<RightSidebarContent>
           child:
               isExpanded
                   ? Padding(
-                    padding: const EdgeInsets.only(left: 16.0, top: 4.0),
+                    // ✨ [수정] 왼쪽 여백 8로 변경
+                    padding: const EdgeInsets.only(left: 8.0, top: 4.0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: children,
@@ -465,16 +578,19 @@ class _RightSidebarContentState extends State<RightSidebarContent>
         historyViewModel.applyFilters(
           period: newPeriod,
           domains: _selectedDomains,
+          tags: _selectedTags,
+          sortOrder: _sortOrder,
           isPeriodChange: true,
         );
       },
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 2.0),
+        padding: const EdgeInsets.symmetric(vertical: 0.0),
         child: Row(
           children: [
+            // ✨ [수정] 체크박스 사이즈 20% 감소
             SizedBox(
-              width: 24,
-              height: 24,
+              width: 16,
+              height: 16,
               child: Checkbox(
                 value: _selectedPeriod == period,
                 onChanged: (bool? value) {
@@ -485,6 +601,8 @@ class _RightSidebarContentState extends State<RightSidebarContent>
                   historyViewModel.applyFilters(
                     period: newPeriod,
                     domains: _selectedDomains,
+                    tags: _selectedTags,
+                    sortOrder: _sortOrder,
                     isPeriodChange: true,
                   );
                 },
@@ -499,59 +617,253 @@ class _RightSidebarContentState extends State<RightSidebarContent>
     );
   }
 
-  // ✨ [추가] 도메인 체크박스 UI를 만드는 헬퍼 위젯
-  Widget _buildDomainCheckbox(String domain) {
+  Widget _buildSortOrderRadio(SortOrder order, String title) {
     final historyViewModel = context.read<HistoryViewModel>();
-    final bool isSelected = _selectedDomains.contains(domain);
-
     return InkWell(
       onTap: () {
-        setState(() {
-          if (isSelected) {
-            _selectedDomains.remove(domain);
-          } else {
-            _selectedDomains.add(domain);
-          }
-        });
-        historyViewModel.applyFilters(
-          period: _selectedPeriod,
-          domains: _selectedDomains,
-        );
+        setState(() => _sortOrder = order);
+        historyViewModel.applyFilters(sortOrder: order);
       },
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 2.0),
+        padding: const EdgeInsets.symmetric(vertical: 0.0),
         child: Row(
           children: [
             SizedBox(
-              width: 24,
-              height: 24,
-              child: Checkbox(
-                value: isSelected,
-                onChanged: (bool? value) {
-                  setState(() {
-                    if (value == true) {
-                      _selectedDomains.add(domain);
-                    } else {
-                      _selectedDomains.remove(domain);
-                    }
-                  });
-                  historyViewModel.applyFilters(
-                    period: _selectedPeriod,
-                    domains: _selectedDomains,
-                  );
+              width: 16,
+              height: 16,
+              child: Radio<SortOrder>(
+                value: order,
+                groupValue: _sortOrder,
+                onChanged: (SortOrder? value) {
+                  if (value != null) {
+                    setState(() => _sortOrder = value);
+                    historyViewModel.applyFilters(sortOrder: value);
+                  }
                 },
                 activeColor: const Color(0xFF0078D4),
               ),
             ),
             const SizedBox(width: 8),
-            Text(domain, style: const TextStyle(fontSize: 14)),
+            Text(title, style: const TextStyle(fontSize: 14)),
           ],
         ),
       ),
     );
   }
 
+  Widget _buildDomainCheckbox(String domain, {required bool isCustom}) {
+    final historyViewModel = context.read<HistoryViewModel>();
+    final bool isSelected = _selectedDomains.contains(domain);
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hoveredDomain = domain),
+      onExit: (_) => setState(() => _hoveredDomain = null),
+      child: InkWell(
+        onTap: () {
+          setState(() {
+            if (isSelected) {
+              _selectedDomains.remove(domain);
+            } else {
+              _selectedDomains.add(domain);
+            }
+          });
+          historyViewModel.applyFilters(
+            period: _selectedPeriod,
+            domains: _selectedDomains,
+            tags: _selectedTags,
+            sortOrder: _sortOrder,
+          );
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 0.0),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 16,
+                height: 16,
+                child: Checkbox(
+                  value: isSelected,
+                  onChanged: (bool? value) {
+                    setState(() {
+                      if (value == true) {
+                        _selectedDomains.add(domain);
+                      } else {
+                        _selectedDomains.remove(domain);
+                      }
+                    });
+                    historyViewModel.applyFilters(
+                      period: _selectedPeriod,
+                      domains: _selectedDomains,
+                      tags: _selectedTags,
+                      sortOrder: _sortOrder,
+                    );
+                  },
+                  activeColor: const Color(0xFF0078D4),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(domain, style: const TextStyle(fontSize: 14)),
+              ),
+              if (isCustom && _hoveredDomain == domain)
+                IconButton(
+                  icon: const Icon(Icons.close, size: 14),
+                  splashRadius: 14,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  onPressed: () {
+                    setState(() {
+                      _customDomains.remove(domain);
+                      _selectedDomains.remove(domain);
+                    });
+                    _saveCustomFilters();
+                    historyViewModel.applyFilters(domains: _selectedDomains);
+                  },
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTagCheckbox(String tag, {required bool isCustom}) {
+    final historyViewModel = context.read<HistoryViewModel>();
+    final bool isSelected = _selectedTags.contains(tag);
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hoveredTag = tag),
+      onExit: (_) => setState(() => _hoveredTag = null),
+      child: InkWell(
+        onTap: () {
+          setState(() {
+            if (isSelected) {
+              _selectedTags.remove(tag);
+            } else {
+              _selectedTags.add(tag);
+            }
+          });
+          historyViewModel.applyFilters(
+            period: _selectedPeriod,
+            domains: _selectedDomains,
+            tags: _selectedTags,
+            sortOrder: _sortOrder,
+          );
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 0.0),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 16,
+                height: 16,
+                child: Checkbox(
+                  value: isSelected,
+                  onChanged: (bool? value) {
+                    setState(() {
+                      if (value == true) {
+                        _selectedTags.add(tag);
+                      } else {
+                        _selectedTags.remove(tag);
+                      }
+                    });
+                    historyViewModel.applyFilters(
+                      period: _selectedPeriod,
+                      domains: _selectedDomains,
+                      tags: _selectedTags,
+                      sortOrder: _sortOrder,
+                    );
+                  },
+                  activeColor: const Color(0xFF0078D4),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(child: Text(tag, style: const TextStyle(fontSize: 14))),
+              if (isCustom && _hoveredTag == tag)
+                IconButton(
+                  icon: const Icon(Icons.close, size: 14),
+                  splashRadius: 14,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  onPressed: () {
+                    setState(() {
+                      _customTags.remove(tag);
+                      _selectedTags.remove(tag);
+                    });
+                    _saveCustomFilters();
+                    historyViewModel.applyFilters(tags: _selectedTags);
+                  },
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDomainInputField() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: TextField(
+        controller: _domainInputController,
+        focusNode: _domainFocusNode,
+        decoration: const InputDecoration(
+          hintText: 'e.g., example.com',
+          isDense: true,
+        ),
+        onSubmitted: (value) {
+          final domain = value.trim().toLowerCase();
+          final RegExp domainRegex = RegExp(r'^[a-zA-Z0-9-]+\.[a-zA-Z]{2,}$');
+
+          if (domain.isNotEmpty && domainRegex.hasMatch(domain)) {
+            if (!_famousDomains.contains(domain) &&
+                !_customDomains.contains(domain)) {
+              setState(() {
+                _customDomains.add(domain);
+                _isAddingDomain = false;
+                _domainInputController.clear();
+              });
+              _saveCustomFilters();
+            }
+          } else {
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(const SnackBar(content: Text('올바른 도메인 형식이 아닙니다.')));
+          }
+        },
+      ),
+    );
+  }
+
+  Widget _buildTagInputField() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: TextField(
+        controller: _tagInputController,
+        focusNode: _tagFocusNode,
+        decoration: const InputDecoration(
+          hintText: '새 태그 추가...',
+          isDense: true,
+        ),
+        onSubmitted: (value) {
+          final tag = value.trim();
+          if (tag.isNotEmpty) {
+            if (!_popularTags.contains(tag) && !_customTags.contains(tag)) {
+              setState(() {
+                _customTags.add(tag);
+                _isAddingTag = false;
+                _tagInputController.clear();
+              });
+              _saveCustomFilters();
+            }
+          }
+        },
+      ),
+    );
+  }
+
   Widget _buildMemoSidebar(BuildContext context) {
+    // ... (기존과 동일)
     final bottomCtrl = Provider.of<BottomSectionController>(context);
 
     return Column(
@@ -610,12 +922,14 @@ class _RightSidebarContentState extends State<RightSidebarContent>
   }
 
   Widget _buildGraphSidebar(BuildContext context) {
+    // ... (기존과 동일)
     return const Center(
       child: Text('그래프 정보 표시 영역', style: TextStyle(color: Colors.grey)),
     );
   }
 
   Widget _buildFileListView() {
+    // ... (기존과 동일)
     List<FileSystemEntry> getAllPinnedEntries(List<FileSystemEntry> entries) {
       final List<FileSystemEntry> pinned = [];
       final Set<String> seenPaths = {};
