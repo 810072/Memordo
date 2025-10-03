@@ -322,10 +322,44 @@ class _RightSidebarContentState extends State<RightSidebarContent>
       case PageType.graph:
         return _buildGraphSidebar(context);
       case PageType.calendar:
-        return const CalendarSidebarView();
+        return _buildCalendarSidebar(context);
       default:
         return const SizedBox.shrink();
     }
+  }
+
+  Widget _buildCalendarSidebar(BuildContext context) {
+    final theme = Theme.of(context);
+    final calendarViewModel = context.watch<CalendarViewModel>();
+
+    return Column(
+      children: [
+        // ✨ [수정] InkWell을 제거하여 클릭 기능을 없애고, 아이콘도 제거합니다.
+        Container(
+          height: 40,
+          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+          decoration: BoxDecoration(
+            color: theme.cardColor,
+            border: Border(
+              bottom: BorderSide(color: theme.dividerColor, width: 1),
+            ),
+          ),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              DateFormat(
+                'yyyy년 MM월 dd일 (E)',
+                'ko_KR',
+              ).format(calendarViewModel.selectedDay),
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+              overflow: TextOverflow.ellipsis,
+              softWrap: false,
+            ),
+          ),
+        ),
+        const Expanded(child: CalendarSidebarView()),
+      ],
+    );
   }
 
   Widget _buildHistorySidebar(BuildContext context) {
@@ -554,7 +588,6 @@ class _RightSidebarContentState extends State<RightSidebarContent>
           child:
               isExpanded
                   ? Padding(
-                    // ✨ [수정] 왼쪽 여백 8로 변경
                     padding: const EdgeInsets.only(left: 8.0, top: 4.0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -587,7 +620,6 @@ class _RightSidebarContentState extends State<RightSidebarContent>
         padding: const EdgeInsets.symmetric(vertical: 0.0),
         child: Row(
           children: [
-            // ✨ [수정] 체크박스 사이즈 20% 감소
             SizedBox(
               width: 16,
               height: 16,
@@ -1450,43 +1482,9 @@ class _CalendarSidebarViewState extends State<CalendarSidebarView> {
 
   @override
   Widget build(BuildContext context) {
-    final selectedDay = context.watch<CalendarViewModel>().selectedDay;
     final sidebarViewModel = context.watch<CalendarSidebarViewModel>();
 
-    if (selectedDay == null) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(16.0),
-          child: Text(
-            '날짜를 선택하면\n해당 날짜에 수정된 노트 목록이\n여기에 표시됩니다.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey),
-          ),
-        ),
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 8.0),
-          child: Text(
-            DateFormat('yyyy년 M월 d일').format(selectedDay),
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 14,
-              color: Theme.of(context).textTheme.bodyLarge?.color,
-            ),
-          ),
-        ),
-        const Divider(height: 1),
-        Expanded(child: _buildNotesList(sidebarViewModel)),
-      ],
-    );
-  }
-
-  Widget _buildNotesList(CalendarSidebarViewModel sidebarViewModel) {
+    // ✨ [수정] 날짜 중복 표시를 제거하고, 패딩을 조정합니다.
     if (sidebarViewModel.isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -1502,9 +1500,12 @@ class _CalendarSidebarViewState extends State<CalendarSidebarView> {
         ),
       );
     }
+    return _buildNotesList(sidebarViewModel);
+  }
 
+  Widget _buildNotesList(CalendarSidebarViewModel sidebarViewModel) {
     return ListView.builder(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 0.0),
       itemCount: sidebarViewModel.modifiedNotes.length,
       itemBuilder: (context, index) {
         final note = sidebarViewModel.modifiedNotes[index];

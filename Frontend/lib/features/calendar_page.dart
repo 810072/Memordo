@@ -5,8 +5,6 @@ import 'package:provider/provider.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
-import 'dart:io';
-import 'package:path/path.dart' as p;
 import '../viewmodels/calendar_viewmodel.dart';
 
 class CalendarPage extends StatefulWidget {
@@ -22,15 +20,10 @@ class _CalendarPageState extends State<CalendarPage> {
   final Map<DateTime, String> _memoData = {};
   final TextEditingController _memoController = TextEditingController();
 
-  // ✨ [삭제] 수정된 파일 데이터를 관리하던 변수 삭제
-  // final Map<DateTime, List<String>> _createdFilesData = {};
-
   @override
   void initState() {
     super.initState();
     _loadFromPrefs();
-    // ✨ [삭제] 수정된 파일 데이터를 불러오던 함수 호출 삭제
-    // _loadCreatedFilesData();
   }
 
   @override
@@ -71,14 +64,12 @@ class _CalendarPageState extends State<CalendarPage> {
     }
   }
 
-  // ✨ [삭제] 수정된 파일 데이터를 불러오는 관련 메서드들 전체 삭제
-  // Future<void> _loadCreatedFilesData() async { ... }
-  // Future<String> _getNotesDirectory() async { ... }
-  // Future<List<File>> _getAllMarkdownFiles(Directory dir) async { ... }
-
   @override
   Widget build(BuildContext context) {
     final calendarViewModel = context.watch<CalendarViewModel>();
+    // 위젯이 빌드될 때마다 현재 선택된 날짜의 메모를 컨트롤러에 설정합니다.
+    _memoController.text =
+        _memoData[_pureDate(calendarViewModel.selectedDay)] ?? '';
 
     return _buildCalendarWithMemo(calendarViewModel);
   }
@@ -106,12 +97,8 @@ class _CalendarPageState extends State<CalendarPage> {
             child: _buildCalendarView(viewModel),
           ),
           const SizedBox(height: 24),
-          if (viewModel.selectedDay != null) ...[
-            // ✨ [삭제] 수정된 파일 목록을 보여주는 위젯 호출 삭제
-            // _buildCreatedFilesList(viewModel.selectedDay!),
-            // const SizedBox(height: 16),
-            _buildMemoSection(viewModel.selectedDay!),
-          ],
+          // ✨ [수정] selectedDay가 null이 아니므로 null 체크 제거
+          _buildMemoSection(viewModel.selectedDay),
         ],
       ),
     );
@@ -126,7 +113,6 @@ class _CalendarPageState extends State<CalendarPage> {
       selectedDayPredicate: (day) => isSameDay(viewModel.selectedDay, day),
       onDaySelected: (selectedDay, focusedDay) {
         viewModel.onDaySelected(selectedDay, focusedDay);
-        _memoController.text = _memoData[_pureDate(selectedDay)] ?? '';
       },
       onPageChanged: (focusedDay) {
         viewModel.setFocusedDay(focusedDay);
@@ -137,10 +123,6 @@ class _CalendarPageState extends State<CalendarPage> {
         if (_memoData.containsKey(pure) && _memoData[pure]!.isNotEmpty) {
           events.add('memo');
         }
-        // ✨ [삭제] 파일 이벤트 추가 로직 삭제
-        // if (_createdFilesData.containsKey(pure)) {
-        //   events.add('file');
-        // }
         return events;
       },
       calendarBuilders: CalendarBuilders(
@@ -159,8 +141,7 @@ class _CalendarPageState extends State<CalendarPage> {
                       margin: const EdgeInsets.symmetric(horizontal: 2.0),
                       width: 6,
                       height: 6,
-                      decoration: BoxDecoration(
-                        // ✨ [수정] 파일 마커(파란색) 관련 로직 삭제
+                      decoration: const BoxDecoration(
                         color: Colors.green,
                         shape: BoxShape.circle,
                       ),
@@ -231,7 +212,4 @@ class _CalendarPageState extends State<CalendarPage> {
       ),
     );
   }
-
-  // ✨ [삭제] 수정된 파일 목록을 보여주는 위젯 전체 삭제
-  // Widget _buildCreatedFilesList(DateTime selectedDay) { ... }
 }

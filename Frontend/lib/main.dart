@@ -10,6 +10,7 @@ import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:window_manager/window_manager.dart';
+import 'package:intl/date_symbol_data_local.dart'; // ✨ [추가] intl 패키지 초기화를 위해 임포트
 
 import 'auth/auth_dialog.dart';
 import 'layout/ai_summary_controller.dart';
@@ -45,6 +46,9 @@ Future<void> main(List<String> args) async {
   } else {
     WidgetsFlutterBinding.ensureInitialized();
     await windowManager.ensureInitialized();
+
+    // ✨ [추가] 앱이 시작될 때 한국어 날짜 형식을 초기화합니다.
+    await initializeDateFormatting('ko_KR', null);
 
     await _startBackendServer();
 
@@ -226,7 +230,6 @@ class _MainLayoutWrapperState extends State<MainLayoutWrapper>
           debugPrint('Error handling open_document call: $e');
         }
       }
-      // ✨ [추가] 챗봇 창에서 오는 상태 메시지를 처리하는 핸들러
       if (call.method == 'show_status_message') {
         if (!mounted) return;
         final args = call.arguments as Map<String, dynamic>;
