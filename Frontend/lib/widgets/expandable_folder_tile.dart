@@ -11,8 +11,8 @@ class ExpandableFolderTile extends StatefulWidget {
   final VoidCallback? onSelect;
   final bool isSelected;
   final ValueChanged<bool>? onExpansionChanged;
-  final Color? backgroundColor; // ✨ [추가]
-  final void Function(TapUpDetails)? onSecondaryTapUp; // ✨ [추가]
+  final Color? backgroundColor;
+  final void Function(TapUpDetails)? onSecondaryTapUp;
 
   const ExpandableFolderTile({
     Key? key,
@@ -25,8 +25,8 @@ class ExpandableFolderTile extends StatefulWidget {
     this.onSelect,
     this.isSelected = false,
     this.onExpansionChanged,
-    this.backgroundColor, // ✨ [추가]
-    this.onSecondaryTapUp, // ✨ [추가]
+    this.backgroundColor,
+    this.onSecondaryTapUp,
   }) : super(key: key);
 
   @override
@@ -87,57 +87,61 @@ class _ExpandableFolderTileState extends State<ExpandableFolderTile>
 
   @override
   Widget build(BuildContext context) {
-    final bgColor =
-        widget.backgroundColor ??
-        (widget.isSelected
+    final selectionBgColor =
+        widget.isSelected
             ? Theme.of(context).primaryColor.withOpacity(0.1)
-            : Colors.transparent);
+            : Colors.transparent;
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        GestureDetector(
-          onSecondaryTapUp: widget.onSecondaryTapUp,
-          child: Material(
-            color: bgColor,
-            child: InkWell(
-              onTap: _handleTap,
-              hoverColor: Colors.grey[200],
-              splashFactory: NoSplash.splashFactory,
-              child: SizedBox(
-                height: widget.itemHeight,
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: 20,
-                      child: Center(
-                        child: Icon(
-                          _isExpanded
-                              ? Icons.keyboard_arrow_down
-                              : Icons.keyboard_arrow_right,
-                          size: 16,
-                          color: widget.arrowColor,
+    // ✨ [수정] 전체 위젯을 감싸는 Container를 추가하여 드래그 하이라이트를 전체 영역에 적용합니다.
+    return Container(
+      color: widget.backgroundColor ?? Colors.transparent, // 드래그 하이라이트
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          GestureDetector(
+            onSecondaryTapUp: widget.onSecondaryTapUp,
+            child: Material(
+              // 선택 하이라이트는 제목 행에만 별도로 적용합니다.
+              color: selectionBgColor,
+              child: InkWell(
+                onTap: _handleTap,
+                hoverColor: Colors.grey[200],
+                splashFactory: NoSplash.splashFactory,
+                child: SizedBox(
+                  height: widget.itemHeight,
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 20,
+                        child: Center(
+                          child: Icon(
+                            _isExpanded
+                                ? Icons.keyboard_arrow_down
+                                : Icons.keyboard_arrow_right,
+                            size: 16,
+                            color: widget.arrowColor,
+                          ),
                         ),
                       ),
-                    ),
-                    widget.folderIcon,
-                    const SizedBox(width: 4),
-                    Expanded(child: widget.title),
-                  ],
+                      widget.folderIcon,
+                      const SizedBox(width: 4),
+                      Expanded(child: widget.title),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
-        ),
-        AnimatedBuilder(
-          animation: _controller.view,
-          builder:
-              (context, child) => ClipRect(
-                child: Align(heightFactor: _heightFactor.value, child: child),
-              ),
-          child: Column(children: widget.children),
-        ),
-      ],
+          AnimatedBuilder(
+            animation: _controller.view,
+            builder:
+                (context, child) => ClipRect(
+                  child: Align(heightFactor: _heightFactor.value, child: child),
+                ),
+            child: Column(children: widget.children),
+          ),
+        ],
+      ),
     );
   }
 }
