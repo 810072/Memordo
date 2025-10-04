@@ -8,7 +8,7 @@ import 'package:provider/provider.dart';
 
 import './meeting_screen.dart';
 import '../viewmodels/graph_viewmodel.dart';
-import '../providers/status_bar_provider.dart'; // ✨ [추가]
+import '../providers/status_bar_provider.dart';
 
 // --- 데이터 모델 클래스 (기존과 동일) ---
 class GraphNodeData {
@@ -52,7 +52,6 @@ class _GraphPageState extends State<GraphPage> {
   }
 
   Widget _buildNodeWidget(BuildContext context, String label) {
-    final viewModel = context.read<GraphViewModel>();
     final isMdFile = label.toLowerCase().endsWith('.md');
 
     return GestureDetector(
@@ -78,11 +77,8 @@ class _GraphPageState extends State<GraphPage> {
     );
   }
 
-  // ⛔️ [삭제] SnackBar를 직접 호출하던 _showSnackBar 메서드를 삭제합니다.
-
   Future<void> _openNoteEditor(BuildContext context, String filePath) async {
     final viewModel = context.read<GraphViewModel>();
-    // ✨ [수정] SnackBar 대신 StatusBarProvider를 사용하도록 변경
     final statusBar = context.read<StatusBarProvider>();
     final isMdFile = filePath.toLowerCase().endsWith('.md');
 
@@ -127,55 +123,91 @@ class _GraphPageState extends State<GraphPage> {
   Widget build(BuildContext context) {
     return Consumer<GraphViewModel>(
       builder: (context, viewModel, child) {
-        return viewModel.isLoading
-            ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const CircularProgressIndicator(),
-                  const SizedBox(height: 20),
-                  Text(
-                    viewModel.statusMessage,
-                    style: Theme.of(context).textTheme.titleMedium,
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            )
-            : viewModel.graph.nodeCount() == 0
-            ? Center(
-              child: Text(
-                viewModel.statusMessage,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-            )
-            : InteractiveViewer(
-              constrained: false,
-              boundaryMargin: const EdgeInsets.all(double.infinity),
-              minScale: 0.01,
-              maxScale: 5.0,
-              child: SizedBox(
-                width: viewModel.canvasWidth,
-                height: viewModel.canvasHeight,
-                child: GraphView(
-                  graph: viewModel.graph,
-                  algorithm: viewModel.builder,
-                  paint:
-                      Paint()
-                        ..color = Colors.grey
-                        ..strokeWidth = 1
-                        ..style = PaintingStyle.stroke,
-                  builder: (Node node) {
-                    final label = node.key!.value as String;
-                    if (viewModel.showUserGraph &&
-                        !viewModel.isUserNodeActive(label)) {
-                      return const SizedBox.shrink();
-                    }
-                    return _buildNodeWidget(context, label);
-                  },
+        if (viewModel.isLoading) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const CircularProgressIndicator(),
+                const SizedBox(height: 20),
+                Text(
+                  viewModel.isAiGraphView ? 'AI 그래프 분석 중...' : '사용자 노트 스캔 중...',
+                  style: Theme.of(context).textTheme.titleMedium,
+                  textAlign: TextAlign.center,
                 ),
-              ),
-            );
+              ],
+            ),
+          );
+        }
+
+        // ✨ [수정] ViewModel의 상태에 따라 어떤 뷰를 보여줄지 결정
+        if (viewModel.isAiGraphView) {
+          // --- AI 그래프 뷰 ---
+          return viewModel.aiGraph.nodeCount() == 0
+              ? Center(
+                child: Text(
+                  viewModel.statusMessage,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              )
+              : InteractiveViewer(
+                constrained: false,
+                boundaryMargin: const EdgeInsets.all(double.infinity),
+                minScale: 0.01,
+                maxScale: 5.0,
+                child: SizedBox(
+                  width: viewModel.canvasWidth,
+                  height: viewModel.canvasHeight,
+                  child: GraphView(
+                    graph: viewModel.aiGraph,
+                    algorithm: viewModel.aiGraphBuilder,
+                    paint:
+                        Paint()
+                          ..color = Colors.grey
+                          ..strokeWidth = 1
+                          ..style = PaintingStyle.stroke,
+                    builder: (Node node) {
+                      final label = node.key!.value as String;
+                      return _buildNodeWidget(context, label);
+                    },
+                  ),
+                ),
+              );
+        } else {
+          // --- 사용자 정의 그래프 뷰 ---
+          return viewModel.userGraph.nodeCount() == 0
+              ? Center(
+                child: Text(
+                  viewModel.statusMessage,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              )
+              : InteractiveViewer(
+                constrained: false,
+                boundaryMargin: const EdgeInsets.all(double.infinity),
+                minScale: 0.01,
+                maxScale: 5.0,
+                child: SizedBox(
+                  width: viewModel.canvasWidth,
+                  height: viewModel.canvasHeight,
+                  child: GraphView(
+                    graph: viewModel.userGraph,
+                    algorithm: viewModel.userGraphBuilder,
+                    paint:
+                        Paint()
+                          ..color =
+                              Colors
+                                  .transparent // 연결선 없음
+                          ..strokeWidth = 1
+                          ..style = PaintingStyle.stroke,
+                    builder: (Node node) {
+                      final label = node.key!.value as String;
+                      return _buildNodeWidget(context, label);
+                    },
+                  ),
+                ),
+              );
+        }
       },
     );
   }

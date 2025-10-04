@@ -387,20 +387,7 @@ class _MainLayoutState extends State<MainLayout> {
                           ? null
                           : () => viewModel.triggerEmbeddingProcess(context),
                 ),
-                IconButton(
-                  icon: Icon(
-                    viewModel.showUserGraph
-                        ? Icons.person_outline
-                        : Icons.smart_toy_outlined,
-                    size: 20,
-                  ),
-                  tooltip:
-                      viewModel.showUserGraph ? '사용자 정의 링크 보기' : 'AI 추천 관계 보기',
-                  onPressed:
-                      viewModel.isLoading
-                          ? null
-                          : () => viewModel.toggleGraphView(),
-                ),
+                // IconButton for toggling graph view removed as per user request
                 const SizedBox(width: 8),
               ],
             );

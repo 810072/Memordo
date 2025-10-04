@@ -1,23 +1,31 @@
 // lib/viewmodels/graph_viewmodel.dart
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:graphview/GraphView.dart';
 import 'package:path/path.dart' as p;
-import 'package:provider/provider.dart'; // ✨ [추가]
+import 'package:provider/provider.dart';
 import '../utils/ai_service.dart' as ai_service;
 import '../features/graph_page.dart';
-import '../providers/status_bar_provider.dart'; // ✨ [추가]
+import '../providers/status_bar_provider.dart';
 
 class GraphViewModel with ChangeNotifier {
-  final Graph graph = Graph();
-  late Algorithm builder;
+  // AI 그래프용
+  final Graph aiGraph = Graph();
+  late Algorithm aiGraphBuilder;
+
+  // 사용자 정의 그래프용
+  final Graph userGraph = Graph();
+  late Algorithm userGraphBuilder;
+  bool _isUserGraphBuilt = false;
+  String _userGraphStatusMessage = '사용자 그래프를 불러오세요.';
 
   bool _isLoading = false;
-  bool _showUserGraph = false;
   String _statusMessage = '그래프를 생성하려면 우측 상단의 버튼을 눌러주세요.';
+  bool _isAiGraphView = true;
 
   static const double _similarityThreshold = 0.8;
   final double _canvasWidth = 4000;
@@ -28,32 +36,90 @@ class GraphViewModel with ChangeNotifier {
   final Map<String, Node> _nodeMap = {};
   final Set<String> _activeUserNodeIds = {};
 
-  // Getter for UI
   bool get isLoading => _isLoading;
-  bool get showUserGraph => _showUserGraph;
-  String get statusMessage => _statusMessage;
+  String get statusMessage =>
+      _isAiGraphView ? _statusMessage : _userGraphStatusMessage;
   double get canvasWidth => _canvasWidth;
   double get canvasHeight => _canvasHeight;
+  bool get isAiGraphView => _isAiGraphView;
 
   GraphViewModel();
 
-  void toggleGraphView() {
-    if (_isLoading || _nodeMap.isEmpty) return;
-    _showUserGraph = !_showUserGraph;
-    _updateEdges();
+  void setGraphView(bool isAiView) {
+    if (_isAiGraphView != isAiView) {
+      _isAiGraphView = isAiView;
+      notifyListeners();
+    }
+  }
+
+  // 사용자 정의 그래프를 만드는 메서드
+  Future<void> buildUserGraph() async {
+    if (_isUserGraphBuilt) {
+      setGraphView(false);
+      return;
+    }
+
+    _isLoading = true;
+    _isAiGraphView = false; // 사용자 그래프 뷰로 전환
     notifyListeners();
+
+    try {
+      final notesDir = await getNotesDirectory();
+      final localFiles = await _getAllMarkdownFiles(Directory(notesDir));
+
+      if (localFiles.isEmpty) {
+        _userGraphStatusMessage = '표시할 노트가 없습니다.';
+        _isLoading = false;
+        notifyListeners();
+        return;
+      }
+
+      userGraph.nodes.clear();
+
+      for (var file in localFiles) {
+        final fileName = p.relative(file.path, from: notesDir);
+        final node = Node.Id(fileName);
+        userGraph.addNode(node);
+      }
+
+      // ✨ [핵심 수정] FruchtermanReingold 알고리즘을 다시 사용하여 노드들이 서로 밀어내도록 합니다.
+      userGraphBuilder = FruchtermanReingoldAlgorithm(iterations: 600);
+
+      // ✨ [추가] 알고리즘이 안정적으로 노드를 배치할 수 있도록, 초기 위치를 넓은 그리드에 설정합니다.
+      final double nodeWidthSpacing = 300; // 노드 간 가로 간격을 넓게 설정
+      final double nodeHeightSpacing = 150; // 노드 간 세로 간격 설정
+      final int count = userGraph.nodeCount();
+      final int columns = (sqrt(count) * 1.2).ceil(); // 가로로 더 넓게 퍼지도록 조정
+
+      for (var i = 0; i < count; i++) {
+        final node = userGraph.nodes[i];
+        final dx = (i % columns) * nodeWidthSpacing;
+        final dy = (i ~/ columns) * nodeHeightSpacing;
+        node.position = Offset(dx.toDouble(), dy.toDouble());
+      }
+
+      _isUserGraphBuilt = true;
+      _userGraphStatusMessage = '${localFiles.length}개의 노드를 찾았습니다.';
+    } catch (e) {
+      _userGraphStatusMessage = '사용자 그래프 생성 중 오류 발생: $e';
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 
   Future<void> triggerEmbeddingProcess(BuildContext context) async {
     if (_isLoading) return;
 
-    final statusBar = context.read<StatusBarProvider>(); // ✨ [추가]
+    if (!_isAiGraphView) {
+      setGraphView(true);
+      await Future.delayed(const Duration(milliseconds: 100));
+    }
+
+    final statusBar = context.read<StatusBarProvider>();
     _isLoading = true;
     _statusMessage = '로컬 노트 파일 스캔 중...';
-    statusBar.showStatusMessage(
-      _statusMessage,
-      type: StatusType.info,
-    ); // ✨ [수정]
+    statusBar.showStatusMessage(_statusMessage, type: StatusType.info);
     notifyListeners();
 
     try {
@@ -62,20 +128,14 @@ class GraphViewModel with ChangeNotifier {
 
       if (localFiles.isEmpty) {
         _statusMessage = '노트 폴더에 분석할 .md 파일이 없습니다.';
-        statusBar.showStatusMessage(
-          _statusMessage,
-          type: StatusType.error,
-        ); // ✨ [수정]
+        statusBar.showStatusMessage(_statusMessage, type: StatusType.error);
         _isLoading = false;
         notifyListeners();
         return;
       }
 
       _statusMessage = '${localFiles.length}개 노트의 관계 분석을 AI 서버에 요청합니다...';
-      statusBar.showStatusMessage(
-        _statusMessage,
-        type: StatusType.info,
-      ); // ✨ [수정]
+      statusBar.showStatusMessage(_statusMessage, type: StatusType.info);
       notifyListeners();
 
       List<Map<String, String>> notesData = [];
@@ -116,60 +176,50 @@ class GraphViewModel with ChangeNotifier {
       final embeddingsFile = File(p.join(notesDir, 'embeddings.json'));
       await embeddingsFile.writeAsString(jsonEncode(finalData));
 
-      statusBar.showStatusMessage(
-        '그래프 생성 완료!',
-        type: StatusType.success,
-      ); // ✨ [수정]
+      statusBar.showStatusMessage('그래프 생성 완료!', type: StatusType.success);
       _buildGraphFromData(finalData);
     } catch (e) {
       _statusMessage = '오류가 발생했습니다.';
       statusBar.showStatusMessage(
         '그래프 생성 중 오류 발생: ${e.toString()}',
         type: StatusType.error,
-      ); // ✨ [수정]
+      );
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
 
-  void _setAlgorithm() {
-    builder = FruchtermanReingoldAlgorithm(iterations: 8000);
+  void _setAiAlgorithm() {
+    aiGraphBuilder = FruchtermanReingoldAlgorithm(iterations: 8000);
   }
 
   void _updateEdges() {
-    graph.edges.clear();
-    final edgesToShow = _showUserGraph ? _userEdges : _aiEdges;
+    aiGraph.edges.clear();
+    final edgesToShow = _aiEdges;
 
     for (var edgeData in edgesToShow) {
-      if (!_showUserGraph && edgeData.similarity < _similarityThreshold) {
-        continue;
-      }
+      if (edgeData.similarity < _similarityThreshold) continue;
+
       final fromNode = _nodeMap[edgeData.from];
       final toNode = _nodeMap[edgeData.to];
 
       if (fromNode != null && toNode != null) {
         final paint =
             Paint()
-              ..color =
-                  _showUserGraph
-                      ? Colors.blue
-                      : Colors.grey.withOpacity(edgeData.similarity)
-              ..strokeWidth =
-                  _showUserGraph
-                      ? 2.5
-                      : (1.0 + (edgeData.similarity - 0.75) * 16).clamp(
-                        1.0,
-                        5.0,
-                      );
-        graph.addEdge(fromNode, toNode, paint: paint);
+              ..color = Colors.grey.withOpacity(edgeData.similarity)
+              ..strokeWidth = (1.0 + (edgeData.similarity - 0.75) * 16).clamp(
+                1.0,
+                5.0,
+              );
+        aiGraph.addEdge(fromNode, toNode, paint: paint);
       }
     }
   }
 
   void _buildGraphFromData(Map<String, dynamic> data) {
-    graph.nodes.clear();
-    graph.edges.clear();
+    aiGraph.nodes.clear();
+    aiGraph.edges.clear();
     _nodeMap.clear();
 
     final topicIds =
@@ -215,12 +265,10 @@ class GraphViewModel with ChangeNotifier {
         random.nextDouble() * _canvasWidth,
         random.nextDouble() * _canvasHeight,
       );
+      aiGraph.addNode(node);
     }
 
-    _setAlgorithm();
-    for (var node in _nodeMap.values) {
-      graph.addNode(node);
-    }
+    _setAiAlgorithm();
     _updateEdges();
 
     _isLoading = false;
@@ -267,8 +315,6 @@ class GraphViewModel with ChangeNotifier {
     }
     return mdFiles;
   }
-
-  // ⛔️ [삭제] _showSnackBar 메서드는 더 이상 사용하지 않습니다.
 
   Future<({List<GraphEdgeData> userEdges, Set<String> topicNodes})>
   _extractUserDefinedEdgesAndTopics(List<Map<String, String>> notesData) async {
