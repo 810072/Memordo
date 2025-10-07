@@ -10,8 +10,30 @@ class GraphSidebar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    // ✨ [수정] ViewModel을 watch하여 현재 뷰 상태를 실시간으로 반영
     final graphViewModel = context.watch<GraphViewModel>();
+
+    // 활성화된 버튼 스타일
+    final ButtonStyle activeStyle = ElevatedButton.styleFrom(
+      backgroundColor: theme.primaryColor,
+      foregroundColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4.0)),
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+      elevation: 2,
+    );
+
+    // 비활성화된 버튼 스타일 (테두리 강조)
+    final ButtonStyle inactiveStyle = OutlinedButton.styleFrom(
+      backgroundColor: theme.cardColor,
+      foregroundColor: theme.textTheme.bodyMedium?.color,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4.0)),
+      side: BorderSide(
+        color: theme.dividerColor.withOpacity(0.8), // 테두리 색을 더 진하게
+        width: 1.5, // 테두리 두께 증가
+      ),
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+    );
 
     return Column(
       children: [
@@ -27,7 +49,7 @@ class GraphSidebar extends StatelessWidget {
           child: const Align(
             alignment: Alignment.centerLeft,
             child: Text(
-              "그래프 뷰 전환",
+              "그래프 뷰 옵션",
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
           ),
@@ -38,36 +60,26 @@ class GraphSidebar extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // AI 그래프 보기 버튼
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.auto_awesome, size: 18),
-                  label: const Text('AI 추천 관계'),
-                  style: ElevatedButton.styleFrom(
-                    // 현재 활성화된 뷰에 따라 버튼 스타일 변경
-                    backgroundColor:
-                        graphViewModel.isAiGraphView
-                            ? theme.primaryColor
-                            : theme.disabledColor,
-                  ),
+                // AI 추천 관계 버튼
+                ElevatedButton(
+                  child: const Text('AI 추천 관계'),
+                  style:
+                      graphViewModel.isAiGraphView
+                          ? activeStyle
+                          : inactiveStyle,
                   onPressed: () {
-                    // AI 그래프 뷰로 전환
                     graphViewModel.setGraphView(true);
                   },
                 ),
                 const SizedBox(height: 12),
-                // 사용자 그래프 보기 버튼
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.share_outlined, size: 18),
-                  label: const Text('사용자 정의 링크'),
-                  style: ElevatedButton.styleFrom(
-                    // 현재 활성화된 뷰에 따라 버튼 스타일 변경
-                    backgroundColor:
-                        !graphViewModel.isAiGraphView
-                            ? theme.primaryColor
-                            : theme.disabledColor,
-                  ),
+                // 사용자 정의 링크 버튼
+                ElevatedButton(
+                  child: const Text('사용자 정의 링크'),
+                  style:
+                      !graphViewModel.isAiGraphView
+                          ? activeStyle
+                          : inactiveStyle,
                   onPressed: () {
-                    // ✨ [핵심 수정] 버튼을 눌렀을 때 사용자 그래프를 생성하는 함수 호출
                     context.read<GraphViewModel>().buildUserGraph();
                   },
                 ),

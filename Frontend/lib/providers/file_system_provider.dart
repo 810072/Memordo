@@ -33,6 +33,25 @@ class FileSystemProvider extends ChangeNotifier {
   String? get selectedFolderPath => _selectedFolderPath;
   Set<String> get expandedFolderPaths => _expandedFolderPaths;
 
+  // ✨ [추가] 모든 마크다운 파일 목록을 재귀적으로 가져오는 getter
+  List<FileSystemEntry> get allMarkdownFiles {
+    final List<FileSystemEntry> files = [];
+    void findFiles(List<FileSystemEntry> entries) {
+      for (final entry in entries) {
+        if (entry.isDirectory) {
+          if (entry.children != null) {
+            findFiles(entry.children!);
+          }
+        } else {
+          files.add(entry);
+        }
+      }
+    }
+
+    findFiles(_fileSystemEntries);
+    return files;
+  }
+
   FileSystemProvider() {
     _loadPinnedFiles();
   }

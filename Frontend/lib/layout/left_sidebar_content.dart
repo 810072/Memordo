@@ -55,17 +55,17 @@ class LeftSidebarContent extends StatelessWidget {
             ),
             _sideBarItem(
               context,
+              Icons.lan_outlined,
+              '그래프',
+              PageType.graph,
+              () => onPageSelected(PageType.graph),
+            ),
+            _sideBarItem(
+              context,
               Icons.calendar_today_outlined,
               '달력',
               PageType.calendar,
               () => onPageSelected(PageType.calendar),
-            ),
-            _sideBarItem(
-              context,
-              Icons.show_chart_outlined,
-              '그래프',
-              PageType.graph,
-              () => onPageSelected(PageType.graph),
             ),
             _sideBarItem(
               context,

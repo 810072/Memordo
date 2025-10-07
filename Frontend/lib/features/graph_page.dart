@@ -10,6 +10,8 @@ import '../viewmodels/graph_viewmodel.dart';
 import '../providers/status_bar_provider.dart';
 import '../widgets/force_graph_widget.dart';
 
+export '../viewmodels/graph_viewmodel.dart'; // ✨ [추가] GraphViewModel을 export합니다.
+
 class GraphPage extends StatefulWidget {
   const GraphPage({super.key});
   @override
@@ -59,7 +61,6 @@ class _GraphPageState extends State<GraphPage> {
     return isDark ? Colors.grey.shade600 : Colors.grey.shade500;
   }
 
-  // ✨ [수정] 문제가 되었던 Transform.translate 위젯을 완전히 제거합니다.
   Widget _buildNodeWidget(
     BuildContext context,
     GraphNode node,
@@ -75,41 +76,53 @@ class _GraphPageState extends State<GraphPage> {
     final double widgetWidth = 110;
     final double widgetHeight = 65;
 
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hoveredNodeId = node.id),
-      onExit: (_) => setState(() => _hoveredNodeId = null),
-      child: SizedBox(
-        width: widgetWidth,
-        height: widgetHeight,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // 노드 원
-            Container(
-              width: nodeSize,
-              height: nodeSize,
-              decoration: BoxDecoration(
-                color: nodeColor,
-                shape: BoxShape.circle,
-                border:
-                    isSelected
-                        ? Border.all(color: Colors.blue, width: 2)
-                        : null,
-                boxShadow:
-                    isHovered || isSelected
-                        ? [
-                          BoxShadow(
-                            color: nodeColor.withOpacity(0.5),
-                            blurRadius: 8,
-                            spreadRadius: 2,
-                          ),
-                        ]
-                        : null,
+    final double textTopPosition = (widgetHeight / 2) + (nodeSize / 2) + 3;
+
+    return SizedBox(
+      width: widgetWidth,
+      height: widgetHeight,
+      child: Stack(
+        alignment: Alignment.center,
+        clipBehavior: Clip.none,
+        children: [
+          MouseRegion(
+            onEnter: (_) => setState(() => _hoveredNodeId = node.id),
+            onExit: (_) => setState(() => _hoveredNodeId = null),
+            child: GestureDetector(
+              onTap: () {
+                setState(() {
+                  _selectedNodeId = _selectedNodeId == node.id ? null : node.id;
+                });
+                _openNoteInTab(context, node.id);
+              },
+              child: Container(
+                width: nodeSize,
+                height: nodeSize,
+                decoration: BoxDecoration(
+                  color: nodeColor,
+                  shape: BoxShape.circle,
+                  border:
+                      isSelected
+                          ? Border.all(color: Colors.blue, width: 2)
+                          : null,
+                  boxShadow:
+                      isHovered || isSelected
+                          ? [
+                            BoxShadow(
+                              color: nodeColor.withOpacity(0.5),
+                              blurRadius: 8,
+                              spreadRadius: 2,
+                            ),
+                          ]
+                          : null,
+                ),
               ),
             ),
-            const SizedBox(height: 6),
-            // 노드 텍스트 레이블
-            Expanded(
+          ),
+          Positioned(
+            top: textTopPosition,
+            child: SizedBox(
+              width: widgetWidth,
               child: Text(
                 label,
                 textAlign: TextAlign.center,
@@ -127,8 +140,8 @@ class _GraphPageState extends State<GraphPage> {
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -197,20 +210,13 @@ class _GraphPageState extends State<GraphPage> {
             return Stack(
               children: [
                 ForceGraphView(
-                  key: ValueKey(
-                    '${viewModel.isAiGraphView}-${viewModel.nodes.length}',
-                  ),
+                  key: ValueKey(viewModel.isAiGraphView),
                   nodes: viewModel.nodes,
                   links: viewModel.links,
+                  initialPositions: viewModel.nodePositions,
+                  onLayoutStabilized: viewModel.updateAndSaveAllNodePositions,
                   canvasSize: Size(constraints.maxWidth, constraints.maxHeight),
                   nodeBuilder: _buildNodeWidget,
-                  onNodeTap: (node) {
-                    setState(() {
-                      _selectedNodeId =
-                          _selectedNodeId == node.id ? null : node.id;
-                    });
-                    _openNoteInTab(context, node.id);
-                  },
                 ),
                 Positioned(
                   top: 16,

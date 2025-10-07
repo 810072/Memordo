@@ -62,8 +62,8 @@ class ForceLink {
 }
 
 class ForceSimulation {
-  final List<ForceNode> nodes;
-  final List<ForceLink> links;
+  List<ForceNode> nodes;
+  List<ForceLink> links;
   Size canvasSize;
 
   final double centerStrength;
@@ -77,7 +77,6 @@ class ForceSimulation {
   double alphaMin = 0.001;
   double alphaDecay = 0.0228;
 
-  // ✨ 사용자께서 알려주신 이상적인 값으로 복원
   ForceSimulation({
     required this.nodes,
     required this.links,
@@ -146,7 +145,9 @@ class ForceGraphView extends StatefulWidget {
   final List<GraphLink> links;
   final Size canvasSize;
   final Widget Function(BuildContext, GraphNode, Offset) nodeBuilder;
-  final void Function(GraphNode)? onNodeTap;
+  // ✨ [추가] 초기 위치와 레이아웃 안정화 콜백 파라미터
+  final Map<String, Map<String, double>>? initialPositions;
+  final Function(Map<String, Offset>)? onLayoutStabilized;
 
   const ForceGraphView({
     Key? key,
@@ -154,7 +155,8 @@ class ForceGraphView extends StatefulWidget {
     required this.links,
     required this.canvasSize,
     required this.nodeBuilder,
-    this.onNodeTap,
+    this.initialPositions,
+    this.onLayoutStabilized,
   }) : super(key: key);
 
   @override
@@ -180,13 +182,19 @@ class _ForceGraphViewState extends State<ForceGraphView>
         });
       } else {
         _ticker.stop();
+        // ✨ [추가] 시뮬레이션이 멈추면, 최종 위치를 저장하도록 콜백 호출
+        if (widget.onLayoutStabilized != null) {
+          final finalPositions = {
+            for (var node in _simulation!.nodes) node.id: node.position,
+          };
+          widget.onLayoutStabilized!(finalPositions);
+        }
       }
     });
     _ticker.start();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        // ✨ 사용자께서 알려주신 이상적인 값으로 복원
         const double initialScale = 1.0;
         final viewSize = widget.canvasSize;
 
@@ -207,45 +215,93 @@ class _ForceGraphViewState extends State<ForceGraphView>
   void didUpdateWidget(ForceGraphView oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.nodes != oldWidget.nodes || widget.links != oldWidget.links) {
-      _initializeSimulation();
+      _updateSimulation();
       if (!_ticker.isActive) {
         _ticker.start();
       }
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          // ✨ 사용자께서 알려주신 이상적인 값으로 복원
-          const double initialScale = 1.0;
-          final viewSize = widget.canvasSize;
-          final x = (viewSize.width / 2) - (viewSize.width / 2 * initialScale);
-          final y =
-              (viewSize.height / 2) - (viewSize.height / 2 * initialScale);
-          final matrix =
-              Matrix4.identity()
-                ..translate(x, y)
-                ..scale(initialScale);
-          _transformationController.value = matrix;
-        }
-      });
+    } else if (widget.canvasSize != oldWidget.canvasSize) {
+      _simulation?.updateCanvasSize(widget.canvasSize);
+      _simulation?.reheat();
+      if (!_ticker.isActive) {
+        _ticker.start();
+      }
     }
+  }
+
+  void _updateSimulation() {
+    if (_simulation == null) {
+      _initializeSimulation();
+      return;
+    }
+
+    final oldPositions = {
+      for (var node in _simulation!.nodes) node.id: node.position,
+    };
+
+    final random = Random();
+
+    final forceNodes =
+        widget.nodes.map((n) {
+          // ✨ [수정] ViewModel로부터 받은 초기 위치를 사용하도록 변경
+          final initialPosition = widget.initialPositions?[n.id];
+          return ForceNode(
+            id: n.id,
+            position:
+                initialPosition != null
+                    ? Offset(initialPosition['dx']!, initialPosition['dy']!)
+                    : oldPositions[n.id] ??
+                        Offset(
+                          widget.canvasSize.width / 2 +
+                              (random.nextDouble() - 0.5) * 100,
+                          widget.canvasSize.height / 2 +
+                              (random.nextDouble() - 0.5) * 100,
+                        ),
+            linkCount: n.linkCount,
+          );
+        }).toList();
+
+    final nodeMap = {for (var n in forceNodes) n.id: n};
+    final forceLinks =
+        widget.links
+            .where(
+              (l) =>
+                  nodeMap.containsKey(l.sourceId) &&
+                  nodeMap.containsKey(l.targetId),
+            )
+            .map(
+              (l) => ForceLink(
+                source: nodeMap[l.sourceId]!,
+                target: nodeMap[l.targetId]!,
+                strength: l.strength,
+              ),
+            )
+            .toList();
+
+    _simulation!.nodes = forceNodes;
+    _simulation!.links = forceLinks;
+    _simulation!.reheat();
   }
 
   void _initializeSimulation() {
     final random = Random();
     final forceNodes =
-        widget.nodes
-            .map(
-              (n) => ForceNode(
-                id: n.id,
-                position: Offset(
-                  widget.canvasSize.width / 2 +
-                      (random.nextDouble() - 0.5) * 100,
-                  widget.canvasSize.height / 2 +
-                      (random.nextDouble() - 0.5) * 100,
-                ),
-                linkCount: n.linkCount,
-              ),
-            )
-            .toList();
+        widget.nodes.map((n) {
+          // ✨ [수정] ViewModel로부터 받은 초기 위치를 사용하도록 변경
+          final initialPosition = widget.initialPositions?[n.id];
+          return ForceNode(
+            id: n.id,
+            position:
+                initialPosition != null
+                    ? Offset(initialPosition['dx']!, initialPosition['dy']!)
+                    : Offset(
+                      widget.canvasSize.width / 2 +
+                          (random.nextDouble() - 0.5) * 100,
+                      widget.canvasSize.height / 2 +
+                          (random.nextDouble() - 0.5) * 100,
+                    ),
+            linkCount: n.linkCount,
+          );
+        }).toList();
 
     final nodeMap = {for (var n in forceNodes) n.id: n};
     final forceLinks =
@@ -309,7 +365,6 @@ class _ForceGraphViewState extends State<ForceGraphView>
                   left: forceNode.position.dx - (widgetWidth / 2),
                   top: forceNode.position.dy - (widgetHeight / 2),
                   child: GestureDetector(
-                    onTap: () => widget.onNodeTap?.call(graphNode),
                     onPanStart: (details) {
                       setState(() {
                         _draggedNode = forceNode;

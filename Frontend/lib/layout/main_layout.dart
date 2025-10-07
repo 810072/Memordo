@@ -66,6 +66,8 @@ class _MainLayoutState extends State<MainLayout> {
         context,
         listen: false,
       ).loadStatus(context);
+      // ✨ [추가] 파일 시스템 변경을 감지하는 리스너를 등록합니다.
+      context.read<FileSystemProvider>().addListener(_onFileSystemChange);
     });
   }
 
@@ -76,8 +78,21 @@ class _MainLayoutState extends State<MainLayout> {
       context.read<BottomSectionController>().removeListener(
         _onBottomControllerUpdate,
       );
+      // ✨ [추가] 위젯이 제거될 때 리스너도 함께 제거합니다.
+      context.read<FileSystemProvider>().removeListener(_onFileSystemChange);
     }
     super.dispose();
+  }
+
+  // ✨ [추가] 파일 시스템이 변경될 때 호출될 함수
+  void _onFileSystemChange() {
+    // 현재 페이지가 그래프 페이지이고, '사용자 정의 링크' 뷰일 때만 그래프를 새로고침
+    if (_activePage == PageType.graph && mounted) {
+      final graphViewModel = context.read<GraphViewModel>();
+      if (!graphViewModel.isAiGraphView) {
+        graphViewModel.buildUserGraph();
+      }
+    }
   }
 
   void _onBottomControllerUpdate() {
@@ -173,7 +188,6 @@ class _MainLayoutState extends State<MainLayout> {
                       Container(
                         width: currentSidebarWidth,
                         color: Theme.of(context).cardColor,
-                        // ✨ [수정] 리팩토링된 RightSidebarContent 호출
                         child: RightSidebarContent(
                           activePage: _activePage,
                           onEntryTap: (entry) {
@@ -186,7 +200,6 @@ class _MainLayoutState extends State<MainLayout> {
                               (entry) => context
                                   .read<FileSystemProvider>()
                                   .deleteEntry(context, entry),
-                          // onRenameEntry는 이제 각 사이드바 위젯 내부에서 처리합니다.
                           onRenameEntry:
                               (entry, newName) => context
                                   .read<FileSystemProvider>()
@@ -254,9 +267,9 @@ class _MainLayoutState extends State<MainLayout> {
                           ),
                           child: Row(
                             children: [
-                              _buildTopBarContent(), // 상단바 내용 분리
-                              const Spacer(),
-                              _buildTopBarActions(), // 상단바 액션 버튼 분리
+                              _buildTopBarContent(),
+                              if (_activePage != PageType.home) const Spacer(),
+                              _buildTopBarActions(),
                               const WindowButtons(),
                             ],
                           ),
@@ -300,7 +313,7 @@ class _MainLayoutState extends State<MainLayout> {
       case PageType.calendar:
         return const _TopBarTitle('Calendar');
       case PageType.graph:
-        return const _TopBarTitle('AI 노트 관계도');
+        return const _TopBarTitle('그래프 뷰');
       case PageType.settings:
         return const _TopBarTitle('Settings');
       default:

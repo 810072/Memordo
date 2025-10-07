@@ -96,6 +96,13 @@ class _MeetingScreenState extends State<MeetingScreen> {
   late final TextEditingController _titleController;
   final FocusNode _titleFocusNode = FocusNode();
 
+  // ✨ [수정] 링크 추천 UI 상태 변수
+  OverlayEntry? _overlayEntry;
+  final LayerLink _layerLink = LayerLink();
+  List<FileSystemEntry> _filteredFiles = [];
+  // ✨ [추가] 추천 상자의 위치를 저장할 변수
+  Offset _suggestionBoxOffset = Offset.zero;
+
   @override
   void initState() {
     super.initState();
@@ -105,6 +112,9 @@ class _MeetingScreenState extends State<MeetingScreen> {
     );
     tabProvider.addListener(_onTabChange);
     context.read<NoteProvider>().addListener(_onNoteChange);
+
+    // ✨ [추가] 컨트롤러 리스너를 여기서 등록하여 위키 링크 입력을 감지
+    tabProvider.activeTab?.controller.addListener(_onTextChangedForWikiLink);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (tabProvider.openTabs.isEmpty) {
@@ -130,21 +140,39 @@ class _MeetingScreenState extends State<MeetingScreen> {
       context,
       listen: false,
     ).removeListener(_onSelectedFileChanged);
+    // ✨ [추가] 추천 UI 오버레이 제거
+    _removeOverlay();
     _titleController.dispose();
     _titleFocusNode.dispose();
     super.dispose();
   }
 
+  // ✨ [수정] 탭 변경 시 리스너를 새로 등록/제거하도록 수정
   void _onTabChange() {
     final tabProvider = context.read<TabProvider>();
-    final activeTab = tabProvider.activeTab;
-    if (activeTab != null && _titleController.text != activeTab.title) {
-      _titleController.text = activeTab.title;
+
+    // 이전 탭의 리스너 제거
+    if (tabProvider.openTabs.isNotEmpty) {
+      for (var tab in tabProvider.openTabs) {
+        tab.controller.removeListener(_onTextChangedForWikiLink);
+      }
     }
+
+    final activeTab = tabProvider.activeTab;
+    if (activeTab != null) {
+      // 새 활성 탭에 리스너 추가
+      activeTab.controller.addListener(_onTextChangedForWikiLink);
+      if (_titleController.text != activeTab.title) {
+        _titleController.text = activeTab.title;
+      }
+    }
+
     if (activeTab == null && _titleController.text.isNotEmpty) {
       _titleController.clear();
     }
     _onNoteChange();
+    // 탭이 바뀌면 추천 UI 숨기기
+    _hideSuggestionBox();
   }
 
   void _onNoteChange() {
@@ -176,6 +204,198 @@ class _MeetingScreenState extends State<MeetingScreen> {
       );
       fileProvider.setSelectedFileForMeetingScreen(null);
     }
+  }
+
+  // ✨ [수정] 텍스트 변경을 감지하여 링크 추천 UI를 제어하는 함수
+  void _onTextChangedForWikiLink() {
+    final controller = context.read<NoteProvider>().controller;
+    if (controller == null) return;
+
+    final text = controller.text;
+    final offset = controller.selection.start;
+
+    final wikiLinkRegex = RegExp(r'\[\[([^\]]*)');
+    final matches = wikiLinkRegex.allMatches(text);
+
+    bool foundMatch = false;
+    for (final match in matches) {
+      // 커서가 [[...]] 안에 있는지 확인합니다.
+      final endBracketMatch = text.indexOf(']]', match.start);
+      final inBetween = endBracketMatch == -1 || offset <= endBracketMatch + 2;
+
+      if (offset > match.start && inBetween) {
+        final query = match.group(1) ?? '';
+        _updateFilteredFiles(query);
+        _updateSuggestionBoxPosition(); // ✨ 위치 계산
+        _showSuggestionBox(); // ✨ UI 표시/업데이트
+        foundMatch = true;
+        break;
+      }
+    }
+
+    if (!foundMatch) {
+      _hideSuggestionBox();
+    }
+  }
+
+  // ✨ [추가] 쿼리에 따라 파일 목록을 필터링하는 함수
+  void _updateFilteredFiles(String query) {
+    final allFiles = context.read<FileSystemProvider>().allMarkdownFiles;
+    if (query.isEmpty) {
+      _filteredFiles = allFiles;
+    } else {
+      _filteredFiles =
+          allFiles
+              .where(
+                (file) => p
+                    .basenameWithoutExtension(file.name)
+                    .toLowerCase()
+                    .contains(query.toLowerCase()),
+              )
+              .toList();
+    }
+    // 오버레이를 강제로 다시 그리도록 업데이트
+    if (_overlayEntry != null) {
+      _overlayEntry!.markNeedsBuild();
+    }
+  }
+
+  // ✨ [수정] _showSuggestionBox가 markNeedsBuild를 호출하도록 수정
+  void _showSuggestionBox() {
+    if (_overlayEntry != null) {
+      _overlayEntry!.markNeedsBuild(); // 위치가 변경되었을 수 있으므로 다시 그리도록 함
+    } else {
+      _overlayEntry = _createOverlayEntry();
+      Overlay.of(context).insert(_overlayEntry!);
+    }
+  }
+
+  // ✨ [추가] 추천 UI를 화면에서 숨기는 함수
+  void _hideSuggestionBox() {
+    if (_overlayEntry != null) {
+      _overlayEntry!.remove();
+      _overlayEntry = null;
+    }
+  }
+
+  void _removeOverlay() {
+    if (_overlayEntry != null) {
+      _overlayEntry!.remove();
+      _overlayEntry = null;
+    }
+  }
+
+  // ✨ [추가] 커서 위치를 기반으로 추천 상자의 Offset을 계산하는 함수
+  void _updateSuggestionBoxPosition() {
+    final controller = context.read<NoteProvider>().controller;
+    if (controller == null) return;
+
+    final text = controller.text;
+    final offset = controller.selection.start;
+    final startMatch = text.lastIndexOf('[[', offset);
+
+    if (startMatch == -1) return;
+
+    // TextField의 스타일과 동일한 TextPainter를 생성
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: controller.text,
+        style: const TextStyle(
+          fontSize: 16,
+          height: 1.6,
+          fontFamily: 'system-ui',
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    );
+    textPainter.layout();
+
+    // '[[' 시작 위치의 좌표를 가져옴
+    final caretOffset = textPainter.getOffsetForCaret(
+      TextPosition(offset: startMatch),
+      Rect.zero,
+    );
+
+    // dy값에 라인 높이를 더해 커서 바로 아래에 위치하도록 함
+    setState(() {
+      _suggestionBoxOffset = Offset(caretOffset.dx, caretOffset.dy + 25);
+    });
+  }
+
+  // ✨ [수정] _createOverlayEntry에서 동적 offset을 사용하도록 수정
+  OverlayEntry _createOverlayEntry() {
+    return OverlayEntry(
+      builder:
+          (context) => Positioned(
+            width: 300, // 추천 상자 너비 고정
+            child: CompositedTransformFollower(
+              link: _layerLink,
+              showWhenUnlinked: false,
+              offset: _suggestionBoxOffset, // ✨ 상태 변수 사용
+              child: Material(
+                elevation: 4.0,
+                borderRadius: BorderRadius.circular(8.0),
+                child: Container(
+                  constraints: const BoxConstraints(maxHeight: 200),
+                  child:
+                      _filteredFiles.isEmpty
+                          ? const Padding(
+                            padding: EdgeInsets.all(8.0),
+                            child: Center(child: Text('일치하는 파일 없음')),
+                          )
+                          : ListView.builder(
+                            padding: EdgeInsets.zero,
+                            itemCount: _filteredFiles.length,
+                            itemBuilder: (context, index) {
+                              final file = _filteredFiles[index];
+                              final fileName = p.basenameWithoutExtension(
+                                file.name,
+                              );
+                              return ListTile(
+                                dense: true,
+                                title: Text(
+                                  fileName,
+                                  style: const TextStyle(fontSize: 13),
+                                ),
+                                onTap: () {
+                                  _insertWikiLink(fileName);
+                                },
+                              );
+                            },
+                          ),
+                ),
+              ),
+            ),
+          ),
+    );
+  }
+
+  // ✨ [수정] 링크 삽입 로직을 더 견고하게 수정
+  void _insertWikiLink(String fileName) {
+    final controller = context.read<NoteProvider>().controller!;
+    final text = controller.text;
+    final offset = controller.selection.start;
+
+    final startMatch = text.lastIndexOf('[[', offset);
+    if (startMatch != -1) {
+      // [[ 부터 커서까지의 텍스트를 선택한 파일명으로 교체
+      final textBefore = text.substring(0, startMatch + 2);
+      final textAfter = text.substring(offset);
+
+      final newText =
+          textBefore +
+          fileName +
+          ']]' +
+          textAfter.replaceFirst(RegExp(r'[^\]]*\]?\]?'), '');
+
+      final newOffset = startMatch + 2 + fileName.length + 2;
+
+      controller.value = controller.value.copyWith(
+        text: newText,
+        selection: TextSelection.fromPosition(TextPosition(offset: newOffset)),
+      );
+    }
+    _hideSuggestionBox();
   }
 
   Map<String, TextStyle> _getMarkdownStyles(bool isDarkMode) {
@@ -243,6 +463,10 @@ class _MeetingScreenState extends State<MeetingScreen> {
         color: Color(0xFF3498db),
         decoration: TextDecoration.underline,
       ),
+      'wikiLink': const TextStyle(
+        color: Color(0xFF27ae60), // 약간 다른 녹색 계열 색상
+        decoration: TextDecoration.none,
+      ),
       'list': TextStyle(fontSize: 16, color: textColor, height: 1.7),
       'quote': TextStyle(color: quoteColor, fontStyle: FontStyle.italic),
       'hr': TextStyle(color: Colors.grey.shade400, letterSpacing: 4),
@@ -308,7 +532,6 @@ class _MeetingScreenState extends State<MeetingScreen> {
           child: Column(
             children: [
               _buildNewHeader(tabProvider),
-              // ✨ [수정] 스크롤 문제를 해결하기 위해 Expanded와 SingleChildScrollView를 함께 사용
               Expanded(
                 child:
                     activeTab != null
@@ -478,26 +701,28 @@ class _MeetingScreenState extends State<MeetingScreen> {
       markdownStyles,
     );
 
-    return TextField(
-      controller: activeTab.controller,
-      focusNode: activeTab.focusNode,
-      style: TextStyle(
-        fontSize: 16,
-        color: isDarkMode ? Colors.white : const Color(0xFF2c3e50),
-        height: 1.6,
-        fontFamily: 'system-ui',
-      ),
-      maxLines: null,
-      // ✨ [수정] expands는 false로 설정하여 SingleChildScrollView가 스크롤을 제어하도록 함
-      expands: false,
-      keyboardType: TextInputType.multiline,
-      textAlignVertical: TextAlignVertical.top,
-      decoration: const InputDecoration.collapsed(
-        hintText: "메모를 시작하세요...",
-        hintStyle: TextStyle(
-          color: Color(0xFFbdc3c7),
-          fontSize: 15,
+    return CompositedTransformTarget(
+      link: _layerLink,
+      child: TextField(
+        controller: activeTab.controller,
+        focusNode: activeTab.focusNode,
+        style: TextStyle(
+          fontSize: 16,
+          color: isDarkMode ? Colors.white : const Color(0xFF2c3e50),
           height: 1.6,
+          fontFamily: 'system-ui',
+        ),
+        maxLines: null,
+        expands: false,
+        keyboardType: TextInputType.multiline,
+        textAlignVertical: TextAlignVertical.top,
+        decoration: const InputDecoration.collapsed(
+          hintText: "메모를 시작하세요...",
+          hintStyle: TextStyle(
+            color: Color(0xFFbdc3c7),
+            fontSize: 15,
+            height: 1.6,
+          ),
         ),
       ),
     );

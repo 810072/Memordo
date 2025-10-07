@@ -15,11 +15,13 @@ class ObsidianMarkdownController extends TextEditingController {
   TextEditingValue _previousValue = const TextEditingValue();
   bool _isProgrammaticChange = false;
 
+  // ✨ [수정] 'wikiLink' 정규식을 추가합니다.
   static final Map<String, RegExp> _stylingRegexMap = {
     'header': RegExp(r'^(#{1,6})(\s+)(.*)', multiLine: true),
     'list': RegExp(r'^(\s*[-*+•]|\s*\d+\.)(\s+)(.*)', multiLine: true),
     'quote': RegExp(r'^(>)(\s+)(.*)', multiLine: true),
     'link': RegExp(r'\[(.*?)\]\((.*?)\)', dotAll: true),
+    'wikiLink': RegExp(r'\[\[(.*?)\]\]', dotAll: true), // ✨ 추가
     'code': RegExp(r'`(.*?)`', dotAll: true),
     'bold': RegExp(r'\*\*(.*?)\*\*', dotAll: true),
     'strikethrough': RegExp(r'~~(.*?)~~', dotAll: true),
@@ -347,6 +349,16 @@ class ObsidianMarkdownController extends TextEditingController {
             TextSpan(text: '](', style: syntaxStyle),
             TextSpan(text: url, style: syntaxStyle),
             TextSpan(text: ')', style: syntaxStyle),
+          ],
+        );
+
+      // ✨ [추가] 'wikiLink' 타입에 대한 스타일링 케이스를 추가합니다.
+      case 'wikiLink':
+        return TextSpan(
+          children: [
+            TextSpan(text: '[[', style: syntaxStyle),
+            TextSpan(text: match.group(1) ?? '', style: style),
+            TextSpan(text: ']]', style: syntaxStyle),
           ],
         );
 
