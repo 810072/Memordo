@@ -2,108 +2,151 @@
 
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:graphview/GraphView.dart';
 import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
 
-import './meeting_screen.dart';
+import '../providers/tab_provider.dart';
 import '../viewmodels/graph_viewmodel.dart';
 import '../providers/status_bar_provider.dart';
+import '../widgets/force_graph_widget.dart';
 
-// --- 데이터 모델 클래스 (기존과 동일) ---
-class GraphNodeData {
-  final String id;
-  GraphNodeData({required this.id});
-  factory GraphNodeData.fromJson(Map<String, dynamic> json) =>
-      GraphNodeData(id: json['id']);
-}
-
-class GraphEdgeData {
-  final String from;
-  final String to;
-  final double similarity;
-  GraphEdgeData({
-    required this.from,
-    required this.to,
-    required this.similarity,
-  });
-  factory GraphEdgeData.fromJson(Map<String, dynamic> json) => GraphEdgeData(
-    from: json['from'],
-    to: json['to'],
-    similarity: (json['similarity'] as num).toDouble(),
-  );
-}
-
-// --- GraphPage 위젯 ---
 class GraphPage extends StatefulWidget {
   const GraphPage({super.key});
-
   @override
   State<GraphPage> createState() => _GraphPageState();
 }
 
 class _GraphPageState extends State<GraphPage> {
+  String? _hoveredNodeId;
+  String? _selectedNodeId;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<GraphViewModel>().loadGraphFromEmbeddingsFile();
+      final viewModel = context.read<GraphViewModel>();
+      if (viewModel.isAiGraphView) {
+        viewModel.loadGraphFromEmbeddingsFile();
+      } else {
+        viewModel.buildUserGraph();
+      }
     });
   }
 
-  Widget _buildNodeWidget(BuildContext context, String label) {
-    final isMdFile = label.toLowerCase().endsWith('.md');
+  double _getNodeSize(GraphNode node, GraphViewModel viewModel) {
+    final linkCount = viewModel.getNodeLinkCount(node.id);
+    return 10.0 + (linkCount * 1.5).clamp(0.0, 10.0);
+  }
 
-    return GestureDetector(
-      onTap: () => _openNoteEditor(context, label),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          color: isMdFile ? Colors.blue.shade400 : Colors.green.shade400,
-          borderRadius: BorderRadius.circular(30),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.15),
-              blurRadius: 5,
-              offset: const Offset(0, 3),
+  Color _getNodeColor(GraphNode node, GraphViewModel viewModel) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    if (_selectedNodeId == node.id) return Colors.blue.shade400;
+    if (_hoveredNodeId == node.id)
+      return isDark ? Colors.white70 : Colors.black87;
+
+    if (!viewModel.isAiGraphView) {
+      final linkCount = viewModel.getNodeLinkCount(node.id);
+      if (linkCount == 0)
+        return isDark ? Colors.grey.shade700 : Colors.grey.shade400;
+      if (linkCount < 3)
+        return isDark ? Colors.grey.shade600 : Colors.grey.shade500;
+      if (linkCount < 6)
+        return isDark ? Colors.blue.shade700 : Colors.blue.shade400;
+      return isDark ? Colors.purple.shade600 : Colors.purple.shade400;
+    }
+
+    return isDark ? Colors.grey.shade600 : Colors.grey.shade500;
+  }
+
+  // ✨ [수정] 문제가 되었던 Transform.translate 위젯을 완전히 제거합니다.
+  Widget _buildNodeWidget(
+    BuildContext context,
+    GraphNode node,
+    Offset position,
+  ) {
+    final viewModel = context.read<GraphViewModel>();
+    final nodeSize = _getNodeSize(node, viewModel);
+    final nodeColor = _getNodeColor(node, viewModel);
+    final isSelected = _selectedNodeId == node.id;
+    final isHovered = _hoveredNodeId == node.id;
+    final label = p.basenameWithoutExtension(node.id);
+
+    final double widgetWidth = 110;
+    final double widgetHeight = 65;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hoveredNodeId = node.id),
+      onExit: (_) => setState(() => _hoveredNodeId = null),
+      child: SizedBox(
+        width: widgetWidth,
+        height: widgetHeight,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // 노드 원
+            Container(
+              width: nodeSize,
+              height: nodeSize,
+              decoration: BoxDecoration(
+                color: nodeColor,
+                shape: BoxShape.circle,
+                border:
+                    isSelected
+                        ? Border.all(color: Colors.blue, width: 2)
+                        : null,
+                boxShadow:
+                    isHovered || isSelected
+                        ? [
+                          BoxShadow(
+                            color: nodeColor.withOpacity(0.5),
+                            blurRadius: 8,
+                            spreadRadius: 2,
+                          ),
+                        ]
+                        : null,
+              ),
+            ),
+            const SizedBox(height: 6),
+            // 노드 텍스트 레이블
+            Expanded(
+              child: Text(
+                label,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight:
+                      isHovered || isSelected
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                  color: (Theme.of(context).textTheme.bodyMedium?.color ??
+                          Colors.black)
+                      .withOpacity(isHovered || isSelected ? 1.0 : 0.7),
+                ),
+              ),
             ),
           ],
-        ),
-        child: Text(
-          p.basenameWithoutExtension(label),
-          style: const TextStyle(color: Colors.white, fontSize: 13),
         ),
       ),
     );
   }
 
-  Future<void> _openNoteEditor(BuildContext context, String filePath) async {
+  Future<void> _openNoteInTab(BuildContext context, String filePath) async {
     final viewModel = context.read<GraphViewModel>();
     final statusBar = context.read<StatusBarProvider>();
-    final isMdFile = filePath.toLowerCase().endsWith('.md');
-
-    if (isMdFile) {
+    try {
       final notesDir = await viewModel.getNotesDirectory();
       final fullPath = p.join(notesDir, filePath);
       final file = File(fullPath);
+
       if (await file.exists()) {
         final content = await file.readAsString();
         if (!mounted) return;
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder:
-                (context) => Scaffold(
-                  appBar: AppBar(
-                    title: Text(p.basenameWithoutExtension(filePath)),
-                    leading: IconButton(
-                      icon: const Icon(Icons.arrow_back),
-                      onPressed: () => Navigator.of(context).pop(),
-                    ),
-                  ),
-                  body: MeetingScreen(initialText: content, filePath: fullPath),
-                ),
-          ),
+        context.read<TabProvider>().openNewTab(
+          filePath: fullPath,
+          content: content,
         );
       } else {
         statusBar.showStatusMessage(
@@ -111,11 +154,8 @@ class _GraphPageState extends State<GraphPage> {
           type: StatusType.error,
         );
       }
-    } else {
-      statusBar.showStatusMessage(
-        '주제 노드: "$filePath" (클릭 동작 없음)',
-        type: StatusType.info,
-      );
+    } catch (e) {
+      statusBar.showStatusMessage('파일을 여는 중 오류 발생: $e', type: StatusType.error);
     }
   }
 
@@ -126,89 +166,131 @@ class _GraphPageState extends State<GraphPage> {
         if (viewModel.isLoading) {
           return Center(
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 const CircularProgressIndicator(),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
+                Text(viewModel.statusMessage),
+              ],
+            ),
+          );
+        }
+
+        if (viewModel.nodes.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.hub_outlined, size: 64, color: Colors.grey),
+                const SizedBox(height: 16),
                 Text(
-                  viewModel.isAiGraphView ? 'AI 그래프 분석 중...' : '사용자 노트 스캔 중...',
-                  style: Theme.of(context).textTheme.titleMedium,
-                  textAlign: TextAlign.center,
+                  viewModel.statusMessage,
+                  style: Theme.of(context).textTheme.bodyLarge,
                 ),
               ],
             ),
           );
         }
 
-        // ✨ [수정] ViewModel의 상태에 따라 어떤 뷰를 보여줄지 결정
-        if (viewModel.isAiGraphView) {
-          // --- AI 그래프 뷰 ---
-          return viewModel.aiGraph.nodeCount() == 0
-              ? Center(
-                child: Text(
-                  viewModel.statusMessage,
-                  style: Theme.of(context).textTheme.titleMedium,
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            return Stack(
+              children: [
+                ForceGraphView(
+                  key: ValueKey(
+                    '${viewModel.isAiGraphView}-${viewModel.nodes.length}',
+                  ),
+                  nodes: viewModel.nodes,
+                  links: viewModel.links,
+                  canvasSize: Size(constraints.maxWidth, constraints.maxHeight),
+                  nodeBuilder: _buildNodeWidget,
+                  onNodeTap: (node) {
+                    setState(() {
+                      _selectedNodeId =
+                          _selectedNodeId == node.id ? null : node.id;
+                    });
+                    _openNoteInTab(context, node.id);
+                  },
                 ),
-              )
-              : InteractiveViewer(
-                constrained: false,
-                boundaryMargin: const EdgeInsets.all(double.infinity),
-                minScale: 0.01,
-                maxScale: 5.0,
-                child: SizedBox(
-                  width: viewModel.canvasWidth,
-                  height: viewModel.canvasHeight,
-                  child: GraphView(
-                    graph: viewModel.aiGraph,
-                    algorithm: viewModel.aiGraphBuilder,
-                    paint:
-                        Paint()
-                          ..color = Colors.grey
-                          ..strokeWidth = 1
-                          ..style = PaintingStyle.stroke,
-                    builder: (Node node) {
-                      final label = node.key!.value as String;
-                      return _buildNodeWidget(context, label);
-                    },
+                Positioned(
+                  top: 16,
+                  left: 16,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.surface.withOpacity(0.9),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.outline.withOpacity(0.3),
+                      ),
+                    ),
+                    child: Text(
+                      viewModel.isAiGraphView ? 'AI 추천 관계' : '사용자 정의 링크',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                 ),
-              );
-        } else {
-          // --- 사용자 정의 그래프 뷰 ---
-          return viewModel.userGraph.nodeCount() == 0
-              ? Center(
-                child: Text(
-                  viewModel.statusMessage,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-              )
-              : InteractiveViewer(
-                constrained: false,
-                boundaryMargin: const EdgeInsets.all(double.infinity),
-                minScale: 0.01,
-                maxScale: 5.0,
-                child: SizedBox(
-                  width: viewModel.canvasWidth,
-                  height: viewModel.canvasHeight,
-                  child: GraphView(
-                    graph: viewModel.userGraph,
-                    algorithm: viewModel.userGraphBuilder,
-                    paint:
-                        Paint()
-                          ..color =
-                              Colors
-                                  .transparent // 연결선 없음
-                          ..strokeWidth = 1
-                          ..style = PaintingStyle.stroke,
-                    builder: (Node node) {
-                      final label = node.key!.value as String;
-                      return _buildNodeWidget(context, label);
-                    },
+                if (!viewModel.isAiGraphView)
+                  Positioned(
+                    bottom: 16,
+                    right: 16,
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.surface.withOpacity(0.9),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.outline.withOpacity(0.3),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _buildLegendItem('고립된 노트', Colors.grey.shade600),
+                          _buildLegendItem('연결 1-2개', Colors.grey.shade500),
+                          _buildLegendItem('연결 3-5개', Colors.blue.shade400),
+                          _buildLegendItem('연결 6개 이상', Colors.purple.shade400),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
-              );
-        }
+              ],
+            );
+          },
+        );
       },
+    );
+  }
+
+  Widget _buildLegendItem(String label, Color color) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 12,
+            height: 12,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 8),
+          Text(label, style: Theme.of(context).textTheme.bodySmall),
+        ],
+      ),
     );
   }
 }
