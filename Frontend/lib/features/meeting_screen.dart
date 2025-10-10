@@ -96,11 +96,10 @@ class _MeetingScreenState extends State<MeetingScreen> {
   late final TextEditingController _titleController;
   final FocusNode _titleFocusNode = FocusNode();
 
-  // ✨ [수정] 링크 추천 UI 상태 변수
+  // 위키링크 추천 UI 상태 변수
   OverlayEntry? _overlayEntry;
   final LayerLink _layerLink = LayerLink();
   List<FileSystemEntry> _filteredFiles = [];
-  // ✨ [추가] 추천 상자의 위치를 저장할 변수
   Offset _suggestionBoxOffset = Offset.zero;
 
   @override
@@ -113,7 +112,6 @@ class _MeetingScreenState extends State<MeetingScreen> {
     tabProvider.addListener(_onTabChange);
     context.read<NoteProvider>().addListener(_onNoteChange);
 
-    // ✨ [추가] 컨트롤러 리스너를 여기서 등록하여 위키 링크 입력을 감지
     tabProvider.activeTab?.controller.addListener(_onTextChangedForWikiLink);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -140,18 +138,15 @@ class _MeetingScreenState extends State<MeetingScreen> {
       context,
       listen: false,
     ).removeListener(_onSelectedFileChanged);
-    // ✨ [추가] 추천 UI 오버레이 제거
     _removeOverlay();
     _titleController.dispose();
     _titleFocusNode.dispose();
     super.dispose();
   }
 
-  // ✨ [수정] 탭 변경 시 리스너를 새로 등록/제거하도록 수정
   void _onTabChange() {
     final tabProvider = context.read<TabProvider>();
 
-    // 이전 탭의 리스너 제거
     if (tabProvider.openTabs.isNotEmpty) {
       for (var tab in tabProvider.openTabs) {
         tab.controller.removeListener(_onTextChangedForWikiLink);
@@ -160,7 +155,6 @@ class _MeetingScreenState extends State<MeetingScreen> {
 
     final activeTab = tabProvider.activeTab;
     if (activeTab != null) {
-      // 새 활성 탭에 리스너 추가
       activeTab.controller.addListener(_onTextChangedForWikiLink);
       if (_titleController.text != activeTab.title) {
         _titleController.text = activeTab.title;
@@ -171,7 +165,6 @@ class _MeetingScreenState extends State<MeetingScreen> {
       _titleController.clear();
     }
     _onNoteChange();
-    // 탭이 바뀌면 추천 UI 숨기기
     _hideSuggestionBox();
   }
 
@@ -206,7 +199,6 @@ class _MeetingScreenState extends State<MeetingScreen> {
     }
   }
 
-  // ✨ [수정] 텍스트 변경을 감지하여 링크 추천 UI를 제어하는 함수
   void _onTextChangedForWikiLink() {
     final controller = context.read<NoteProvider>().controller;
     if (controller == null) return;
@@ -219,15 +211,14 @@ class _MeetingScreenState extends State<MeetingScreen> {
 
     bool foundMatch = false;
     for (final match in matches) {
-      // 커서가 [[...]] 안에 있는지 확인합니다.
       final endBracketMatch = text.indexOf(']]', match.start);
       final inBetween = endBracketMatch == -1 || offset <= endBracketMatch + 2;
 
       if (offset > match.start && inBetween) {
         final query = match.group(1) ?? '';
         _updateFilteredFiles(query);
-        _updateSuggestionBoxPosition(); // ✨ 위치 계산
-        _showSuggestionBox(); // ✨ UI 표시/업데이트
+        _updateSuggestionBoxPosition();
+        _showSuggestionBox();
         foundMatch = true;
         break;
       }
@@ -238,7 +229,6 @@ class _MeetingScreenState extends State<MeetingScreen> {
     }
   }
 
-  // ✨ [추가] 쿼리에 따라 파일 목록을 필터링하는 함수
   void _updateFilteredFiles(String query) {
     final allFiles = context.read<FileSystemProvider>().allMarkdownFiles;
     if (query.isEmpty) {
@@ -254,23 +244,20 @@ class _MeetingScreenState extends State<MeetingScreen> {
               )
               .toList();
     }
-    // 오버레이를 강제로 다시 그리도록 업데이트
     if (_overlayEntry != null) {
       _overlayEntry!.markNeedsBuild();
     }
   }
 
-  // ✨ [수정] _showSuggestionBox가 markNeedsBuild를 호출하도록 수정
   void _showSuggestionBox() {
     if (_overlayEntry != null) {
-      _overlayEntry!.markNeedsBuild(); // 위치가 변경되었을 수 있으므로 다시 그리도록 함
+      _overlayEntry!.markNeedsBuild();
     } else {
       _overlayEntry = _createOverlayEntry();
       Overlay.of(context).insert(_overlayEntry!);
     }
   }
 
-  // ✨ [추가] 추천 UI를 화면에서 숨기는 함수
   void _hideSuggestionBox() {
     if (_overlayEntry != null) {
       _overlayEntry!.remove();
@@ -285,7 +272,6 @@ class _MeetingScreenState extends State<MeetingScreen> {
     }
   }
 
-  // ✨ [추가] 커서 위치를 기반으로 추천 상자의 Offset을 계산하는 함수
   void _updateSuggestionBoxPosition() {
     final controller = context.read<NoteProvider>().controller;
     if (controller == null) return;
@@ -296,7 +282,6 @@ class _MeetingScreenState extends State<MeetingScreen> {
 
     if (startMatch == -1) return;
 
-    // TextField의 스타일과 동일한 TextPainter를 생성
     final textPainter = TextPainter(
       text: TextSpan(
         text: controller.text,
@@ -310,28 +295,25 @@ class _MeetingScreenState extends State<MeetingScreen> {
     );
     textPainter.layout();
 
-    // '[[' 시작 위치의 좌표를 가져옴
     final caretOffset = textPainter.getOffsetForCaret(
       TextPosition(offset: startMatch),
       Rect.zero,
     );
 
-    // dy값에 라인 높이를 더해 커서 바로 아래에 위치하도록 함
     setState(() {
       _suggestionBoxOffset = Offset(caretOffset.dx, caretOffset.dy + 25);
     });
   }
 
-  // ✨ [수정] _createOverlayEntry에서 동적 offset을 사용하도록 수정
   OverlayEntry _createOverlayEntry() {
     return OverlayEntry(
       builder:
           (context) => Positioned(
-            width: 300, // 추천 상자 너비 고정
+            width: 300,
             child: CompositedTransformFollower(
               link: _layerLink,
               showWhenUnlinked: false,
-              offset: _suggestionBoxOffset, // ✨ 상태 변수 사용
+              offset: _suggestionBoxOffset,
               child: Material(
                 elevation: 4.0,
                 borderRadius: BorderRadius.circular(8.0),
@@ -370,7 +352,6 @@ class _MeetingScreenState extends State<MeetingScreen> {
     );
   }
 
-  // ✨ [수정] 링크 삽입 로직을 더 견고하게 수정
   void _insertWikiLink(String fileName) {
     final controller = context.read<NoteProvider>().controller!;
     final text = controller.text;
@@ -378,7 +359,6 @@ class _MeetingScreenState extends State<MeetingScreen> {
 
     final startMatch = text.lastIndexOf('[[', offset);
     if (startMatch != -1) {
-      // [[ 부터 커서까지의 텍스트를 선택한 파일명으로 교체
       final textBefore = text.substring(0, startMatch + 2);
       final textAfter = text.substring(offset);
 
@@ -398,6 +378,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
     _hideSuggestionBox();
   }
 
+  // ✨ 개선된 스타일 맵 - 더 많은 기능 지원
   Map<String, TextStyle> _getMarkdownStyles(bool isDarkMode) {
     final Color textColor =
         isDarkMode ? Colors.white70 : const Color(0xFF333333);
@@ -412,6 +393,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
         isDarkMode ? const Color(0xFF82AAFF) : const Color(0xFFe74c3c);
 
     return {
+      // 헤더 스타일
       'h1': TextStyle(
         fontSize: 32,
         fontWeight: FontWeight.bold,
@@ -448,32 +430,68 @@ class _MeetingScreenState extends State<MeetingScreen> {
         color: h3Color,
         height: 1.4,
       ),
+
+      // 인라인 스타일
       'bold': TextStyle(fontWeight: FontWeight.bold, color: textColor),
       'italic': TextStyle(fontStyle: FontStyle.italic, color: textColor),
+      'boldItalic': TextStyle(
+        fontWeight: FontWeight.bold,
+        fontStyle: FontStyle.italic,
+        color: textColor,
+      ),
       'strikethrough': TextStyle(
         decoration: TextDecoration.lineThrough,
         color: Colors.grey.shade600,
+      ),
+      'highlight': TextStyle(
+        backgroundColor:
+            isDarkMode
+                ? Colors.yellow.shade700.withOpacity(0.3)
+                : Colors.yellow.shade200,
+        color: textColor,
       ),
       'code': TextStyle(
         fontFamily: 'monospace',
         backgroundColor: codeBgColor,
         color: codeColor,
+        fontSize: 14,
       ),
+
+      // 링크 스타일
       'link': const TextStyle(
         color: Color(0xFF3498db),
         decoration: TextDecoration.underline,
       ),
-      'wikiLink': const TextStyle(
-        color: Color(0xFF27ae60), // 약간 다른 녹색 계열 색상
+      'wikiLink': TextStyle(
+        color: isDarkMode ? const Color(0xFF4CAF50) : const Color(0xFF27ae60),
         decoration: TextDecoration.none,
+        fontWeight: FontWeight.w500,
       ),
+
+      // 리스트 및 인용구
       'list': TextStyle(fontSize: 16, color: textColor, height: 1.7),
-      'quote': TextStyle(color: quoteColor, fontStyle: FontStyle.italic),
+      'quote': TextStyle(
+        color: quoteColor,
+        fontStyle: FontStyle.italic,
+        fontSize: 16,
+      ),
+
+      // 기타
       'hr': TextStyle(color: Colors.grey.shade400, letterSpacing: 4),
       'image': TextStyle(
         color: Colors.blue.shade300,
         fontStyle: FontStyle.italic,
       ),
+      'tag': TextStyle(
+        color: isDarkMode ? Colors.blue.shade300 : Colors.blue.shade600,
+        fontWeight: FontWeight.w500,
+      ),
+      'footnote': TextStyle(color: Colors.blue.shade600, fontSize: 12),
+      'mathInline': TextStyle(
+        fontStyle: FontStyle.italic,
+        color: isDarkMode ? Colors.purple.shade300 : Colors.purple.shade700,
+      ),
+      'checkbox': TextStyle(color: textColor, fontSize: 16),
     };
   }
 
