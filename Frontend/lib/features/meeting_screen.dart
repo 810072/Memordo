@@ -8,7 +8,7 @@ import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 
-import '../widgets/obsidian_markdown_controller.dart';
+import '../widgets/markdown_controller.dart';
 import '../layout/bottom_section_controller.dart';
 import '../utils/ai_service.dart';
 import '../utils/web_helper.dart' as web_helper;
@@ -42,7 +42,7 @@ class SaveAction extends Action<SaveIntent> {
 }
 
 class ToggleBoldAction extends Action<ToggleBoldIntent> {
-  final ObsidianMarkdownController controller;
+  final MarkdownController controller;
   ToggleBoldAction(this.controller);
   @override
   Object? invoke(ToggleBoldIntent intent) {
@@ -52,7 +52,7 @@ class ToggleBoldAction extends Action<ToggleBoldIntent> {
 }
 
 class ToggleItalicAction extends Action<ToggleItalicIntent> {
-  final ObsidianMarkdownController controller;
+  final MarkdownController controller;
   ToggleItalicAction(this.controller);
   @override
   Object? invoke(ToggleItalicIntent intent) {
@@ -62,7 +62,7 @@ class ToggleItalicAction extends Action<ToggleItalicIntent> {
 }
 
 class IndentAction extends Action<IndentIntent> {
-  final ObsidianMarkdownController controller;
+  final MarkdownController controller;
   IndentAction(this.controller);
   @override
   Object? invoke(IndentIntent intent) {
@@ -72,7 +72,7 @@ class IndentAction extends Action<IndentIntent> {
 }
 
 class OutdentAction extends Action<OutdentIntent> {
-  final ObsidianMarkdownController controller;
+  final MarkdownController controller;
   OutdentAction(this.controller);
   @override
   Object? invoke(OutdentIntent intent) {
@@ -527,16 +527,16 @@ class _MeetingScreenState extends State<MeetingScreen> {
             ? {
               SaveIntent: SaveAction(this),
               ToggleBoldIntent: ToggleBoldAction(
-                activeTab.controller as ObsidianMarkdownController,
+                activeTab.controller as MarkdownController,
               ),
               ToggleItalicAction: ToggleItalicAction(
-                activeTab.controller as ObsidianMarkdownController,
+                activeTab.controller as MarkdownController,
               ),
               IndentIntent: IndentAction(
-                activeTab.controller as ObsidianMarkdownController,
+                activeTab.controller as MarkdownController,
               ),
               OutdentIntent: OutdentAction(
-                activeTab.controller as ObsidianMarkdownController,
+                activeTab.controller as MarkdownController,
               ),
             }
             : {};
@@ -715,9 +715,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
     final isDarkMode = theme.brightness == Brightness.dark;
     final markdownStyles = _getMarkdownStyles(isDarkMode);
 
-    (activeTab.controller as ObsidianMarkdownController).updateStyles(
-      markdownStyles,
-    );
+    (activeTab.controller as MarkdownController).updateStyles(markdownStyles);
 
     return CompositedTransformTarget(
       link: _layerLink,

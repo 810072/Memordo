@@ -13,7 +13,7 @@ import 'package:url_launcher/url_launcher.dart';
 /// 3. 줄 단위 파싱으로 성능 최적화
 /// 4. 체크박스, 테이블, 각주 등 추가 기능
 /// 5. 더 정확한 스타일 적용
-class ObsidianMarkdownController extends TextEditingController {
+class MarkdownController extends TextEditingController {
   Map<String, TextStyle> _styleMap;
   TextEditingValue _previousValue = const TextEditingValue();
   bool _isProgrammaticChange = false;
@@ -52,11 +52,9 @@ class ObsidianMarkdownController extends TextEditingController {
     r'^(\s*)([-*+]|\d+\.)\s+(.*)$',
   );
 
-  ObsidianMarkdownController({
-    String? text,
-    required Map<String, TextStyle> styleMap,
-  }) : _styleMap = styleMap,
-       super(text: text) {
+  MarkdownController({String? text, required Map<String, TextStyle> styleMap})
+    : _styleMap = styleMap,
+      super(text: text) {
     _previousValue = value;
     addListener(_mainListener);
   }

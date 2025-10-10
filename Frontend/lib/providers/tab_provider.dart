@@ -5,7 +5,7 @@ import 'package:uuid/uuid.dart';
 import '../model/note_model.dart';
 import 'dart:io';
 import 'package:path/path.dart' as p;
-import '../widgets/obsidian_markdown_controller.dart';
+import '../widgets/markdown_controller.dart';
 
 class TabProvider with ChangeNotifier {
   final List<NoteTab> _openTabs = [];
@@ -87,7 +87,7 @@ class TabProvider with ChangeNotifier {
     final newTab = NoteTab(
       id: id,
       title: title,
-      controller: ObsidianMarkdownController(text: content ?? '', styleMap: {}),
+      controller: MarkdownController(text: content ?? '', styleMap: {}),
       focusNode: FocusNode(),
       filePath: filePath,
     );
