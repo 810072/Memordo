@@ -240,6 +240,10 @@ class _MemoSidebarState extends State<MemoSidebar>
     _cancelEditing();
   }
 
+  // lib/layout/right_sidebar/memo_sidebar.dart
+
+  // ... (다른 코드는 그대로 둡니다) ...
+
   void _showContextMenu(
     BuildContext context,
     Offset position,
@@ -249,8 +253,10 @@ class _MemoSidebarState extends State<MemoSidebar>
       context,
       listen: false,
     );
+    final theme = Theme.of(context);
+    final isDarkMode = theme.brightness == Brightness.dark;
 
-    showMenu<String>(
+    showInstantMenu<String>(
       context: context,
       position: RelativeRect.fromLTRB(
         position.dx,
@@ -258,23 +264,56 @@ class _MemoSidebarState extends State<MemoSidebar>
         position.dx,
         position.dy,
       ),
+      constraints: const BoxConstraints(minWidth: 120, maxWidth: 120),
       items: <PopupMenuEntry<String>>[
         CompactPopupMenuItem<String>(
           value: 'pin',
-          child: Text(entry.isPinned ? '고정 해제' : '고정하기'),
+          child: Row(
+            children: [
+              Icon(
+                entry.isPinned ? Icons.push_pin : Icons.push_pin_outlined,
+                size: 14,
+                color: isDarkMode ? Colors.white70 : Colors.black87,
+              ),
+              const SizedBox(width: 8),
+              Text(entry.isPinned ? '고정 해제' : '고정하기'),
+            ],
+          ),
         ),
         CompactPopupMenuItem<String>(
           value: 'rename',
-          child: const Text('이름 변경'),
+          child: Row(
+            children: [
+              Icon(
+                Icons.edit_outlined,
+                size: 14,
+                color: isDarkMode ? Colors.white70 : Colors.black87,
+              ),
+              const SizedBox(width: 8),
+              const Text('이름 변경'),
+            ],
+          ),
         ),
+        const PopupMenuDivider(height: 1.0),
         CompactPopupMenuItem<String>(
           value: 'delete',
-          child: Text('삭제', style: TextStyle(color: Colors.redAccent.shade100)),
+          child: Row(
+            children: [
+              Icon(Icons.delete_outline, size: 14, color: Colors.red.shade400),
+              const SizedBox(width: 8),
+              Text('삭제', style: TextStyle(color: Colors.red.shade400)),
+            ],
+          ),
         ),
       ],
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.0)),
-      elevation: 4.0,
-      color: Theme.of(context).cardColor,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8.0),
+        side: BorderSide(
+          color: isDarkMode ? Colors.grey.shade800 : Colors.grey.shade300,
+          width: 1.0,
+        ),
+      ),
+      color: isDarkMode ? const Color(0xFF2E2E2E) : theme.cardColor,
     ).then((String? value) {
       if (value == 'rename') {
         _startRenaming(entry);

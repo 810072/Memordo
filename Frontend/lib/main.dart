@@ -267,21 +267,73 @@ class _MainLayoutWrapperState extends State<MainLayoutWrapper>
 
   @override
   Future<void> onWindowClose() async {
+    final theme = Theme.of(context);
+    final isDarkMode = theme.brightness == Brightness.dark;
+
     bool isConfirmed =
-        await showDialog(
+        await showDialog<bool>(
           context: context,
           builder: (context) {
             return AlertDialog(
-              title: const Text('앱을 종료하시겠습니까?'),
-              content: const Text('변경사항이 저장되지 않을 수 있습니다.'),
-              actions: [
-                TextButton(
-                  child: const Text('취소'),
-                  onPressed: () => Navigator.of(context).pop(false),
+              // ✨ [수정] 옵시디언 스타일 적용
+              backgroundColor:
+                  isDarkMode ? const Color(0xFF2E2E2E) : Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12.0),
+                side: BorderSide(
+                  color:
+                      isDarkMode ? Colors.grey.shade700 : Colors.grey.shade300,
+                  width: 1.5,
                 ),
+              ),
+              title: Text(
+                '앱을 종료하시겠습니까?',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                  color: isDarkMode ? Colors.white : Colors.black,
+                ),
+              ),
+              content: Text(
+                '변경사항이 저장되지 않을 수 있습니다.',
+                style: TextStyle(
+                  fontSize: 14,
+                  color:
+                      isDarkMode ? Colors.grey.shade400 : Colors.grey.shade600,
+                ),
+              ),
+              actions: [
+                // 취소 버튼
                 TextButton(
-                  child: const Text('종료'),
+                  child: const Text(
+                    '취소',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  onPressed: () => Navigator.of(context).pop(false),
+                  style: TextButton.styleFrom(
+                    foregroundColor:
+                        isDarkMode ? Colors.white70 : Colors.black54,
+                  ),
+                ),
+                // 종료 버튼 (강조)
+                ElevatedButton(
+                  child: const Text(
+                    '종료',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
                   onPressed: () => Navigator.of(context).pop(true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(
+                      0xFFE57373,
+                    ), // 위험을 나타내는 붉은 계열 색상
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8.0),
+                    ),
+                    elevation: 0,
+                  ),
                 ),
               ],
             );

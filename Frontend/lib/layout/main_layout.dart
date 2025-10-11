@@ -588,8 +588,53 @@ class _TopBarTitle extends StatelessWidget {
 }
 
 // 창 조절 버튼
-class WindowButtons extends StatelessWidget {
-  const WindowButtons({Key? key}) : super(key: key);
+class WindowButtons extends StatefulWidget {
+  const WindowButtons({super.key});
+
+  @override
+  State<WindowButtons> createState() => _WindowButtonsState();
+}
+
+class _WindowButtonsState extends State<WindowButtons> with WindowListener {
+  bool _isMaximized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    windowManager.addListener(this);
+    _checkIfMaximized();
+  }
+
+  void _checkIfMaximized() async {
+    _isMaximized = await windowManager.isMaximized();
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  @override
+  void dispose() {
+    windowManager.removeListener(this);
+    super.dispose();
+  }
+
+  @override
+  void onWindowMaximize() {
+    if (mounted) {
+      setState(() {
+        _isMaximized = true;
+      });
+    }
+  }
+
+  @override
+  void onWindowUnmaximize() {
+    if (mounted) {
+      setState(() {
+        _isMaximized = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -601,15 +646,19 @@ class WindowButtons extends StatelessWidget {
           tooltip: 'Minimize',
         ),
         IconButton(
-          icon: const Icon(Icons.crop_square, size: 16),
+          icon: Icon(
+            _isMaximized ? Icons.filter_none : Icons.crop_square,
+            size: 16,
+          ),
           onPressed: () async {
-            if (await windowManager.isMaximized()) {
+            final isMaximized = await windowManager.isMaximized();
+            if (isMaximized) {
               windowManager.unmaximize();
             } else {
               windowManager.maximize();
             }
           },
-          tooltip: 'Maximize',
+          tooltip: _isMaximized ? '최소화' : '최대화',
         ),
         IconButton(
           icon: const Icon(Icons.close, size: 16),

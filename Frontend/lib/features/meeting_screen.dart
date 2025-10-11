@@ -379,18 +379,22 @@ class _MeetingScreenState extends State<MeetingScreen> {
   }
 
   // ✨ 개선된 스타일 맵 - 더 많은 기능 지원
+  // ✨ 옵시디언 스타일 마크다운 스타일 맵
   Map<String, TextStyle> _getMarkdownStyles(bool isDarkMode) {
     final Color textColor =
-        isDarkMode ? Colors.white70 : const Color(0xFF333333);
-    final Color h1Color = isDarkMode ? Colors.white : const Color(0xFF1a1a1a);
-    final Color h2Color = isDarkMode ? Colors.white : const Color(0xFF2a2a2a);
-    final Color h3Color = isDarkMode ? Colors.white : const Color(0xFF3a3a3a);
+        isDarkMode ? const Color(0xFFDCDCDC) : const Color(0xFF2c3e50);
+    final Color h1Color =
+        isDarkMode ? const Color(0xFFFFFFFF) : const Color(0xFF1a1a1a);
+    final Color h2Color =
+        isDarkMode ? const Color(0xFFF0F0F0) : const Color(0xFF2a2a2a);
+    final Color h3Color =
+        isDarkMode ? const Color(0xFFE8E8E8) : const Color(0xFF3a3a3a);
     final Color quoteColor =
-        isDarkMode ? Colors.grey.shade400 : const Color(0xFF7f8c8d);
+        isDarkMode ? const Color(0xFF9E9E9E) : const Color(0xFF7f8c8d);
     final Color codeBgColor =
-        isDarkMode ? const Color(0x993C4043) : const Color(0xFFF5F5F5);
-    final Color codeColor =
-        isDarkMode ? const Color(0xFF82AAFF) : const Color(0xFFe74c3c);
+        isDarkMode ? const Color(0x1AFFFFFF) : const Color(0xFFF5F5F5);
+    final Color codeTextColor =
+        isDarkMode ? const Color(0xFFE06C75) : const Color(0xFFe74c3c);
 
     return {
       // 헤더 스타일
@@ -399,12 +403,14 @@ class _MeetingScreenState extends State<MeetingScreen> {
         fontWeight: FontWeight.bold,
         color: h1Color,
         height: 1.4,
+        letterSpacing: -0.5,
       ),
       'h2': TextStyle(
         fontSize: 28,
         fontWeight: FontWeight.bold,
         color: h2Color,
         height: 1.4,
+        letterSpacing: -0.3,
       ),
       'h3': TextStyle(
         fontSize: 24,
@@ -432,38 +438,46 @@ class _MeetingScreenState extends State<MeetingScreen> {
       ),
 
       // 인라인 스타일
-      'bold': TextStyle(fontWeight: FontWeight.bold, color: textColor),
+      'bold': TextStyle(fontWeight: FontWeight.w700, color: textColor),
       'italic': TextStyle(fontStyle: FontStyle.italic, color: textColor),
       'boldItalic': TextStyle(
-        fontWeight: FontWeight.bold,
+        fontWeight: FontWeight.w700,
         fontStyle: FontStyle.italic,
         color: textColor,
       ),
       'strikethrough': TextStyle(
         decoration: TextDecoration.lineThrough,
-        color: Colors.grey.shade600,
+        decorationColor:
+            isDarkMode ? const Color(0xFF888888) : const Color(0xFF999999),
+        decorationThickness: 2.0,
+        color: isDarkMode ? const Color(0xFF888888) : const Color(0xFF999999),
       ),
       'highlight': TextStyle(
         backgroundColor:
             isDarkMode
-                ? Colors.yellow.shade700.withOpacity(0.3)
-                : Colors.yellow.shade200,
+                ? const Color(0x40FFEB3B)
+                : const Color(0xFFFFEB3B).withOpacity(0.4),
         color: textColor,
       ),
       'code': TextStyle(
-        fontFamily: 'monospace',
+        fontFamily: 'Consolas, Monaco, Courier New, monospace',
         backgroundColor: codeBgColor,
-        color: codeColor,
+        color: codeTextColor,
         fontSize: 14,
+        letterSpacing: 0.2,
       ),
 
       // 링크 스타일
-      'link': const TextStyle(
-        color: Color(0xFF3498db),
+      'link': TextStyle(
+        color: isDarkMode ? const Color(0xFF61AFEF) : const Color(0xFF3498db),
         decoration: TextDecoration.underline,
+        decorationColor:
+            isDarkMode
+                ? const Color(0xFF61AFEF).withOpacity(0.5)
+                : const Color(0xFF3498db).withOpacity(0.5),
       ),
       'wikiLink': TextStyle(
-        color: isDarkMode ? const Color(0xFF4CAF50) : const Color(0xFF27ae60),
+        color: isDarkMode ? const Color(0xFF98C379) : const Color(0xFF27ae60),
         decoration: TextDecoration.none,
         fontWeight: FontWeight.w500,
       ),
@@ -474,22 +488,29 @@ class _MeetingScreenState extends State<MeetingScreen> {
         color: quoteColor,
         fontStyle: FontStyle.italic,
         fontSize: 16,
+        height: 1.6,
       ),
 
       // 기타
-      'hr': TextStyle(color: Colors.grey.shade400, letterSpacing: 4),
+      'hr': TextStyle(
+        color: isDarkMode ? const Color(0xFF404040) : const Color(0xFFE0E0E0),
+        letterSpacing: 2,
+      ),
       'image': TextStyle(
-        color: Colors.blue.shade300,
+        color: isDarkMode ? const Color(0xFF61AFEF) : const Color(0xFF3498db),
         fontStyle: FontStyle.italic,
       ),
       'tag': TextStyle(
-        color: isDarkMode ? Colors.blue.shade300 : Colors.blue.shade600,
+        color: isDarkMode ? const Color(0xFFC678DD) : const Color(0xFF9b59b6),
         fontWeight: FontWeight.w500,
       ),
-      'footnote': TextStyle(color: Colors.blue.shade600, fontSize: 12),
+      'footnote': TextStyle(
+        color: isDarkMode ? const Color(0xFF61AFEF) : const Color(0xFF3498db),
+        fontSize: 12,
+      ),
       'mathInline': TextStyle(
         fontStyle: FontStyle.italic,
-        color: isDarkMode ? Colors.purple.shade300 : Colors.purple.shade700,
+        color: isDarkMode ? const Color(0xFFC678DD) : const Color(0xFF9b59b6),
       ),
       'checkbox': TextStyle(color: textColor, fontSize: 16),
     };
@@ -599,6 +620,8 @@ class _MeetingScreenState extends State<MeetingScreen> {
 
   Widget _buildNewHeader(TabProvider tabProvider) {
     final activeTab = tabProvider.activeTab;
+    final theme = Theme.of(context);
+    final isDarkMode = theme.brightness == Brightness.dark;
 
     return Container(
       height: 45,
@@ -612,6 +635,8 @@ class _MeetingScreenState extends State<MeetingScreen> {
                 focusNode: _titleFocusNode,
                 autofocus: true,
                 textAlign: TextAlign.center,
+                cursorColor: isDarkMode ? Colors.white : Colors.black,
+                cursorWidth: 1.0,
                 style: const TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
@@ -662,14 +687,26 @@ class _MeetingScreenState extends State<MeetingScreen> {
             alignment: Alignment.centerRight,
             child: Consumer<BottomSectionController>(
               builder: (context, bottomController, child) {
-                return PopupMenuButton<String>(
+                return InstantPopupMenuButton<String>(
                   icon: const Icon(Icons.more_vert),
                   tooltip: '더보기',
+                  offset: const Offset(0, 40),
+                  constraints: const BoxConstraints(
+                    minWidth: 120,
+                    maxWidth: 120,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8.0),
+                    side: BorderSide(
+                      color:
+                          isDarkMode
+                              ? Colors.grey.shade800
+                              : Colors.grey.shade300,
+                      width: 1.0,
+                    ),
                   ),
                   elevation: 4.0,
-                  color: Theme.of(context).cardColor,
+                  color: isDarkMode ? const Color(0xFF2E2E2E) : theme.cardColor,
                   onSelected: (value) {
                     switch (value) {
                       case 'save':
@@ -687,17 +724,60 @@ class _MeetingScreenState extends State<MeetingScreen> {
                       (BuildContext context) => <PopupMenuEntry<String>>[
                         CompactPopupMenuItem<String>(
                           value: 'save',
-                          child: const Text('저장'),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.save_outlined,
+                                size: 14,
+                                color:
+                                    isDarkMode
+                                        ? Colors.white70
+                                        : Colors.black87,
+                              ),
+                              const SizedBox(width: 8),
+                              const Text('저장'),
+                            ],
+                          ),
                         ),
                         CompactPopupMenuItem<String>(
                           value: 'load',
-                          child: const Text('불러오기'),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.file_open_outlined,
+                                size: 14,
+                                color:
+                                    isDarkMode
+                                        ? Colors.white70
+                                        : Colors.black87,
+                              ),
+                              const SizedBox(width: 8),
+                              const Text('불러오기'),
+                            ],
+                          ),
                         ),
+                        const PopupMenuDivider(height: 1.0),
                         CompactPopupMenuItem<String>(
                           value: 'summarize',
-                          enabled: activeTab != null,
-                          child: Text(
-                            bottomController.isLoading ? '요약 중...' : 'AI 요약 실행',
+                          enabled:
+                              activeTab != null && !bottomController.isLoading,
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.auto_awesome_outlined,
+                                size: 14,
+                                color:
+                                    isDarkMode
+                                        ? Colors.white70
+                                        : Colors.black87,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                bottomController.isLoading
+                                    ? '요약 중...'
+                                    : 'AI 요약 실행',
+                              ),
+                            ],
                           ),
                         ),
                       ],
@@ -732,6 +812,8 @@ class _MeetingScreenState extends State<MeetingScreen> {
         expands: false,
         keyboardType: TextInputType.multiline,
         textAlignVertical: TextAlignVertical.top,
+        cursorColor: isDarkMode ? Colors.white : Colors.black,
+        cursorWidth: 1.0,
         decoration: const InputDecoration.collapsed(
           hintText: "메모를 시작하세요...",
           hintStyle: TextStyle(

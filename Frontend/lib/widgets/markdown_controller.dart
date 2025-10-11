@@ -390,7 +390,10 @@ class MarkdownController extends TextEditingController {
     final type = blockMatch.type;
 
     TextStyle style;
-    final syntaxStyle = TextStyle(color: Colors.grey.shade400);
+    final syntaxStyle = TextStyle(
+      color: Colors.grey.withOpacity(0.4),
+      fontWeight: FontWeight.w300,
+    );
 
     switch (type) {
       case 'header':
@@ -445,7 +448,10 @@ class MarkdownController extends TextEditingController {
           children: [
             TextSpan(
               text: marker,
-              style: syntaxStyle.copyWith(height: style.height),
+              style: syntaxStyle.copyWith(
+                height: style.height,
+                fontWeight: FontWeight.w400,
+              ),
             ),
             TextSpan(text: space, style: style),
             _buildInlineStyledSpan(
@@ -640,7 +646,10 @@ class MarkdownController extends TextEditingController {
     final match = inlineMatch.match;
     final type = inlineMatch.type;
     final style = _styleMap[type] ?? baseStyle;
-    final syntaxStyle = TextStyle(color: Colors.grey.shade400);
+    final syntaxStyle = TextStyle(
+      color: Colors.grey.withOpacity(0.35),
+      fontWeight: FontWeight.w300,
+    );
 
     // 커서가 매칭 영역 안에 있는지 확인
     final cursorPos = selection.start;
