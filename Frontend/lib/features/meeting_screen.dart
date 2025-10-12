@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 
 import '../widgets/markdown_controller.dart';
+import '../widgets/codemirror_editor.dart'; // ✅ 이 줄 추가
 import '../layout/bottom_section_controller.dart';
 import '../utils/ai_service.dart';
 import '../utils/web_helper.dart' as web_helper;
@@ -101,6 +102,8 @@ class _MeetingScreenState extends State<MeetingScreen> {
   final LayerLink _layerLink = LayerLink();
   List<FileSystemEntry> _filteredFiles = [];
   Offset _suggestionBoxOffset = Offset.zero;
+
+  final Map<int, GlobalKey<CodeMirrorEditorState>> _editorKeys = {};
 
   @override
   void initState() {
@@ -574,7 +577,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
               Expanded(
                 child:
                     activeTab != null
-                        ? SingleChildScrollView(
+                        ? Padding(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 20.0,
                             vertical: 8.0,
@@ -791,38 +794,25 @@ class _MeetingScreenState extends State<MeetingScreen> {
   }
 
   Widget _buildMarkdownEditor(NoteTab activeTab) {
-    final theme = Theme.of(context);
-    final isDarkMode = theme.brightness == Brightness.dark;
-    final markdownStyles = _getMarkdownStyles(isDarkMode);
+    final tabIndex = context.read<TabProvider>().activeTabIndex;
 
-    (activeTab.controller as MarkdownController).updateStyles(markdownStyles);
+    // 탭별로 에디터 키 생성
+    if (!_editorKeys.containsKey(tabIndex)) {
+      _editorKeys[tabIndex] = GlobalKey<CodeMirrorEditorState>();
+    }
 
-    return CompositedTransformTarget(
-      link: _layerLink,
-      child: TextField(
-        controller: activeTab.controller,
-        focusNode: activeTab.focusNode,
-        style: TextStyle(
-          fontSize: 16,
-          color: isDarkMode ? Colors.white : const Color(0xFF2c3e50),
-          height: 1.6,
-          fontFamily: 'system-ui',
-        ),
-        maxLines: null,
-        expands: false,
-        keyboardType: TextInputType.multiline,
-        textAlignVertical: TextAlignVertical.top,
-        cursorColor: isDarkMode ? Colors.white : Colors.black,
-        cursorWidth: 1.0,
-        decoration: const InputDecoration.collapsed(
-          hintText: "메모를 시작하세요...",
-          hintStyle: TextStyle(
-            color: Color(0xFFbdc3c7),
-            fontSize: 15,
-            height: 1.6,
-          ),
-        ),
-      ),
+    return CodeMirrorEditor(
+      key: _editorKeys[tabIndex],
+      initialText: activeTab.controller.text,
+      onTextChanged: (text) {
+        // 텍스트 변경 시 컨트롤러 업데이트
+        if (activeTab.controller.text != text) {
+          activeTab.controller.value = activeTab.controller.value.copyWith(
+            text: text,
+            selection: TextSelection.collapsed(offset: text.length),
+          );
+        }
+      },
     );
   }
 
@@ -867,7 +857,16 @@ class _MeetingScreenState extends State<MeetingScreen> {
     if (activeTab == null) return;
     final statusBar = context.read<StatusBarProvider>();
 
-    final content = activeTab.controller.text;
+    final tabIndex = tabProvider.activeTabIndex;
+    final editorKey = _editorKeys[tabIndex];
+
+    if (editorKey?.currentState == null) {
+      statusBar.showStatusMessage("에디터를 찾을 수 없습니다.", type: StatusType.error);
+      return;
+    }
+
+    final content = await editorKey!.currentState!.getText();
+
     if (content.isEmpty) {
       statusBar.showStatusMessage("저장할 내용이 없습니다.", type: StatusType.error);
       return;
@@ -951,7 +950,12 @@ class _MeetingScreenState extends State<MeetingScreen> {
     final statusBar = context.read<StatusBarProvider>();
     if (activeTab == null) return;
 
-    final content = activeTab.controller.text.trim();
+    final tabIndex = context.read<TabProvider>().activeTabIndex;
+    final editorKey = _editorKeys[tabIndex];
+
+    if (editorKey?.currentState == null) return;
+
+    final content = (await editorKey!.currentState!.getText()).trim();
     if (content.length < 50) {
       statusBar.showStatusMessage(
         '요약할 내용이 너무 짧습니다 (최소 50자 필요).',

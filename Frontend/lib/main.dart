@@ -10,7 +10,7 @@ import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:window_manager/window_manager.dart';
-import 'package:intl/date_symbol_data_local.dart'; // ✨ [추가] intl 패키지 초기화를 위해 임포트
+import 'package:intl/date_symbol_data_local.dart';
 
 import 'auth/auth_dialog.dart';
 import 'layout/ai_summary_controller.dart';
@@ -45,9 +45,10 @@ Future<void> main(List<String> args) async {
     runApp(ChatbotPage(key: Key('chatbot_window_$windowId')));
   } else {
     WidgetsFlutterBinding.ensureInitialized();
+
     await windowManager.ensureInitialized();
 
-    // ✨ [추가] 앱이 시작될 때 한국어 날짜 형식을 초기화합니다.
+    // 앱이 시작될 때 한국어 날짜 형식을 초기화합니다.
     await initializeDateFormatting('ko_KR', null);
 
     await _startBackendServer();
@@ -275,7 +276,6 @@ class _MainLayoutWrapperState extends State<MainLayoutWrapper>
           context: context,
           builder: (context) {
             return AlertDialog(
-              // ✨ [수정] 옵시디언 스타일 적용
               backgroundColor:
                   isDarkMode ? const Color(0xFF2E2E2E) : Colors.white,
               shape: RoundedRectangleBorder(
@@ -303,7 +303,6 @@ class _MainLayoutWrapperState extends State<MainLayoutWrapper>
                 ),
               ),
               actions: [
-                // 취소 버튼
                 TextButton(
                   child: const Text(
                     '취소',
@@ -315,7 +314,6 @@ class _MainLayoutWrapperState extends State<MainLayoutWrapper>
                         isDarkMode ? Colors.white70 : Colors.black54,
                   ),
                 ),
-                // 종료 버튼 (강조)
                 ElevatedButton(
                   child: const Text(
                     '종료',
@@ -326,9 +324,7 @@ class _MainLayoutWrapperState extends State<MainLayoutWrapper>
                   ),
                   onPressed: () => Navigator.of(context).pop(true),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(
-                      0xFFE57373,
-                    ), // 위험을 나타내는 붉은 계열 색상
+                    backgroundColor: const Color(0xFFE57373),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8.0),
                     ),
