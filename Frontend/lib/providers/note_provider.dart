@@ -49,6 +49,11 @@ class NoteProvider with ChangeNotifier {
 
   // 텍스트가 변경되었음을 알리는 내부 메서드
   void _onTextChanged() {
+    // ✨ [수정] 컨트롤러가 null이거나 selection이 유효하지 않으면 즉시 반환하여 오류를 방지합니다.
+    if (_controller == null || _controller!.selection.start < 0) {
+      return;
+    }
+
     if (_controller != null) {
       final text = _controller!.text;
       final offset = _controller!.selection.baseOffset;

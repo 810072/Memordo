@@ -1,11 +1,11 @@
 // lib/providers/tab_provider.dart
+
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 import '../model/note_model.dart';
 import 'dart:io';
 import 'package:path/path.dart' as p;
-import '../widgets/markdown_controller.dart';
 
 class TabProvider with ChangeNotifier {
   final List<NoteTab> _openTabs = [];
@@ -40,7 +40,6 @@ class TabProvider with ChangeNotifier {
   @override
   void dispose() {
     _debounce?.cancel();
-    // ✨ [추가] Provider가 소멸될 때 모든 탭의 리소스를 정리합니다.
     for (var tab in _openTabs) {
       if (tab.contentListener != null) {
         tab.controller.removeListener(tab.contentListener!);
@@ -84,15 +83,15 @@ class TabProvider with ChangeNotifier {
     final String title =
         filePath != null ? p.basenameWithoutExtension(filePath) : '새 메모';
 
+    // ✨ [수정] TextEditingController를 사용하도록 변경
     final newTab = NoteTab(
       id: id,
       title: title,
-      controller: MarkdownController(text: content ?? '', styleMap: {}),
+      controller: TextEditingController(text: content ?? ''),
       focusNode: FocusNode(),
       filePath: filePath,
     );
 
-    // ✨ [수정] 각 탭에 고유한 리스너를 할당하여 나중에 제거할 수 있도록 합니다.
     newTab.contentListener = () => _onContentChanged(newTab);
     newTab.controller.addListener(newTab.contentListener!);
 
@@ -113,7 +112,6 @@ class TabProvider with ChangeNotifier {
   void closeTab(int index) {
     if (index >= 0 && index < _openTabs.length) {
       final tabToClose = _openTabs[index];
-      // ✨ [수정] 탭을 닫을 때 저장된 리스너를 정확하게 제거합니다.
       if (tabToClose.contentListener != null) {
         tabToClose.controller.removeListener(tabToClose.contentListener!);
       }

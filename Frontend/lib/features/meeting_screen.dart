@@ -8,8 +8,7 @@ import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 
-import '../widgets/markdown_controller.dart';
-import '../widgets/codemirror_editor.dart'; // ✅ 이 줄 추가
+import '../widgets/codemirror_editor.dart';
 import '../layout/bottom_section_controller.dart';
 import '../utils/ai_service.dart';
 import '../utils/web_helper.dart' as web_helper;
@@ -21,7 +20,7 @@ import '../model/note_model.dart';
 import '../widgets/custom_popup_menu.dart';
 import '../providers/status_bar_provider.dart';
 
-// --- Intents and Actions for Shortcuts ---
+// --- ✨ [수정] Intents와 Actions 로직 변경 ---
 class SaveIntent extends Intent {}
 
 class ToggleBoldIntent extends Intent {}
@@ -32,6 +31,7 @@ class IndentIntent extends Intent {}
 
 class OutdentIntent extends Intent {}
 
+// Action 클래스들이 이제 CodeMirrorEditorState를 직접 제어합니다.
 class SaveAction extends Action<SaveIntent> {
   final _MeetingScreenState screenState;
   SaveAction(this.screenState);
@@ -43,46 +43,46 @@ class SaveAction extends Action<SaveIntent> {
 }
 
 class ToggleBoldAction extends Action<ToggleBoldIntent> {
-  final MarkdownController controller;
-  ToggleBoldAction(this.controller);
+  final _MeetingScreenState screenState;
+  ToggleBoldAction(this.screenState);
   @override
   Object? invoke(ToggleBoldIntent intent) {
-    controller.toggleInlineSyntax('**', '**');
+    screenState.getActiveEditor()?.toggleBold();
     return null;
   }
 }
 
 class ToggleItalicAction extends Action<ToggleItalicIntent> {
-  final MarkdownController controller;
-  ToggleItalicAction(this.controller);
+  final _MeetingScreenState screenState;
+  ToggleItalicAction(this.screenState);
   @override
   Object? invoke(ToggleItalicIntent intent) {
-    controller.toggleInlineSyntax('*', '*');
+    screenState.getActiveEditor()?.toggleItalic();
     return null;
   }
 }
 
 class IndentAction extends Action<IndentIntent> {
-  final MarkdownController controller;
-  IndentAction(this.controller);
+  final _MeetingScreenState screenState;
+  IndentAction(this.screenState);
   @override
   Object? invoke(IndentIntent intent) {
-    controller.indentList(true);
+    screenState.getActiveEditor()?.indent();
     return null;
   }
 }
 
 class OutdentAction extends Action<OutdentIntent> {
-  final MarkdownController controller;
-  OutdentAction(this.controller);
+  final _MeetingScreenState screenState;
+  OutdentAction(this.screenState);
   @override
   Object? invoke(OutdentIntent intent) {
-    controller.indentList(false);
+    screenState.getActiveEditor()?.outdent();
     return null;
   }
 }
+// ---
 
-// --- Main Widget ---
 class MeetingScreen extends StatefulWidget {
   final String? initialText;
   final String? filePath;
@@ -97,13 +97,20 @@ class _MeetingScreenState extends State<MeetingScreen> {
   late final TextEditingController _titleController;
   final FocusNode _titleFocusNode = FocusNode();
 
-  // 위키링크 추천 UI 상태 변수
   OverlayEntry? _overlayEntry;
   final LayerLink _layerLink = LayerLink();
   List<FileSystemEntry> _filteredFiles = [];
   Offset _suggestionBoxOffset = Offset.zero;
 
-  final Map<int, GlobalKey<CodeMirrorEditorState>> _editorKeys = {};
+  // ✨ [수정] GlobalKey를 사용하여 각 탭의 에디터 인스턴스에 접근
+  final Map<String, GlobalKey<CodeMirrorEditorState>> _editorKeys = {};
+
+  // ✨ [추가] 현재 활성화된 에디터의 State를 가져오는 헬퍼 함수
+  CodeMirrorEditorState? getActiveEditor() {
+    final activeTabId = context.read<TabProvider>().activeTab?.id;
+    if (activeTabId == null) return null;
+    return _editorKeys[activeTabId]?.currentState;
+  }
 
   @override
   void initState() {
@@ -115,6 +122,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
     tabProvider.addListener(_onTabChange);
     context.read<NoteProvider>().addListener(_onNoteChange);
 
+    // 초기 탭의 컨트롤러에 리스너 추가
     tabProvider.activeTab?.controller.addListener(_onTextChangedForWikiLink);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -150,17 +158,21 @@ class _MeetingScreenState extends State<MeetingScreen> {
   void _onTabChange() {
     final tabProvider = context.read<TabProvider>();
 
-    if (tabProvider.openTabs.isNotEmpty) {
-      for (var tab in tabProvider.openTabs) {
-        tab.controller.removeListener(_onTextChangedForWikiLink);
-      }
+    // 이전에 활성화되었던 탭의 리스너를 제거
+    for (var tab in tabProvider.openTabs) {
+      tab.controller.removeListener(_onTextChangedForWikiLink);
     }
 
     final activeTab = tabProvider.activeTab;
     if (activeTab != null) {
+      // 새로운 활성 탭에 리스너 추가
       activeTab.controller.addListener(_onTextChangedForWikiLink);
       if (_titleController.text != activeTab.title) {
         _titleController.text = activeTab.title;
+      }
+      // ✨ [추가] 탭 전환 시 에디터 키가 없으면 생성
+      if (!_editorKeys.containsKey(activeTab.id)) {
+        _editorKeys[activeTab.id] = GlobalKey<CodeMirrorEditorState>();
       }
     }
 
@@ -381,144 +393,6 @@ class _MeetingScreenState extends State<MeetingScreen> {
     _hideSuggestionBox();
   }
 
-  // ✨ 개선된 스타일 맵 - 더 많은 기능 지원
-  // ✨ 옵시디언 스타일 마크다운 스타일 맵
-  Map<String, TextStyle> _getMarkdownStyles(bool isDarkMode) {
-    final Color textColor =
-        isDarkMode ? const Color(0xFFDCDCDC) : const Color(0xFF2c3e50);
-    final Color h1Color =
-        isDarkMode ? const Color(0xFFFFFFFF) : const Color(0xFF1a1a1a);
-    final Color h2Color =
-        isDarkMode ? const Color(0xFFF0F0F0) : const Color(0xFF2a2a2a);
-    final Color h3Color =
-        isDarkMode ? const Color(0xFFE8E8E8) : const Color(0xFF3a3a3a);
-    final Color quoteColor =
-        isDarkMode ? const Color(0xFF9E9E9E) : const Color(0xFF7f8c8d);
-    final Color codeBgColor =
-        isDarkMode ? const Color(0x1AFFFFFF) : const Color(0xFFF5F5F5);
-    final Color codeTextColor =
-        isDarkMode ? const Color(0xFFE06C75) : const Color(0xFFe74c3c);
-
-    return {
-      // 헤더 스타일
-      'h1': TextStyle(
-        fontSize: 32,
-        fontWeight: FontWeight.bold,
-        color: h1Color,
-        height: 1.4,
-        letterSpacing: -0.5,
-      ),
-      'h2': TextStyle(
-        fontSize: 28,
-        fontWeight: FontWeight.bold,
-        color: h2Color,
-        height: 1.4,
-        letterSpacing: -0.3,
-      ),
-      'h3': TextStyle(
-        fontSize: 24,
-        fontWeight: FontWeight.w600,
-        color: h3Color,
-        height: 1.4,
-      ),
-      'h4': TextStyle(
-        fontSize: 20,
-        fontWeight: FontWeight.w600,
-        color: h3Color,
-        height: 1.4,
-      ),
-      'h5': TextStyle(
-        fontSize: 18,
-        fontWeight: FontWeight.w600,
-        color: h3Color,
-        height: 1.4,
-      ),
-      'h6': TextStyle(
-        fontSize: 16,
-        fontWeight: FontWeight.w600,
-        color: h3Color,
-        height: 1.4,
-      ),
-
-      // 인라인 스타일
-      'bold': TextStyle(fontWeight: FontWeight.w700, color: textColor),
-      'italic': TextStyle(fontStyle: FontStyle.italic, color: textColor),
-      'boldItalic': TextStyle(
-        fontWeight: FontWeight.w700,
-        fontStyle: FontStyle.italic,
-        color: textColor,
-      ),
-      'strikethrough': TextStyle(
-        decoration: TextDecoration.lineThrough,
-        decorationColor:
-            isDarkMode ? const Color(0xFF888888) : const Color(0xFF999999),
-        decorationThickness: 2.0,
-        color: isDarkMode ? const Color(0xFF888888) : const Color(0xFF999999),
-      ),
-      'highlight': TextStyle(
-        backgroundColor:
-            isDarkMode
-                ? const Color(0x40FFEB3B)
-                : const Color(0xFFFFEB3B).withOpacity(0.4),
-        color: textColor,
-      ),
-      'code': TextStyle(
-        fontFamily: 'Consolas, Monaco, Courier New, monospace',
-        backgroundColor: codeBgColor,
-        color: codeTextColor,
-        fontSize: 14,
-        letterSpacing: 0.2,
-      ),
-
-      // 링크 스타일
-      'link': TextStyle(
-        color: isDarkMode ? const Color(0xFF61AFEF) : const Color(0xFF3498db),
-        decoration: TextDecoration.underline,
-        decorationColor:
-            isDarkMode
-                ? const Color(0xFF61AFEF).withOpacity(0.5)
-                : const Color(0xFF3498db).withOpacity(0.5),
-      ),
-      'wikiLink': TextStyle(
-        color: isDarkMode ? const Color(0xFF98C379) : const Color(0xFF27ae60),
-        decoration: TextDecoration.none,
-        fontWeight: FontWeight.w500,
-      ),
-
-      // 리스트 및 인용구
-      'list': TextStyle(fontSize: 16, color: textColor, height: 1.7),
-      'quote': TextStyle(
-        color: quoteColor,
-        fontStyle: FontStyle.italic,
-        fontSize: 16,
-        height: 1.6,
-      ),
-
-      // 기타
-      'hr': TextStyle(
-        color: isDarkMode ? const Color(0xFF404040) : const Color(0xFFE0E0E0),
-        letterSpacing: 2,
-      ),
-      'image': TextStyle(
-        color: isDarkMode ? const Color(0xFF61AFEF) : const Color(0xFF3498db),
-        fontStyle: FontStyle.italic,
-      ),
-      'tag': TextStyle(
-        color: isDarkMode ? const Color(0xFFC678DD) : const Color(0xFF9b59b6),
-        fontWeight: FontWeight.w500,
-      ),
-      'footnote': TextStyle(
-        color: isDarkMode ? const Color(0xFF61AFEF) : const Color(0xFF3498db),
-        fontSize: 12,
-      ),
-      'mathInline': TextStyle(
-        fontStyle: FontStyle.italic,
-        color: isDarkMode ? const Color(0xFFC678DD) : const Color(0xFF9b59b6),
-      ),
-      'checkbox': TextStyle(color: textColor, fontSize: 16),
-    };
-  }
-
   @override
   Widget build(BuildContext context) {
     final tabProvider = context.watch<TabProvider>();
@@ -531,39 +405,26 @@ class _MeetingScreenState extends State<MeetingScreen> {
       ).register(activeTab.controller, activeTab.focusNode);
     }
 
-    final Map<ShortcutActivator, Intent> shortcuts =
-        activeTab != null
-            ? {
-              const SingleActivator(LogicalKeyboardKey.keyS, control: true):
-                  SaveIntent(),
-              const SingleActivator(LogicalKeyboardKey.keyB, control: true):
-                  ToggleBoldIntent(),
-              const SingleActivator(LogicalKeyboardKey.keyI, control: true):
-                  ToggleItalicIntent(),
-              const SingleActivator(LogicalKeyboardKey.tab): IndentIntent(),
-              const SingleActivator(LogicalKeyboardKey.tab, shift: true):
-                  OutdentIntent(),
-            }
-            : {};
+    // ✨ [수정] 단축키와 액션 연결 로직 변경
+    final Map<ShortcutActivator, Intent> shortcuts = {
+      const SingleActivator(LogicalKeyboardKey.keyS, control: true):
+          SaveIntent(),
+      const SingleActivator(LogicalKeyboardKey.keyB, control: true):
+          ToggleBoldIntent(),
+      const SingleActivator(LogicalKeyboardKey.keyI, control: true):
+          ToggleItalicIntent(),
+      const SingleActivator(LogicalKeyboardKey.tab): IndentIntent(),
+      const SingleActivator(LogicalKeyboardKey.tab, shift: true):
+          OutdentIntent(),
+    };
 
-    final Map<Type, Action<Intent>> actions =
-        activeTab != null
-            ? {
-              SaveIntent: SaveAction(this),
-              ToggleBoldIntent: ToggleBoldAction(
-                activeTab.controller as MarkdownController,
-              ),
-              ToggleItalicAction: ToggleItalicAction(
-                activeTab.controller as MarkdownController,
-              ),
-              IndentIntent: IndentAction(
-                activeTab.controller as MarkdownController,
-              ),
-              OutdentIntent: OutdentAction(
-                activeTab.controller as MarkdownController,
-              ),
-            }
-            : {};
+    final Map<Type, Action<Intent>> actions = {
+      SaveIntent: SaveAction(this),
+      ToggleBoldIntent: ToggleBoldAction(this),
+      ToggleItalicIntent: ToggleItalicAction(this),
+      IndentIntent: IndentAction(this),
+      OutdentIntent: OutdentAction(this),
+    };
 
     return Shortcuts(
       shortcuts: shortcuts,
@@ -794,24 +655,18 @@ class _MeetingScreenState extends State<MeetingScreen> {
   }
 
   Widget _buildMarkdownEditor(NoteTab activeTab) {
-    final tabIndex = context.read<TabProvider>().activeTabIndex;
-
-    // 탭별로 에디터 키 생성
-    if (!_editorKeys.containsKey(tabIndex)) {
-      _editorKeys[tabIndex] = GlobalKey<CodeMirrorEditorState>();
+    // ✨ [수정] 탭 ID를 사용하여 에디터 키를 관리
+    if (!_editorKeys.containsKey(activeTab.id)) {
+      _editorKeys[activeTab.id] = GlobalKey<CodeMirrorEditorState>();
     }
 
     return CodeMirrorEditor(
-      key: _editorKeys[tabIndex],
-      initialText: activeTab.controller.text,
+      key: _editorKeys[activeTab.id],
+      controller: activeTab.controller, // ✨ [수정] 컨트롤러 직접 전달
       onTextChanged: (text) {
-        // 텍스트 변경 시 컨트롤러 업데이트
-        if (activeTab.controller.text != text) {
-          activeTab.controller.value = activeTab.controller.value.copyWith(
-            text: text,
-            selection: TextSelection.collapsed(offset: text.length),
-          );
-        }
+        // `NoteProvider`가 컨트롤러의 리스너를 통해 변경을 감지하므로,
+        // 여기서 별도로 컨트롤러 값을 설정할 필요가 없습니다.
+        // `note_provider`가 상태를 업데이트합니다.
       },
     );
   }
@@ -857,15 +712,14 @@ class _MeetingScreenState extends State<MeetingScreen> {
     if (activeTab == null) return;
     final statusBar = context.read<StatusBarProvider>();
 
-    final tabIndex = tabProvider.activeTabIndex;
-    final editorKey = _editorKeys[tabIndex];
-
-    if (editorKey?.currentState == null) {
+    // ✨ [수정] 활성 에디터에서 텍스트를 가져옴
+    final editor = getActiveEditor();
+    if (editor == null) {
       statusBar.showStatusMessage("에디터를 찾을 수 없습니다.", type: StatusType.error);
       return;
     }
 
-    final content = await editorKey!.currentState!.getText();
+    final content = await editor.getText();
 
     if (content.isEmpty) {
       statusBar.showStatusMessage("저장할 내용이 없습니다.", type: StatusType.error);
@@ -892,9 +746,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
       try {
         await File(path).writeAsString(content);
         fileProvider.updateLastSavedDirectoryPath(p.dirname(path));
-
         tabProvider.updateTabInfo(tabProvider.activeTabIndex, path);
-
         fileProvider.scanForFileSystem();
         statusBar.showStatusMessage(
           "저장 완료: ${p.basename(path)} ✅",
@@ -950,12 +802,11 @@ class _MeetingScreenState extends State<MeetingScreen> {
     final statusBar = context.read<StatusBarProvider>();
     if (activeTab == null) return;
 
-    final tabIndex = context.read<TabProvider>().activeTabIndex;
-    final editorKey = _editorKeys[tabIndex];
+    // ✨ [수정] 활성 에디터에서 텍스트를 가져옴
+    final editor = getActiveEditor();
+    if (editor == null) return;
 
-    if (editorKey?.currentState == null) return;
-
-    final content = (await editorKey!.currentState!.getText()).trim();
+    final content = (await editor.getText()).trim();
     if (content.length < 50) {
       statusBar.showStatusMessage(
         '요약할 내용이 너무 짧습니다 (최소 50자 필요).',
