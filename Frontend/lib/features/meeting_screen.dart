@@ -21,9 +21,9 @@ import '../providers/status_bar_provider.dart';
 
 // ✨ [추가] 상수 정의
 class EditorConstants {
-  static const double suggestionBoxWidth = 300;
-  static const double suggestionBoxMaxHeight = 200;
-  static const double suggestionItemHeight = 32;
+  static const double suggestionBoxWidth = 400;
+  static const double suggestionBoxMaxHeight = 300;
+  // static const double suggestionItemHeight = 50;
   static const double suggestionItemFontSize = 12;
   static const double headerHeight = 45;
   static const double editorHorizontalPadding = 20.0;
@@ -274,12 +274,9 @@ class _MeetingScreenState extends State<MeetingScreen> {
 
     // ✨ [추가] 화면 크기 및 경계 체크
     final screenSize = MediaQuery.of(context).size;
-    final suggestionBoxHeight =
-        _filteredFiles.isEmpty
-            ? 50.0 // 빈 상태 높이
-            : (_filteredFiles.length * EditorConstants.suggestionItemHeight +
-                    16.0)
-                .clamp(0.0, EditorConstants.suggestionBoxMaxHeight);
+    final suggestionBoxHeight = (_filteredFiles.length *
+            40.0) // 평균 아이템 높이를 40.0 정도로 예상하여 계산
+        .clamp(50.0, EditorConstants.suggestionBoxMaxHeight); // 최소/최대 높이 제한
 
     double finalLeft = position.dx;
     double finalTop = position.dy;
@@ -360,26 +357,78 @@ class _MeetingScreenState extends State<MeetingScreen> {
     final fileName = p.basenameWithoutExtension(file.name);
     final isHighlighted = index == _highlightedIndex;
 
-    return InkWell(
-      onTap: () {
-        getActiveEditor()?.insertWikiLink(fileName);
-        _hideSuggestionBox();
-      },
-      child: Container(
-        height: EditorConstants.suggestionItemHeight,
-        color: isHighlighted ? theme.hoverColor : null,
-        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-        alignment: Alignment.centerLeft,
-        child: Text(
-          fileName,
-          style: TextStyle(
-            fontSize: EditorConstants.suggestionItemFontSize,
-            color: theme.textTheme.bodyMedium?.color,
+    // --- 여기부터 수정 ---
+
+    // 노트 루트 폴더 경로를 가져와서 상대 경로 계산
+    final fileProvider = context.read<FileSystemProvider>();
+    final rootPathFuture = fileProvider.getOrCreateNoteFolderPath();
+
+    return FutureBuilder<String>(
+      future: rootPathFuture,
+      builder: (context, snapshot) {
+        String relativePath = '';
+        if (snapshot.hasData) {
+          // 파일의 부모 디렉토리 경로만 추출
+          final parentDir = p.dirname(file.path);
+          // 루트 폴더와 같지 않은 경우에만 상대 경로 표시
+          if (parentDir != snapshot.data) {
+            relativePath =
+                '${p.relative(parentDir, from: snapshot.data)}${p.separator}';
+          }
+        }
+
+        return InkWell(
+          onTap: () {
+            getActiveEditor()?.insertWikiLink(fileName);
+            _hideSuggestionBox();
+          },
+          child: Container(
+            // height: EditorConstants.suggestionItemHeight,
+            color: isHighlighted ? theme.hoverColor : null,
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16.0,
+              vertical: 4.0,
+            ),
+            alignment: Alignment.centerLeft,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // 파일 제목 (첫째 줄)
+                Text(
+                  fileName,
+                  style: TextStyle(
+                    fontSize: 13, // 폰트 크기 조정
+                    fontWeight: FontWeight.w500, // 약간 굵게
+                    color: theme.textTheme.bodyMedium?.color,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+                const SizedBox(height: 2),
+                // 파일 상대 경로 (둘째 줄)
+                if (relativePath.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 1.0), // 제목과의 간격
+                    child: Text(
+                      relativePath,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: theme.textTheme.bodyMedium?.color?.withOpacity(
+                          0.6,
+                        ),
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
+                  ),
+              ],
+            ),
           ),
-          overflow: TextOverflow.ellipsis,
-        ),
-      ),
+        );
+      },
     );
+    // --- 여기까지 수정 ---
   }
 
   void _hideSuggestionBox() {
