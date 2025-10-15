@@ -11,6 +11,9 @@ import 'package:provider/provider.dart';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
+import 'package:webview_flutter_android/webview_flutter_android.dart';
 
 import 'auth/auth_dialog.dart';
 import 'layout/ai_summary_controller.dart';
@@ -46,6 +49,16 @@ Future<void> main(List<String> args) async {
   } else {
     WidgetsFlutterBinding.ensureInitialized();
 
+    // ✨ 이 부분을 추가
+    if (!kIsWeb) {
+      if (Platform.isAndroid) {
+        WebViewPlatform.instance = AndroidWebViewPlatform();
+      } else if (Platform.isIOS || Platform.isMacOS) {
+        WebViewPlatform.instance = WebKitWebViewPlatform();
+      }
+    }
+
+    await windowManager.ensureInitialized();
     await windowManager.ensureInitialized();
 
     // 앱이 시작될 때 한국어 날짜 형식을 초기화합니다.

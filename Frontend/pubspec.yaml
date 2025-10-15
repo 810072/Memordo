@@ -59,7 +59,9 @@ dependencies:
   webview_flutter_android: ^4.10.1
   webview_flutter_wkwebview: ^3.23.0  
   webview_windows: ^0.4.0
-
+  flutter_inappwebview: ^5.8.0 # <--- 이 라인을 추가해주세요
+  super_editor: ^0.3.0-dev.23
+  super_editor_markdown: ^0.1.0-dev.11
 
 dev_dependencies:
   flutter_test:
@@ -82,6 +84,7 @@ flutter:
    - assets/logo.png
    - assets/google_logo.png
    - assets/codemirror/
+   - assets/codemirror/editor_integration.js  # 이 줄 추가
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
   # the material Icons class.
