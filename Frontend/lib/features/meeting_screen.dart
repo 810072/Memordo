@@ -278,7 +278,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
             40.0) // 평균 아이템 높이를 40.0 정도로 예상하여 계산
         .clamp(50.0, EditorConstants.suggestionBoxMaxHeight); // 최소/최대 높이 제한
 
-    double finalLeft = position.dx;
+    double finalLeft = position.dx + 30;
     double finalTop = position.dy;
 
     // 좌우 경계 체크
