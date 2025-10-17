@@ -74,14 +74,14 @@ class LeftSidebarContent extends StatelessWidget {
               PageType.search,
               () => onPageSelected(PageType.search),
             ),
-            _sideBarItem(
-              context,
-              Icons.forum_outlined,
-              '챗봇',
-              null,
-              _openChatbotWindow,
-              alwaysEnabled: true,
-            ),
+            // _sideBarItem(
+            //   context,
+            //   Icons.forum_outlined,
+            //   '챗봇',
+            //   null,
+            //   _openChatbotWindow,
+            //   alwaysEnabled: true,
+            // ),
             const Spacer(),
             _buildUserProfileIcon(context),
             _sideBarItem(

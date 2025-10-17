@@ -3,7 +3,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'left_sidebar_content.dart';
@@ -25,6 +24,7 @@ import '../viewmodels/graph_viewmodel.dart';
 import '../widgets/status_bar_widget.dart';
 import 'bottom_section_controller.dart';
 import '../widgets/ai_summary_widget.dart';
+import '../widgets/bottom_chatbot_view.dart';
 
 class MainLayout extends StatefulWidget {
   final ValueChanged<PageType> onPageSelected;
@@ -40,33 +40,32 @@ class MainLayout extends StatefulWidget {
   _MainLayoutState createState() => _MainLayoutState();
 }
 
-class _MainLayoutState extends State<MainLayout> {
+class _MainLayoutState extends State<MainLayout> with TickerProviderStateMixin {
   PageType _activePage = PageType.home;
 
-  // 오른쪽 사이드바 너비 조절 관련 상태 변수
   bool _isRightExpanded = true;
-  double _rightSidebarWidth = 180.0; // 기본 너비 조정
+  double _rightSidebarWidth = 180.0;
   bool _isResizing = false;
   bool _isHoveringResizer = false;
 
   final ScrollController _tabScrollController = ScrollController();
 
-  // 하단 패널 관련 상태 변수
-  bool _isBottomPanelVisible = false;
-  double _bottomPanelHeight = 200.0;
+  double _bottomPanelHeight = 250.0;
   bool _isResizingBottomPanel = false;
+  late TabController _bottomTabController;
 
   @override
   void initState() {
     super.initState();
+    _bottomTabController = TabController(length: 2, vsync: this);
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final bottomController = context.read<BottomSectionController>();
-      bottomController.addListener(_onBottomControllerUpdate);
+      bottomController.addListener(_syncBottomTabController);
       Provider.of<TokenStatusProvider>(
         context,
         listen: false,
       ).loadStatus(context);
-      // ✨ [추가] 파일 시스템 변경을 감지하는 리스너를 등록합니다.
       context.read<FileSystemProvider>().addListener(_onFileSystemChange);
     });
   }
@@ -74,41 +73,31 @@ class _MainLayoutState extends State<MainLayout> {
   @override
   void dispose() {
     _tabScrollController.dispose();
+    _bottomTabController.dispose();
     if (mounted) {
       context.read<BottomSectionController>().removeListener(
-        _onBottomControllerUpdate,
+        _syncBottomTabController,
       );
-      // ✨ [추가] 위젯이 제거될 때 리스너도 함께 제거합니다.
       context.read<FileSystemProvider>().removeListener(_onFileSystemChange);
     }
     super.dispose();
   }
 
-  // ✨ [추가] 파일 시스템이 변경될 때 호출될 함수
+  void _syncBottomTabController() {
+    if (!mounted) return;
+    final controller = context.read<BottomSectionController>();
+    if (controller.activeBottomPanelTab != _bottomTabController.index) {
+      _bottomTabController.animateTo(controller.activeBottomPanelTab);
+    }
+  }
+
   void _onFileSystemChange() {
-    // 현재 페이지가 그래프 페이지이고, '사용자 정의 링크' 뷰일 때만 그래프를 새로고침
     if (_activePage == PageType.graph && mounted) {
       final graphViewModel = context.read<GraphViewModel>();
       if (!graphViewModel.isAiGraphView) {
         graphViewModel.buildUserGraph();
       }
     }
-  }
-
-  void _onBottomControllerUpdate() {
-    if (!mounted) return;
-    final controller = context.read<BottomSectionController>();
-    if (controller.isLoading && !_isBottomPanelVisible) {
-      setState(() {
-        _isBottomPanelVisible = true;
-      });
-    }
-  }
-
-  void _toggleBottomPanel() {
-    setState(() {
-      _isBottomPanelVisible = !_isBottomPanelVisible;
-    });
   }
 
   Widget _getPageWidget(PageType pageType) {
@@ -154,10 +143,10 @@ class _MainLayoutState extends State<MainLayout> {
     final pages =
         PageType.values.map((pageType) => _getPageWidget(pageType)).toList();
     final dividerColor = Theme.of(context).dividerColor;
-
-    // 히스토리 페이지일 때는 너비를 고정하고, 아닐 때는 조절 가능한 너비 사용
     final double currentSidebarWidth =
         _activePage == PageType.history ? 180.0 : _rightSidebarWidth;
+
+    final bottomController = context.watch<BottomSectionController>();
 
     return Scaffold(
       body: Column(
@@ -281,7 +270,8 @@ class _MainLayoutState extends State<MainLayout> {
                           children: pages,
                         ),
                       ),
-                      if (_isBottomPanelVisible) _buildSummaryPanel(),
+                      if (bottomController.isBottomPanelVisible)
+                        _buildBottomPanel(bottomController),
                     ],
                   ),
                 ),
@@ -290,7 +280,9 @@ class _MainLayoutState extends State<MainLayout> {
           ),
           StatusBarWidget(
             onBellPressed: () => _changePage(PageType.notifications),
-            onBottomPanelToggle: _toggleBottomPanel,
+            onBottomPanelToggle:
+                () =>
+                    context.read<BottomSectionController>().toggleBottomPanel(),
           ),
         ],
       ),
@@ -390,20 +382,7 @@ class _MainLayoutState extends State<MainLayout> {
       case PageType.graph:
         return Consumer<GraphViewModel>(
           builder: (context, viewModel, child) {
-            return Row(
-              children: [
-                // IconButton(
-                //   icon: const Icon(Icons.hub_outlined, size: 20),
-                //   tooltip: '임베딩 생성 및 새로고침',
-                //   onPressed:
-                //       viewModel.isLoading
-                //           ? null
-                //           : () => viewModel.triggerEmbeddingProcess(context),
-                // ),
-                // IconButton for toggling graph view removed as per user request
-                const SizedBox(width: 8),
-              ],
-            );
+            return Row(children: [const SizedBox(width: 8)]);
           },
         );
       default:
@@ -493,24 +472,33 @@ class _MainLayoutState extends State<MainLayout> {
     );
   }
 
-  // AI 요약 패널 UI
-  Widget _buildSummaryPanel() {
+  // --- ✨ [수정] _buildBottomPanel 메서드 ---
+  Widget _buildBottomPanel(BottomSectionController controller) {
     final theme = Theme.of(context);
+    final isDarkMode = theme.brightness == Brightness.dark;
+
+    // 탭 바 배경색
+    final tabBarColor =
+        isDarkMode ? const Color(0xFF252526) : Colors.grey.shade100;
+    // ✨ 탭 내용 영역 배경색도 탭 바와 동일하게 설정
+    final tabContentColor = tabBarColor;
+
     return Container(
       height: _bottomPanelHeight,
       decoration: BoxDecoration(
-        color: theme.cardColor,
+        color: tabBarColor, // 패널 기본 배경색 (탭 바 영역 + 내용 영역)
         border: Border(top: BorderSide(color: theme.dividerColor)),
       ),
       child: Column(
         children: [
+          // --- 1. 높이 조절 핸들 (동일) ---
           GestureDetector(
             onVerticalDragStart:
                 (_) => setState(() => _isResizingBottomPanel = true),
             onVerticalDragUpdate: (details) {
               setState(() {
                 _bottomPanelHeight -= details.delta.dy;
-                _bottomPanelHeight = _bottomPanelHeight.clamp(80.0, 500.0);
+                _bottomPanelHeight = _bottomPanelHeight.clamp(150.0, 600.0);
               });
             },
             onVerticalDragEnd:
@@ -523,41 +511,102 @@ class _MainLayoutState extends State<MainLayout> {
                     _isResizingBottomPanel
                         ? theme.primaryColor.withOpacity(0.3)
                         : Colors.transparent,
+                child: Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: theme.dividerColor,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
+          // --- 2. 탭 바 (스타일 수정) ---
           Container(
-            height: 27,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            height: 32, // 탭바 높이
+            color: tabBarColor, // 탭바 배경색
             child: Row(
               children: [
-                Text(
-                  'AI 요약',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: theme.textTheme.bodyLarge?.color,
+                Expanded(
+                  child: TabBar(
+                    controller: _bottomTabController,
+                    tabAlignment: TabAlignment.start, // 왼쪽 정렬
+                    isScrollable: true, // 스크롤 가능
+                    labelColor: theme.textTheme.bodyLarge?.color,
+                    unselectedLabelColor: theme.textTheme.bodyMedium?.color
+                        ?.withOpacity(0.7),
+                    indicatorColor: theme.primaryColor,
+                    indicatorWeight: 2.0,
+                    indicatorSize: TabBarIndicatorSize.label,
+                    labelStyle: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    unselectedLabelStyle: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.normal,
+                    ),
+                    labelPadding: const EdgeInsets.symmetric(horizontal: 12.0),
+                    indicatorPadding: EdgeInsets.zero,
+                    // ✨ 탭 높이를 강제하여 위쪽 공간 줄이기 시도
+                    tabs: const [
+                      SizedBox(
+                        height: 32, // TabBar 높이와 동일하게 설정
+                        child: Align(
+                          alignment: Alignment.center,
+                          child: Text('AI 요약'),
+                        ),
+                      ),
+                      SizedBox(
+                        height: 32, // TabBar 높이와 동일하게 설정
+                        child: Align(
+                          alignment: Alignment.center,
+                          child: Text('AI 챗봇'),
+                        ),
+                      ),
+                    ],
+                    dividerColor: Colors.transparent,
+                    overlayColor: MaterialStateProperty.resolveWith<Color?>((
+                      Set<MaterialState> states,
+                    ) {
+                      if (states.contains(MaterialState.hovered))
+                        return theme.hoverColor.withOpacity(0.5);
+                      return null;
+                    }),
+                    onTap: (index) => controller.setActiveBottomPanelTab(index),
                   ),
                 ),
-                const Spacer(),
+                // 닫기 버튼
                 IconButton(
                   icon: const Icon(Icons.close, size: 18),
                   tooltip: '닫기',
                   splashRadius: 18,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(
-                    maxHeight: 27,
-                    maxWidth: 27,
-                  ),
-                  onPressed: _toggleBottomPanel,
+                  padding: const EdgeInsets.all(8),
+                  constraints: const BoxConstraints(),
+                  onPressed: () => controller.toggleBottomPanel(),
                 ),
+                const SizedBox(width: 8),
               ],
             ),
           ),
-          const Expanded(
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(16, 4, 16, 12),
-              child: AiSummaryWidget(),
+          // --- 3. 탭 뷰 (컨텐츠 배경색 적용) ---
+          Expanded(
+            child: Container(
+              color: tabContentColor, // ✨ 탭 내용 영역 배경색
+              child: TabBarView(
+                controller: _bottomTabController,
+                physics: const NeverScrollableScrollPhysics(),
+                children: const [
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(16, 12, 16, 12),
+                    child: AiSummaryWidget(),
+                  ),
+                  BottomChatbotView(),
+                ],
+              ),
             ),
           ),
         ],
@@ -566,7 +615,7 @@ class _MainLayoutState extends State<MainLayout> {
   }
 }
 
-// 상단바 제목을 위한 작은 위젯
+// 상단바 제목
 class _TopBarTitle extends StatelessWidget {
   final String title;
   const _TopBarTitle(this.title);
