@@ -27,11 +27,7 @@ class _GraphPageState extends State<GraphPage> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final viewModel = context.read<GraphViewModel>();
-      if (viewModel.isAiGraphView) {
-        viewModel.loadGraphFromEmbeddingsFile();
-      } else {
-        viewModel.buildUserGraph();
-      }
+      viewModel.buildUserGraph();
     });
   }
 

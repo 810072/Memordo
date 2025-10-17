@@ -392,14 +392,14 @@ class _MainLayoutState extends State<MainLayout> {
           builder: (context, viewModel, child) {
             return Row(
               children: [
-                IconButton(
-                  icon: const Icon(Icons.hub_outlined, size: 20),
-                  tooltip: '임베딩 생성 및 새로고침',
-                  onPressed:
-                      viewModel.isLoading
-                          ? null
-                          : () => viewModel.triggerEmbeddingProcess(context),
-                ),
+                // IconButton(
+                //   icon: const Icon(Icons.hub_outlined, size: 20),
+                //   tooltip: '임베딩 생성 및 새로고침',
+                //   onPressed:
+                //       viewModel.isLoading
+                //           ? null
+                //           : () => viewModel.triggerEmbeddingProcess(context),
+                // ),
                 // IconButton for toggling graph view removed as per user request
                 const SizedBox(width: 8),
               ],

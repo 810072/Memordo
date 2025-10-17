@@ -25,7 +25,7 @@ class UserGraphNodeInfo {
 class GraphViewModel with ChangeNotifier {
   bool _isLoading = false;
   String _statusMessage = '그래프를 생성하려면 우측 상단의 버튼을 눌러주세요.';
-  bool _isAiGraphView = true;
+  bool _isAiGraphView = false;
 
   List<GraphNode> _nodes = [];
   List<GraphLink> _links = [];

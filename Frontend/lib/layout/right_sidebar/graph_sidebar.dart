@@ -61,28 +61,28 @@ class GraphSidebar extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // AI 추천 관계 버튼
-                ElevatedButton(
-                  child: const Text('AI 추천 관계'),
-                  style:
-                      graphViewModel.isAiGraphView
-                          ? activeStyle
-                          : inactiveStyle,
-                  onPressed: () {
-                    graphViewModel.setGraphView(true);
-                  },
-                ),
-                const SizedBox(height: 12),
-                // 사용자 정의 링크 버튼
-                ElevatedButton(
-                  child: const Text('사용자 정의 링크'),
-                  style:
-                      !graphViewModel.isAiGraphView
-                          ? activeStyle
-                          : inactiveStyle,
-                  onPressed: () {
-                    context.read<GraphViewModel>().buildUserGraph();
-                  },
-                ),
+                // ElevatedButton(
+                //   child: const Text('AI 추천 관계'),
+                //   style:
+                //       graphViewModel.isAiGraphView
+                //           ? activeStyle
+                //           : inactiveStyle,
+                //   onPressed: () {
+                //     graphViewModel.setGraphView(true);
+                //   },
+                // ),
+                // const SizedBox(height: 12),
+                // // 사용자 정의 링크 버튼
+                // ElevatedButton(
+                //   child: const Text('사용자 정의 링크'),
+                //   style:
+                //       !graphViewModel.isAiGraphView
+                //           ? activeStyle
+                //           : inactiveStyle,
+                //   onPressed: () {
+                //     context.read<GraphViewModel>().buildUserGraph();
+                //   },
+                // ),
               ],
             ),
           ),
