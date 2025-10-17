@@ -311,7 +311,7 @@ class _MainLayoutState extends State<MainLayout> {
       case PageType.history:
         return const _TopBarTitle('방문 기록');
       case PageType.calendar:
-        return const _TopBarTitle('Calendar');
+        return const _TopBarTitle('달력');
       case PageType.graph:
         return const _TopBarTitle('그래프 뷰');
       case PageType.settings:

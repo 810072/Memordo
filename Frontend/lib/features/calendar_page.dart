@@ -18,17 +18,29 @@ class _CalendarPageState extends State<CalendarPage> {
   CalendarFormat _calendarFormat = CalendarFormat.month;
 
   final Map<DateTime, String> _memoData = {};
-  final TextEditingController _memoController = TextEditingController();
+
+  // 인라인 편집을 위한 상태 변수들
+  DateTime? _editingDay;
+  final TextEditingController _inlineMemoController = TextEditingController();
+  final FocusNode _inlineFocusNode = FocusNode();
 
   @override
   void initState() {
     super.initState();
     _loadFromPrefs();
+
+    // 포커스가 해제될 때 편집 종료
+    _inlineFocusNode.addListener(() {
+      if (!_inlineFocusNode.hasFocus && _editingDay != null) {
+        _finishEditing();
+      }
+    });
   }
 
   @override
   void dispose() {
-    _memoController.dispose();
+    _inlineMemoController.dispose();
+    _inlineFocusNode.dispose();
     super.dispose();
   }
 
@@ -37,7 +49,11 @@ class _CalendarPageState extends State<CalendarPage> {
 
   void _saveMemo(DateTime date, String text) {
     setState(() {
-      _memoData[date] = text.trim();
+      if (text.trim().isEmpty) {
+        _memoData.remove(date);
+      } else {
+        _memoData[date] = text.trim();
+      }
     });
     _saveToPrefs();
   }
@@ -64,57 +80,61 @@ class _CalendarPageState extends State<CalendarPage> {
     }
   }
 
+  // 더블 클릭 시 편집 모드 시작
+  void _startEditing(DateTime day) {
+    final pureDay = _pureDate(day);
+    setState(() {
+      _editingDay = pureDay;
+      _inlineMemoController.text = _memoData[pureDay] ?? '';
+    });
+
+    // 다음 프레임에서 포커스 요청
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _inlineFocusNode.requestFocus();
+    });
+  }
+
+  // 편집 종료 및 저장
+  void _finishEditing() {
+    if (_editingDay != null) {
+      _saveMemo(_editingDay!, _inlineMemoController.text);
+      setState(() {
+        _editingDay = null;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final calendarViewModel = context.watch<CalendarViewModel>();
-    // 위젯이 빌드될 때마다 현재 선택된 날짜의 메모를 컨트롤러에 설정합니다.
-    _memoController.text =
-        _memoData[_pureDate(calendarViewModel.selectedDay)] ?? '';
 
     return _buildCalendarWithMemo(calendarViewModel);
   }
 
   Widget _buildCalendarWithMemo(CalendarViewModel viewModel) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              color: Theme.of(context).cardColor,
-              borderRadius: BorderRadius.circular(12.0),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.grey.withOpacity(0.1),
-                  spreadRadius: 1,
-                  blurRadius: 3,
-                  offset: const Offset(0, 1),
-                ),
-              ],
-            ),
-            padding: const EdgeInsets.all(16.0),
-            child: _buildCalendarView(viewModel),
-          ),
-          const SizedBox(height: 24),
-          // ✨ [수정] selectedDay가 null이 아니므로 null 체크 제거
-          _buildMemoSection(viewModel.selectedDay),
-        ],
-      ),
-    );
+    return SingleChildScrollView(child: _buildCalendarView(viewModel));
   }
 
   Widget _buildCalendarView(CalendarViewModel viewModel) {
     return TableCalendar(
+      locale: 'ko_KR',
       firstDay: DateTime.utc(2010, 1, 1),
       lastDay: DateTime.utc(2030, 12, 31),
       focusedDay: viewModel.focusedDay,
       calendarFormat: _calendarFormat,
       selectedDayPredicate: (day) => isSameDay(viewModel.selectedDay, day),
       onDaySelected: (selectedDay, focusedDay) {
+        // 다른 날짜를 클릭하면 진행 중인 편집 종료
+        if (_editingDay != null) {
+          _finishEditing();
+        }
         viewModel.onDaySelected(selectedDay, focusedDay);
       },
       onPageChanged: (focusedDay) {
+        // 월 변경 시 편집 종료
+        if (_editingDay != null) {
+          _finishEditing();
+        }
         viewModel.setFocusedDay(focusedDay);
       },
       eventLoader: (day) {
@@ -126,29 +146,21 @@ class _CalendarPageState extends State<CalendarPage> {
         return events;
       },
       calendarBuilders: CalendarBuilders(
+        defaultBuilder: (context, day, focusedDay) {
+          return _buildDayCell(day, false, false);
+        },
+        selectedBuilder: (context, day, focusedDay) {
+          return _buildDayCell(day, true, false);
+        },
+        todayBuilder: (context, day, focusedDay) {
+          return _buildDayCell(day, false, true);
+        },
+        outsideBuilder: (context, day, focusedDay) {
+          return _buildDayCell(day, false, false, isOutside: true);
+        },
         markerBuilder: (context, date, events) {
-          if (events.isEmpty) return const SizedBox.shrink();
-
-          return Positioned(
-            bottom: 4.0,
-            left: 0,
-            right: 0,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children:
-                  events.map((event) {
-                    return Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 2.0),
-                      width: 6,
-                      height: 6,
-                      decoration: const BoxDecoration(
-                        color: Colors.green,
-                        shape: BoxShape.circle,
-                      ),
-                    );
-                  }).toList(),
-            ),
-          );
+          // 마커는 셀 내부에서 직접 처리하므로 여기서는 빈 위젯 반환
+          return const SizedBox.shrink();
         },
       ),
       onFormatChanged: (format) {
@@ -160,53 +172,160 @@ class _CalendarPageState extends State<CalendarPage> {
         formatButtonVisible: true,
         titleCentered: true,
       ),
+      daysOfWeekHeight: 40,
+      rowHeight: 120,
     );
   }
 
-  Widget _buildMemoSection(DateTime selectedDay) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(12.0),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            spreadRadius: 1,
-            blurRadius: 3,
-            offset: const Offset(0, 1),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
+  // 커스텀 날짜 셀 빌더
+  Widget _buildDayCell(
+    DateTime day,
+    bool isSelected,
+    bool isToday, {
+    bool isOutside = false,
+  }) {
+    final pureDay = _pureDate(day);
+    final isEditing = _editingDay != null && isSameDay(_editingDay, day);
+    final hasMemo =
+        _memoData.containsKey(pureDay) && _memoData[pureDay]!.isNotEmpty;
+
+    // 편집 모드일 때
+    if (isEditing) {
+      return Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border.all(color: Colors.blue.shade600, width: 2),
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              "일일 메모",
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-            ),
-            const SizedBox(height: 8),
+            // 날짜 표시
             Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: TextField(
-                controller: _memoController,
-                maxLines: 8,
-                style: const TextStyle(fontSize: 14),
-                decoration: const InputDecoration(
-                  hintText: "메모를 작성하세요.",
-                  hintStyle: TextStyle(fontSize: 14, color: Colors.grey),
-                  border: InputBorder.none,
+              padding: const EdgeInsets.all(4.0),
+              child: Text(
+                '${day.day}',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: isToday ? Colors.orange : Colors.black,
                 ),
-                onChanged: (value) {
-                  _saveMemo(_pureDate(selectedDay), value);
-                },
               ),
             ),
+            // 인라인 텍스트 필드
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 4.0,
+                  vertical: 2.0,
+                ),
+                child: TextField(
+                  controller: _inlineMemoController,
+                  focusNode: _inlineFocusNode,
+                  autofocus: true,
+                  maxLines: null,
+                  expands: true,
+                  textAlignVertical: TextAlignVertical.top,
+                  style: const TextStyle(fontSize: 11),
+                  decoration: const InputDecoration(
+                    border: InputBorder.none,
+                    isDense: true,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                  onSubmitted: (_) {
+                    _finishEditing();
+                  },
+                  onTapOutside: (_) {
+                    _finishEditing();
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // 일반 모드일 때
+    return GestureDetector(
+      onDoubleTap:
+          isOutside
+              ? null
+              : () {
+                _startEditing(day);
+              },
+      child: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: BoxDecoration(
+          color:
+              isOutside
+                  ? Colors.grey.shade50
+                  : isSelected
+                  ? Colors.blue.shade50
+                  : isToday
+                  ? Colors.orange.shade50
+                  : Colors.white,
+          border: Border.all(color: Colors.grey.shade300, width: 0.5),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 날짜 표시
+            Container(
+              padding: const EdgeInsets.all(4.0),
+              child: Row(
+                children: [
+                  Text(
+                    '${day.day}',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
+                      color:
+                          isOutside
+                              ? Colors.grey.shade400
+                              : isToday
+                              ? Colors.orange
+                              : isSelected
+                              ? Colors.blue
+                              : Colors.black,
+                    ),
+                  ),
+                  if (hasMemo) ...[
+                    const SizedBox(width: 4),
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: const BoxDecoration(
+                        color: Colors.green,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            // 메모 미리보기
+            if (hasMemo)
+              Expanded(
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4.0,
+                    vertical: 2.0,
+                  ),
+                  child: Text(
+                    _memoData[pureDay]!,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: isOutside ? Colors.grey.shade400 : Colors.black87,
+                      height: 1.3,
+                    ),
+                    overflow: TextOverflow.fade,
+                  ),
+                ),
+              ),
           ],
         ),
       ),
