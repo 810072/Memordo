@@ -120,8 +120,8 @@ class _CalendarSidebarState extends State<CalendarSidebar> {
                   const SizedBox(height: 6),
                   _buildStatItem(
                     icon: Icons.notes,
-                    label: '총 메모 수',
-                    value: '${stats['totalMemos']}개',
+                    label: '총 글자 수',
+                    value: '${stats['totalMemos']}자',
                     color: Colors.green,
                   ),
                   const SizedBox(height: 6),

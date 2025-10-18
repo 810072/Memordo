@@ -23,8 +23,6 @@ class CompactPopupMenuItem<T> extends PopupMenuItem<T> {
        );
 }
 
-// ✨ [수정] 아래부터 애니메이션 없는 팝업 메뉴를 위한 코드를 모두 수정했습니다.
-
 /// 애니메이션 없이 즉시 나타나는 커스텀 PopupMenuButton
 class InstantPopupMenuButton<T> extends PopupMenuButton<T> {
   const InstantPopupMenuButton({
@@ -222,15 +220,19 @@ class _PopupMenuRouteLayout extends SingleChildLayoutDelegate {
     return BoxConstraints.loose(constraints.biggest);
   }
 
+  // ✨ [수정] 팝업 위치 결정 로직: 아래 우선, 안되면 위, 그것도 안되면 아래에 붙임
   @override
   Offset getPositionForChild(Size size, Size childSize) {
-    double y = position.top;
+    // Calculate the x-coordinate (horizontal position)
     double x;
     if (position.left > position.right) {
+      // Anchor is closer to the right edge, so grow to the left.
       x = size.width - position.right - childSize.width;
     } else if (position.left < position.right) {
+      // Anchor is closer to the left edge, so grow to the right.
       x = position.left;
     } else {
+      // Anchor is equidistant from both edges, so grow in reading direction.
       switch (textDirection) {
         case TextDirection.rtl:
           x = size.width - position.right - childSize.width;
@@ -240,11 +242,44 @@ class _PopupMenuRouteLayout extends SingleChildLayoutDelegate {
           break;
       }
     }
-    if (y < 0) {
-      y = 0;
-    } else if (y + childSize.height > size.height) {
-      y = size.height - childSize.height;
+    // Ensure x coordinate is within screen bounds
+    if (x < 0.0) {
+      x = 0.0;
+    } else if (x + childSize.width > size.width) {
+      x = size.width - childSize.width;
     }
+
+    // --- Y-Position Logic (MODIFIED FOR BELOW PLACEMENT PRIORITY) ---
+    // position.bottom is the Y coordinate of the bottom edge of the button.
+    // position.top is the Y coordinate of the top edge of the button.
+    double y;
+    final double yBelow =
+        position.bottom; // Potential Y if we put it below the button
+    final double yAbove =
+        position.top -
+        childSize.height; // Potential Y if we put it above the button
+
+    final bool fitsBelow =
+        (yBelow + childSize.height) <= size.height; // Check if it fits below
+    final bool fitsAbove = yAbove >= 0.0; // Check if it fits above
+
+    if (fitsBelow) {
+      // If it fits below, place it there.
+      y = yBelow;
+    } else if (fitsAbove) {
+      // If it doesn't fit below, but fits above, place it there.
+      y = yAbove;
+    } else {
+      // If it fits neither below nor above (e.g., popup is taller than screen space available)
+      // Default to placing it aligned with the bottom edge of the screen.
+      y = size.height - childSize.height;
+      // Prevent negative y coordinate if the popup is taller than the screen
+      if (y < 0.0) {
+        y = 0.0;
+      }
+    }
+    // --- End of Y-Position Logic Modification ---
+
     return Offset(x, y);
   }
 

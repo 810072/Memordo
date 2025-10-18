@@ -379,24 +379,72 @@ class FileSystemProvider extends ChangeNotifier {
 
   Future<bool> deleteEntry(BuildContext context, FileSystemEntry entry) async {
     if (kIsWeb) return false;
+
+    // ✨ [수정] 앱 종료 다이얼로그와 동일한 디자인을 적용합니다.
+    final theme = Theme.of(context);
+    final isDarkMode = theme.brightness == Brightness.dark;
+
     bool? confirm = await showDialog<bool>(
       context: context,
-      builder:
-          (context) => AlertDialog(
-            title: const Text('삭제 확인'),
-            content: Text('${entry.name}을(를) 정말 삭제하시겠습니까?'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('취소'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('삭제', style: TextStyle(color: Colors.red)),
-              ),
-            ],
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: isDarkMode ? const Color(0xFF2E2E2E) : Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12.0),
+            side: BorderSide(
+              color: isDarkMode ? Colors.grey.shade700 : Colors.grey.shade300,
+              width: 1.5,
+            ),
           ),
+          title: Text(
+            '삭제 확인', // 제목 수정
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
+              color: isDarkMode ? Colors.white : Colors.black,
+            ),
+          ),
+          content: Text(
+            '${entry.name}을(를) 정말 삭제하시겠습니까?', // 내용 수정
+            style: TextStyle(
+              fontSize: 14,
+              color: isDarkMode ? Colors.grey.shade400 : Colors.grey.shade600,
+            ),
+          ),
+          actions: [
+            TextButton(
+              child: const Text(
+                '취소',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              onPressed: () => Navigator.of(context).pop(false),
+              style: TextButton.styleFrom(
+                foregroundColor: isDarkMode ? Colors.white70 : Colors.black54,
+              ),
+            ),
+            ElevatedButton(
+              child: const Text(
+                '삭제', // 버튼 텍스트 수정
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFE57373), // 종료 버튼과 동일한 빨간색
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8.0),
+                ),
+                elevation: 0,
+              ),
+            ),
+          ],
+        );
+      },
     );
+    // --- 수정 끝 ---
+
     if (confirm != true) return false;
     final statusBar = context.read<StatusBarProvider>();
     try {

@@ -32,6 +32,7 @@ import 'viewmodels/calendar_viewmodel.dart';
 import 'viewmodels/graph_viewmodel.dart';
 import 'providers/status_bar_provider.dart';
 import 'viewmodels/calendar_sidebar_viewmodel.dart';
+import 'viewmodels/graph_customization_settings.dart'; // ✨ 추가
 
 // macOS에서만 사용할 백엔드 서버 프로세스 변수
 Process? _macOSBackendProcess;
@@ -98,6 +99,7 @@ Future<void> main(List<String> args) async {
           ChangeNotifierProvider(create: (context) => HistoryViewModel()),
           ChangeNotifierProvider(create: (context) => CalendarViewModel()),
           ChangeNotifierProvider(create: (context) => GraphViewModel()),
+          ChangeNotifierProvider(create: (_) => GraphCustomizationSettings()),
           ChangeNotifierProvider(create: (context) => StatusBarProvider()),
           ChangeNotifierProvider(
             create: (context) => CalendarSidebarViewModel(),

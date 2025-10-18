@@ -7,18 +7,16 @@ import 'package:provider/provider.dart';
 
 import '../providers/tab_provider.dart';
 import '../viewmodels/graph_viewmodel.dart';
+import '../viewmodels/graph_customization_settings.dart';
 import '../providers/status_bar_provider.dart';
 import '../widgets/force_graph_widget.dart';
-
-// --- ✨ [추가] 필요한 import ---
 import '../widgets/custom_popup_menu.dart';
 import '../providers/file_system_provider.dart';
 import '../layout/bottom_section_controller.dart';
 import '../utils/ai_service.dart';
 import '../model/file_system_entry.dart';
-// --- ✨ [추가] ---
 
-export '../viewmodels/graph_viewmodel.dart'; // [기존 코드]
+export '../viewmodels/graph_viewmodel.dart';
 
 class GraphPage extends StatefulWidget {
   const GraphPage({super.key});
@@ -35,8 +33,20 @@ class _GraphPageState extends State<GraphPage> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final viewModel = context.read<GraphViewModel>();
+      final customSettings = context.read<GraphCustomizationSettings>();
+
+      // 설정 로드
+      customSettings.loadSettings();
+
+      // 초기 빌드 + 감시 시작
       viewModel.buildUserGraph();
     });
+  }
+
+  @override
+  void dispose() {
+    context.read<GraphViewModel>().stopWatching();
+    super.dispose();
   }
 
   double _getNodeSize(GraphNode node, GraphViewModel viewModel) {
@@ -45,27 +55,25 @@ class _GraphPageState extends State<GraphPage> {
   }
 
   Color _getNodeColor(GraphNode node, GraphViewModel viewModel) {
+    final customSettings = context.read<GraphCustomizationSettings>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
+    // 선택/호버 상태는 기본 색상 사용
     if (_selectedNodeId == node.id) return Colors.blue.shade400;
-    if (_hoveredNodeId == node.id)
+    if (_hoveredNodeId == node.id) {
       return isDark ? Colors.white70 : Colors.black87;
-
-    if (!viewModel.isAiGraphView) {
-      final linkCount = viewModel.getNodeLinkCount(node.id);
-      if (linkCount == 0)
-        return isDark ? Colors.grey.shade700 : Colors.grey.shade400;
-      if (linkCount < 3)
-        return isDark ? Colors.grey.shade600 : Colors.grey.shade500;
-      if (linkCount < 6)
-        return isDark ? Colors.blue.shade700 : Colors.blue.shade400;
-      return isDark ? Colors.purple.shade600 : Colors.purple.shade400;
     }
 
-    return isDark ? Colors.grey.shade600 : Colors.grey.shade500;
+    // AI 그래프 뷰는 기본 색상
+    if (viewModel.isAiGraphView) {
+      return isDark ? Colors.grey.shade600 : Colors.grey.shade500;
+    }
+
+    // 사용자 그래프: 커스텀 색상 사용
+    final linkCount = viewModel.getNodeLinkCount(node.id);
+    return customSettings.getNodeColorByLinks(linkCount, isDark);
   }
 
-  // --- ✨ [추가] AI 요약 실행 함수 ---
   Future<void> _triggerAISummary(BuildContext context, GraphNode node) async {
     final bottomController = context.read<BottomSectionController>();
     final statusBar = context.read<StatusBarProvider>();
@@ -95,7 +103,7 @@ class _GraphPageState extends State<GraphPage> {
         throw Exception(summary ?? '요약에 실패했거나 내용이 없습니다.');
       }
 
-      if (!mounted) return; // 비동기 작업 후 mounted 확인
+      if (!mounted) return;
       bottomController.updateSummary(summary);
       statusBar.showStatusMessage(
         '\'$nodeName\' 노트 요약 완료 ✅',
@@ -117,7 +125,6 @@ class _GraphPageState extends State<GraphPage> {
     }
   }
 
-  // --- ✨ [추가] 우클릭 컨텍스트 메뉴 표시 함수 ---
   void _showNodeContextMenu(
     BuildContext context,
     Offset position,
@@ -128,7 +135,6 @@ class _GraphPageState extends State<GraphPage> {
     final fileSystemProvider = context.read<FileSystemProvider>();
     final viewModel = context.read<GraphViewModel>();
 
-    // 삭제 기능을 위해 임시 FileSystemEntry 객체 생성
     final notesDir = await viewModel.getNotesDirectory();
     final fullPath = p.join(notesDir, node.id);
     final entry = FileSystemEntry(
@@ -189,15 +195,10 @@ class _GraphPageState extends State<GraphPage> {
           context,
           entry,
         );
-        if (success && mounted) {
-          // 삭제 성공 시 그래프를 새로고침
-          viewModel.buildUserGraph();
-        }
       }
     });
   }
 
-  // --- ✨ [수정] _buildNodeWidget 함수 ---
   Widget _buildNodeWidget(
     BuildContext context,
     GraphNode node,
@@ -222,7 +223,6 @@ class _GraphPageState extends State<GraphPage> {
         alignment: Alignment.center,
         clipBehavior: Clip.none,
         children: [
-          // ✨ [수정] MouseRegion을 GestureDetector로 감싸서 우클릭(onSecondaryTapUp) 이벤트를 처리
           GestureDetector(
             onSecondaryTapUp: (details) {
               _showNodeContextMenu(context, details.globalPosition, node);
@@ -320,6 +320,7 @@ class _GraphPageState extends State<GraphPage> {
   Widget build(BuildContext context) {
     return Consumer<GraphViewModel>(
       builder: (context, viewModel, child) {
+        final customSettings = context.watch<GraphCustomizationSettings>();
         if (viewModel.isLoading) {
           return Center(
             child: Column(
@@ -351,50 +352,35 @@ class _GraphPageState extends State<GraphPage> {
 
         return LayoutBuilder(
           builder: (context, constraints) {
-            return Stack(
-              children: [
-                ForceGraphView(
-                  key: ValueKey(viewModel.isAiGraphView),
-                  nodes: viewModel.nodes,
-                  links: viewModel.links,
-                  initialPositions: viewModel.nodePositions,
-                  onLayoutStabilized: viewModel.updateAndSaveAllNodePositions,
-                  canvasSize: Size(constraints.maxWidth, constraints.maxHeight),
-                  nodeBuilder: _buildNodeWidget,
-                ),
-                Positioned(
-                  top: 16,
-                  left: 16,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
+            return Container(
+              // ✨ 배경색 적용
+              color: customSettings.backgroundColor,
+              child: Stack(
+                children: [
+                  ForceGraphView(
+                    key: ValueKey(viewModel.isAiGraphView),
+                    nodes: viewModel.nodes,
+                    links: viewModel.links,
+                    initialPositions: viewModel.nodePositions,
+                    onLayoutStabilized: viewModel.updateAndSaveAllNodePositions,
+                    canvasSize: Size(
+                      constraints.maxWidth,
+                      constraints.maxHeight,
                     ),
-                    decoration: BoxDecoration(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.surface.withOpacity(0.9),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.outline.withOpacity(0.3),
-                      ),
-                    ),
-                    child: Text(
-                      viewModel.isAiGraphView ? 'AI 추천 관계' : '사용자 정의 링크',
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    nodeBuilder: _buildNodeWidget,
+                    // ✨ 연결선 커스터마이징 전달
+                    linkColor: customSettings.linkColor,
+                    linkOpacity: customSettings.linkOpacity,
+                    linkWidth: customSettings.linkWidth,
                   ),
-                ),
-                if (!viewModel.isAiGraphView)
                   Positioned(
-                    bottom: 16,
-                    right: 16,
+                    top: 16,
+                    left: 16,
                     child: Container(
-                      padding: const EdgeInsets.all(12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
                       decoration: BoxDecoration(
                         color: Theme.of(
                           context,
@@ -406,19 +392,78 @@ class _GraphPageState extends State<GraphPage> {
                           ).colorScheme.outline.withOpacity(0.3),
                         ),
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          _buildLegendItem('고립된 노트', Colors.grey.shade600),
-                          _buildLegendItem('연결 1-2개', Colors.grey.shade500),
-                          _buildLegendItem('연결 3-5개', Colors.blue.shade400),
-                          _buildLegendItem('연결 6개 이상', Colors.purple.shade400),
+                          Text(
+                            viewModel.isAiGraphView ? 'AI 추천 관계' : '사용자 정의 링크',
+                            style: Theme.of(context).textTheme.titleSmall
+                                ?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                          if (!viewModel.isAiGraphView) ...[
+                            const SizedBox(width: 8),
+                            Icon(
+                              Icons.visibility,
+                              size: 16,
+                              color: Colors.green.shade400,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              '실시간',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.green.shade400,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),
                   ),
-              ],
+                  if (!viewModel.isAiGraphView)
+                    Positioned(
+                      bottom: 16,
+                      right: 16,
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.surface.withOpacity(0.9),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.outline.withOpacity(0.3),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _buildLegendItem(
+                              '고립된 노트',
+                              customSettings.isolatedNodeColor,
+                            ),
+                            _buildLegendItem(
+                              '연결 1-2개',
+                              customSettings.lowConnectionColor,
+                            ),
+                            _buildLegendItem(
+                              '연결 3-5개',
+                              customSettings.mediumConnectionColor,
+                            ),
+                            _buildLegendItem(
+                              '연결 6개 이상',
+                              customSettings.highConnectionColor,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             );
           },
         );

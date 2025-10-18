@@ -16,10 +16,9 @@ class HistorySidebar extends StatefulWidget {
 class _HistorySidebarState extends State<HistorySidebar> {
   final TextEditingController _historySearchController =
       TextEditingController();
-  DateFilterPeriod? _selectedPeriod;
+  DateFilterPeriod? _selectedPeriod; // '전체'는 null로 표현
   Set<String> _selectedDomains = {};
   Set<String> _selectedTags = {};
-  bool _isTagFilterExpanded = false;
 
   final List<String> _popularTags = [
     '공부',
@@ -47,9 +46,6 @@ class _HistorySidebarState extends State<HistorySidebar> {
   ];
   List<String> _customTags = [];
   List<String> _customDomains = [];
-
-  bool _isDateFilterExpanded = false;
-  bool _isDomainFilterExpanded = false;
 
   bool _isAddingDomain = false;
   bool _isAddingTag = false;
@@ -146,7 +142,7 @@ class _HistorySidebarState extends State<HistorySidebar> {
               children: [
                 TextField(
                   controller: _historySearchController,
-                  style: const TextStyle(fontSize: 14),
+                  style: const TextStyle(fontSize: 12),
                   decoration: InputDecoration(
                     hintText: '검색...',
                     hintStyle: TextStyle(color: Colors.grey.shade600),
@@ -183,7 +179,7 @@ class _HistorySidebarState extends State<HistorySidebar> {
                     onPressed: () {
                       setState(() {
                         _historySearchController.clear();
-                        _selectedPeriod = null;
+                        _selectedPeriod = null; // 초기화 시 null로 설정
                         _selectedDomains.clear();
                         _selectedTags.clear();
                         _sortOrder = SortOrder.latest;
@@ -204,34 +200,28 @@ class _HistorySidebarState extends State<HistorySidebar> {
                         borderRadius: BorderRadius.circular(4.0),
                       ),
                       padding: const EdgeInsets.symmetric(vertical: 8),
-                      textStyle: const TextStyle(fontSize: 12),
+                      textStyle: const TextStyle(fontSize: 11),
                     ),
                   ),
                 ),
-                const SizedBox(height: 6),
-                _buildCompactExpansionTile(
+                const SizedBox(height: 12),
+                _buildFilterSection(
                   title: '날짜 범위',
-                  isExpanded: _isDateFilterExpanded,
-                  onExpansionChanged: (expanded) {
-                    setState(() => _isDateFilterExpanded = expanded);
-                  },
                   children: [
-                    _buildPeriodCheckbox(DateFilterPeriod.today, '오늘'),
-                    _buildPeriodCheckbox(DateFilterPeriod.thisWeek, '이번 주'),
-                    _buildPeriodCheckbox(DateFilterPeriod.thisMonth, '이번 달'),
-                    _buildPeriodCheckbox(DateFilterPeriod.thisYear, '올해'),
-                    const Divider(),
+                    // ✨ [추가] '전체' 옵션
+                    _buildPeriodRadio(null, '전체'),
+                    _buildPeriodRadio(DateFilterPeriod.today, '오늘'),
+                    _buildPeriodRadio(DateFilterPeriod.thisWeek, '이번 주'),
+                    _buildPeriodRadio(DateFilterPeriod.thisMonth, '이번 달'),
+                    _buildPeriodRadio(DateFilterPeriod.thisYear, '올해'),
+                    const Divider(height: 16),
                     _buildSortOrderRadio(SortOrder.latest, '최신순'),
                     _buildSortOrderRadio(SortOrder.oldest, '과거순'),
                   ],
                 ),
-                const SizedBox(height: 4),
-                _buildCompactExpansionTile(
+                const Divider(height: 16),
+                _buildFilterSection(
                   title: '도메인',
-                  isExpanded: _isDomainFilterExpanded,
-                  onExpansionChanged: (expanded) {
-                    setState(() => _isDomainFilterExpanded = expanded);
-                  },
                   onAdd: () {
                     setState(() => _isAddingDomain = !_isAddingDomain);
                     if (_isAddingDomain) {
@@ -246,7 +236,7 @@ class _HistorySidebarState extends State<HistorySidebar> {
                               _buildDomainCheckbox(domain, isCustom: false),
                         )
                         .toList(),
-                    if (_customDomains.isNotEmpty) const Divider(),
+                    if (_customDomains.isNotEmpty) const Divider(height: 16),
                     ..._customDomains
                         .map(
                           (domain) =>
@@ -255,13 +245,9 @@ class _HistorySidebarState extends State<HistorySidebar> {
                         .toList(),
                   ],
                 ),
-                const SizedBox(height: 4),
-                _buildCompactExpansionTile(
+                const Divider(height: 16),
+                _buildFilterSection(
                   title: '태그',
-                  isExpanded: _isTagFilterExpanded,
-                  onExpansionChanged: (expanded) {
-                    setState(() => _isTagFilterExpanded = expanded);
-                  },
                   onAdd: () {
                     setState(() => _isAddingTag = !_isAddingTag);
                     if (_isAddingTag) {
@@ -273,7 +259,7 @@ class _HistorySidebarState extends State<HistorySidebar> {
                     ..._popularTags
                         .map((tag) => _buildTagCheckbox(tag, isCustom: false))
                         .toList(),
-                    if (_customTags.isNotEmpty) const Divider(),
+                    if (_customTags.isNotEmpty) const Divider(height: 16),
                     ..._customTags
                         .map((tag) => _buildTagCheckbox(tag, isCustom: true))
                         .toList(),
@@ -287,79 +273,58 @@ class _HistorySidebarState extends State<HistorySidebar> {
     );
   }
 
-  Widget _buildCompactExpansionTile({
+  Widget _buildFilterSection({
     required String title,
-    required bool isExpanded,
-    required ValueChanged<bool> onExpansionChanged,
     required List<Widget> children,
     VoidCallback? onAdd,
   }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        InkWell(
-          onTap: () => onExpansionChanged(!isExpanded),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4.0),
-            child: Row(
-              children: [
-                Icon(
-                  isExpanded
-                      ? Icons.keyboard_arrow_down
-                      : Icons.keyboard_arrow_right,
-                  size: 20,
-                  color: Colors.grey.shade400,
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                  color: Colors.grey.shade600,
                 ),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
-                  ),
+              ),
+              if (onAdd != null)
+                IconButton(
+                  icon: const Icon(Icons.add, size: 16),
+                  onPressed: onAdd,
+                  splashRadius: 16,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
                 ),
-                if (onAdd != null)
-                  IconButton(
-                    icon: const Icon(Icons.add, size: 16),
-                    onPressed: onAdd,
-                    splashRadius: 16,
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),
-              ],
+            ],
+          ),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.only(left: 4.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: children,
             ),
           ),
-        ),
-        AnimatedSize(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeInOut,
-          child:
-              isExpanded
-                  ? Padding(
-                    padding: const EdgeInsets.only(left: 8.0, top: 4.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: children,
-                    ),
-                  )
-                  : const SizedBox.shrink(),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
-  Widget _buildPeriodCheckbox(DateFilterPeriod period, String title) {
+  // ✨ [수정] 위젯 이름 변경 및 파라미터 타입 nullable로 변경
+  Widget _buildPeriodRadio(DateFilterPeriod? period, String title) {
     final historyViewModel = context.read<HistoryViewModel>();
     return InkWell(
       onTap: () {
-        final newPeriod = (_selectedPeriod == period) ? null : period;
-        setState(() {
-          _selectedPeriod = newPeriod;
-        });
+        setState(() => _selectedPeriod = period);
         historyViewModel.applyFilters(
-          period: newPeriod,
+          period: period,
           domains: _selectedDomains,
           tags: _selectedTags,
           sortOrder: _sortOrder,
@@ -367,21 +332,21 @@ class _HistorySidebarState extends State<HistorySidebar> {
         );
       },
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 0.0),
+        padding: const EdgeInsets.symmetric(vertical: 4.0),
         child: Row(
           children: [
             SizedBox(
-              width: 16,
-              height: 16,
-              child: Checkbox(
-                value: _selectedPeriod == period,
-                onChanged: (bool? value) {
-                  final newPeriod = (value == true) ? period : null;
-                  setState(() {
-                    _selectedPeriod = newPeriod;
-                  });
+              width: 14,
+              height: 14,
+              child: Radio<DateFilterPeriod?>(
+                // ✨ [수정] 타입 nullable
+                visualDensity: VisualDensity.compact,
+                value: period,
+                groupValue: _selectedPeriod,
+                onChanged: (DateFilterPeriod? value) {
+                  setState(() => _selectedPeriod = value);
                   historyViewModel.applyFilters(
-                    period: newPeriod,
+                    period: value,
                     domains: _selectedDomains,
                     tags: _selectedTags,
                     sortOrder: _sortOrder,
@@ -392,7 +357,7 @@ class _HistorySidebarState extends State<HistorySidebar> {
               ),
             ),
             const SizedBox(width: 8),
-            Text(title, style: const TextStyle(fontSize: 14)),
+            Text(title, style: const TextStyle(fontSize: 12)),
           ],
         ),
       ),
@@ -407,13 +372,14 @@ class _HistorySidebarState extends State<HistorySidebar> {
         historyViewModel.applyFilters(sortOrder: order);
       },
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 0.0),
+        padding: const EdgeInsets.symmetric(vertical: 4.0),
         child: Row(
           children: [
             SizedBox(
-              width: 16,
-              height: 16,
+              width: 14,
+              height: 14,
               child: Radio<SortOrder>(
+                visualDensity: VisualDensity.compact,
                 value: order,
                 groupValue: _sortOrder,
                 onChanged: (SortOrder? value) {
@@ -426,7 +392,7 @@ class _HistorySidebarState extends State<HistorySidebar> {
               ),
             ),
             const SizedBox(width: 8),
-            Text(title, style: const TextStyle(fontSize: 14)),
+            Text(title, style: const TextStyle(fontSize: 12)),
           ],
         ),
       ),
@@ -457,13 +423,14 @@ class _HistorySidebarState extends State<HistorySidebar> {
           );
         },
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 0.0),
+          padding: const EdgeInsets.symmetric(vertical: 4.0),
           child: Row(
             children: [
               SizedBox(
-                width: 16,
-                height: 16,
+                width: 14,
+                height: 14,
                 child: Checkbox(
+                  visualDensity: VisualDensity.compact,
                   value: isSelected,
                   onChanged: (bool? value) {
                     setState(() {
@@ -485,7 +452,7 @@ class _HistorySidebarState extends State<HistorySidebar> {
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: Text(domain, style: const TextStyle(fontSize: 14)),
+                child: Text(domain, style: const TextStyle(fontSize: 12)),
               ),
               if (isCustom && _hoveredDomain == domain)
                 IconButton(
@@ -533,13 +500,14 @@ class _HistorySidebarState extends State<HistorySidebar> {
           );
         },
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 0.0),
+          padding: const EdgeInsets.symmetric(vertical: 4.0),
           child: Row(
             children: [
               SizedBox(
-                width: 16,
-                height: 16,
+                width: 14,
+                height: 14,
                 child: Checkbox(
+                  visualDensity: VisualDensity.compact,
                   value: isSelected,
                   onChanged: (bool? value) {
                     setState(() {
@@ -560,7 +528,7 @@ class _HistorySidebarState extends State<HistorySidebar> {
                 ),
               ),
               const SizedBox(width: 8),
-              Expanded(child: Text(tag, style: const TextStyle(fontSize: 14))),
+              Expanded(child: Text(tag, style: const TextStyle(fontSize: 12))),
               if (isCustom && _hoveredTag == tag)
                 IconButton(
                   icon: const Icon(Icons.close, size: 14),

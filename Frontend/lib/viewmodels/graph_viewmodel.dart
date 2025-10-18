@@ -6,10 +6,13 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
+import 'package:watcher/watcher.dart';
 
 import '../utils/ai_service.dart' as ai_service;
 import '../widgets/force_graph_widget.dart';
 import '../providers/status_bar_provider.dart';
+
+enum GraphFilterMode { all, connected, isolated }
 
 class UserGraphNodeInfo {
   final String fileName;
@@ -27,27 +30,35 @@ class GraphViewModel with ChangeNotifier {
   String _statusMessage = '그래프를 생성하려면 우측 상단의 버튼을 눌러주세요.';
   bool _isAiGraphView = false;
 
-  List<GraphNode> _nodes = [];
-  List<GraphLink> _links = [];
+  List<GraphNode> _allNodes = [];
+  List<GraphLink> _allLinks = [];
+  List<GraphNode> _filteredNodes = [];
+  List<GraphLink> _filteredLinks = [];
 
-  // ✨ [오류 수정] 누락되었던 _userGraphData 변수 선언을 다시 추가합니다.
+  GraphFilterMode _filterMode = GraphFilterMode.all;
+  GraphFilterMode get filterMode => _filterMode;
+
   final Map<String, UserGraphNodeInfo> _userGraphData = {};
-
-  // ✨ [추가] 노드 위치를 저장하고 관리하기 위한 변수들
   Map<String, Map<String, double>> _nodePositions = {};
   Timer? _saveDebounce;
+
+  // ✨ [추가] FileWatcher 관련
+  DirectoryWatcher? _watcher;
+  StreamSubscription? _watcherSubscription;
+  bool _isWatching = false;
+  Timer? _processingDebounce;
+  final Set<String> _pendingChanges = {};
 
   bool get isLoading => _isLoading;
   String get statusMessage => _statusMessage;
   bool get isAiGraphView => _isAiGraphView;
-  List<GraphNode> get nodes => _nodes;
-  List<GraphLink> get links => _links;
-  // ✨ [추가] 뷰에서 노드 위치를 가져갈 수 있도록 getter 추가
+  List<GraphNode> get nodes => _filteredNodes;
+  List<GraphLink> get links => _filteredLinks;
   Map<String, Map<String, double>> get nodePositions => _nodePositions;
 
   int getNodeLinkCount(String nodeId) {
     if (_isAiGraphView) {
-      return _links
+      return _allLinks
           .where((l) => l.sourceId == nodeId || l.targetId == nodeId)
           .length;
     } else {
@@ -64,16 +75,244 @@ class GraphViewModel with ChangeNotifier {
     return 10.0 + (linkCount * 1.5).clamp(0.0, 10.0);
   }
 
+  void setFilterMode(GraphFilterMode mode) {
+    if (_filterMode == mode) return;
+    _filterMode = mode;
+    _applyFilter();
+  }
+
+  void _applyFilter() {
+    if (_allNodes.isEmpty) {
+      _filteredNodes = [];
+      _filteredLinks = [];
+      notifyListeners();
+      return;
+    }
+
+    final Set<String> connectedNodeIds = {};
+    for (final link in _allLinks) {
+      connectedNodeIds.add(link.sourceId);
+      connectedNodeIds.add(link.targetId);
+    }
+
+    switch (_filterMode) {
+      case GraphFilterMode.all:
+        _filteredNodes = List.from(_allNodes);
+        _filteredLinks = List.from(_allLinks);
+        break;
+      case GraphFilterMode.connected:
+        _filteredNodes =
+            _allNodes.where((n) => connectedNodeIds.contains(n.id)).toList();
+        _filteredLinks = List.from(_allLinks);
+        break;
+      case GraphFilterMode.isolated:
+        _filteredNodes =
+            _allNodes.where((n) => !connectedNodeIds.contains(n.id)).toList();
+        _filteredLinks = [];
+        break;
+    }
+    notifyListeners();
+  }
+
   void setGraphView(bool isAiView) {
     if (_isAiGraphView != isAiView) {
       _isAiGraphView = isAiView;
+      _filterMode = GraphFilterMode.all;
       if (isAiView) {
+        stopWatching(); // AI 뷰에서는 감시 중단
         loadGraphFromEmbeddingsFile();
       } else {
         buildUserGraph();
+        startWatching(); // 사용자 뷰에서만 감시 시작
       }
-      notifyListeners();
     }
+  }
+
+  // ✨ [추가] 파일 감시 시작
+  Future<void> startWatching() async {
+    if (_isWatching || _isAiGraphView) return;
+
+    try {
+      final notesDir = await getNotesDirectory();
+      _watcher = DirectoryWatcher(notesDir);
+
+      _watcherSubscription = _watcher!.events.listen((event) {
+        if (p.extension(event.path).toLowerCase() == '.md') {
+          debugPrint(
+            '📂 File event: ${event.type} - ${p.basename(event.path)}',
+          );
+
+          // 변경 사항을 모아서 처리 (디바운싱)
+          _pendingChanges.add(event.path);
+
+          _processingDebounce?.cancel();
+          _processingDebounce = Timer(const Duration(milliseconds: 500), () {
+            _processPendingChanges();
+          });
+        }
+      });
+
+      _isWatching = true;
+      debugPrint('👀 Started watching: $notesDir');
+    } catch (e) {
+      debugPrint('❌ Failed to start watching: $e');
+    }
+  }
+
+  // ✨ [추가] 누적된 변경사항 처리
+  Future<void> _processPendingChanges() async {
+    if (_pendingChanges.isEmpty) return;
+
+    final changesToProcess = Set<String>.from(_pendingChanges);
+    _pendingChanges.clear();
+
+    debugPrint('🔄 Processing ${changesToProcess.length} file changes...');
+
+    for (final filePath in changesToProcess) {
+      await _handleFileChange(filePath);
+    }
+  }
+
+  // ✨ [추가] 개별 파일 변경 처리
+  Future<void> _handleFileChange(String filePath) async {
+    try {
+      final notesDir = await getNotesDirectory();
+      final fileName = _normalizePath(p.relative(filePath, from: notesDir));
+      final file = File(filePath);
+
+      if (await file.exists()) {
+        // 파일이 존재 -> 추가 또는 수정
+        await _addOrUpdateNote(fileName, file);
+      } else {
+        // 파일이 없음 -> 삭제
+        await _removeNote(fileName);
+      }
+    } catch (e) {
+      debugPrint('❌ Error handling file change: $e');
+    }
+  }
+
+  // ✨ [추가] 노트 추가/수정 (증분 업데이트)
+  Future<void> _addOrUpdateNote(String fileName, File file) async {
+    try {
+      final content = await file.readAsString();
+      final links = _parseWikiLinks(content);
+
+      // 기존 링크 정보 백업
+      final oldNodeInfo = _userGraphData[fileName];
+      final oldOutgoingLinks = oldNodeInfo?.outgoingLinks ?? [];
+
+      // 새 정보로 업데이트
+      _userGraphData[fileName] = UserGraphNodeInfo(
+        fileName: fileName,
+        outgoingLinks: links,
+      );
+
+      // 영향받는 incoming 링크 재계산
+      _recalculateIncomingLinks(fileName, oldOutgoingLinks, links);
+
+      // 노드/링크 리스트 재구성
+      _rebuildNodesAndLinks();
+
+      debugPrint('✅ Updated: $fileName (${links.length} outgoing links)');
+    } catch (e) {
+      debugPrint('❌ Error adding/updating note: $e');
+    }
+  }
+
+  // ✨ [추가] 노트 삭제 (증분 업데이트)
+  Future<void> _removeNote(String fileName) async {
+    final oldNodeInfo = _userGraphData.remove(fileName);
+
+    if (oldNodeInfo != null) {
+      // 이 노트가 가리키던 링크들의 incoming 링크 제거
+      _recalculateIncomingLinks(fileName, oldNodeInfo.outgoingLinks, []);
+
+      // 노드 위치 정보도 제거
+      _nodePositions.remove(fileName);
+
+      // 노드/링크 리스트 재구성
+      _rebuildNodesAndLinks();
+
+      debugPrint('🗑️ Removed: $fileName');
+    }
+  }
+
+  // ✨ [추가] Incoming 링크 재계산
+  void _recalculateIncomingLinks(
+    String sourceFileName,
+    List<String> oldLinks,
+    List<String> newLinks,
+  ) {
+    final fileNameToPathLookup = _buildFileNameLookup();
+
+    // 제거된 링크 처리
+    for (final oldLink in oldLinks) {
+      if (!newLinks.contains(oldLink)) {
+        final targetPath = fileNameToPathLookup[oldLink.toLowerCase()];
+        if (targetPath != null) {
+          _userGraphData[targetPath]?.incomingLinks.remove(sourceFileName);
+        }
+      }
+    }
+
+    // 추가된 링크 처리
+    for (final newLink in newLinks) {
+      final targetPath = fileNameToPathLookup[newLink.toLowerCase()];
+      if (targetPath != null) {
+        _userGraphData[targetPath]?.incomingLinks.add(sourceFileName);
+      }
+    }
+  }
+
+  // ✨ [추가] 파일명 -> 경로 매핑 생성
+  Map<String, String> _buildFileNameLookup() {
+    final Map<String, String> lookup = {};
+    for (final fullPath in _userGraphData.keys) {
+      final baseName = p.basenameWithoutExtension(fullPath).toLowerCase();
+      lookup[baseName] = fullPath;
+    }
+    return lookup;
+  }
+
+  // ✨ [추가] 노드와 링크 리스트 재구성
+  void _rebuildNodesAndLinks() {
+    _allNodes =
+        _userGraphData.values
+            .map(
+              (info) =>
+                  GraphNode(id: info.fileName, linkCount: info.totalLinks),
+            )
+            .toList();
+
+    final fileNameToPathLookup = _buildFileNameLookup();
+    _allLinks = [];
+
+    for (final nodeInfo in _userGraphData.values) {
+      for (final linkName in nodeInfo.outgoingLinks) {
+        final targetPath = fileNameToPathLookup[linkName.toLowerCase()];
+        if (targetPath != null) {
+          _allLinks.add(
+            GraphLink(sourceId: nodeInfo.fileName, targetId: targetPath),
+          );
+        }
+      }
+    }
+
+    _statusMessage = '${_allNodes.length}개의 노드, ${_allLinks.length}개의 링크';
+    _applyFilter();
+  }
+
+  // ✨ [수정] 파일 감시 중단
+  void stopWatching() {
+    _watcherSubscription?.cancel();
+    _watcherSubscription = null;
+    _processingDebounce?.cancel();
+    _processingDebounce = null;
+    _watcher = null;
+    _isWatching = false;
+    _pendingChanges.clear();
+    debugPrint('🛑 Stopped watching');
   }
 
   String _normalizePath(String path) {
@@ -109,6 +348,7 @@ class GraphViewModel with ChangeNotifier {
     return links;
   }
 
+  // ✨ [수정] 초기 빌드 (기존 방식 유지하되 감시 시작)
   Future<void> buildUserGraph() async {
     _isLoading = true;
     _isAiGraphView = false;
@@ -116,15 +356,14 @@ class GraphViewModel with ChangeNotifier {
     notifyListeners();
 
     try {
-      // ✨ [추가] 그래프를 빌드하기 전에 저장된 노드 위치를 불러옵니다.
       await _loadNodePositions();
       final notesDir = await getNotesDirectory();
       final localFiles = await _getAllMarkdownFiles(Directory(notesDir));
 
       if (localFiles.isEmpty) {
         _statusMessage = '표시할 노트가 없습니다.';
-        _nodes = [];
-        _links = [];
+        _allNodes = [];
+        _allLinks = [];
       } else {
         _userGraphData.clear();
 
@@ -140,17 +379,7 @@ class GraphViewModel with ChangeNotifier {
           );
         }
 
-        final Map<String, String> fileNameToPathLookup = {};
-        for (final fullPath in _userGraphData.keys) {
-          final baseName = p.basenameWithoutExtension(fullPath).toLowerCase();
-          if (!fileNameToPathLookup.containsKey(baseName)) {
-            fileNameToPathLookup[baseName] = fullPath;
-          } else {
-            debugPrint(
-              'Warning: Duplicate filename found: ${p.basename(fullPath)}. Link resolution may be ambiguous.',
-            );
-          }
-        }
+        final fileNameToPathLookup = _buildFileNameLookup();
 
         for (final nodeInfo in _userGraphData.values) {
           for (final linkName in nodeInfo.outgoingLinks) {
@@ -163,7 +392,7 @@ class GraphViewModel with ChangeNotifier {
           }
         }
 
-        _nodes =
+        _allNodes =
             _userGraphData.values
                 .map(
                   (info) =>
@@ -171,12 +400,12 @@ class GraphViewModel with ChangeNotifier {
                 )
                 .toList();
 
-        _links = [];
+        _allLinks = [];
         for (final nodeInfo in _userGraphData.values) {
           for (final linkName in nodeInfo.outgoingLinks) {
             final targetFullPath = fileNameToPathLookup[linkName.toLowerCase()];
             if (targetFullPath != null) {
-              _links.add(
+              _allLinks.add(
                 GraphLink(
                   sourceId: nodeInfo.fileName,
                   targetId: targetFullPath,
@@ -186,7 +415,13 @@ class GraphViewModel with ChangeNotifier {
           }
         }
 
-        _statusMessage = '${_nodes.length}개의 노드, ${_links.length}개의 링크';
+        _statusMessage = '${_allNodes.length}개의 노드, ${_allLinks.length}개의 링크';
+      }
+      _applyFilter();
+
+      // ✨ [추가] 빌드 완료 후 감시 시작
+      if (!_isAiGraphView) {
+        startWatching();
       }
     } catch (e) {
       _statusMessage = '사용자 그래프 생성 중 오류 발생: $e';
@@ -196,7 +431,6 @@ class GraphViewModel with ChangeNotifier {
     }
   }
 
-  // ✨ [추가] 노드 위치를 파일에 저장하는 기능
   Future<void> _saveNodePositions() async {
     try {
       final notesDir = await getNotesDirectory();
@@ -208,7 +442,6 @@ class GraphViewModel with ChangeNotifier {
     }
   }
 
-  // ✨ [추가] 파일에서 노드 위치를 불러오는 기능
   Future<void> _loadNodePositions() async {
     try {
       final notesDir = await getNotesDirectory();
@@ -227,12 +460,10 @@ class GraphViewModel with ChangeNotifier {
     }
   }
 
-  // ✨ [추가] 그래프 레이아웃이 안정화되면 호출되어 위치를 저장하는 기능
   void updateAndSaveAllNodePositions(Map<String, Offset> finalPositions) {
     _nodePositions = finalPositions.map(
       (key, value) => MapEntry(key, {'dx': value.dx, 'dy': value.dy}),
     );
-    // 디바운스를 사용하여 파일 쓰기 작업을 최적화합니다.
     if (_saveDebounce?.isActive ?? false) _saveDebounce!.cancel();
     _saveDebounce = Timer(const Duration(seconds: 2), () {
       _saveNodePositions();
@@ -255,8 +486,9 @@ class GraphViewModel with ChangeNotifier {
 
       if (localFiles.isEmpty) {
         _statusMessage = '노트 폴더에 분석할 .md 파일이 없습니다.';
-        _nodes = [];
-        _links = [];
+        _allNodes = [];
+        _allLinks = [];
+        _applyFilter();
         statusBar.showStatusMessage(_statusMessage, type: StatusType.error);
       } else {
         _statusMessage = '${localFiles.length}개 노트의 관계 분석을 AI 서버에 요청합니다...';
@@ -297,12 +529,12 @@ class GraphViewModel with ChangeNotifier {
   void _buildAiGraphFromData(Map<String, dynamic> data) {
     const similarityThreshold = 0.8;
 
-    _nodes =
+    _allNodes =
         (data['nodes'] as List? ?? [])
             .map((nodeJson) => GraphNode(id: nodeJson['id']))
             .toList();
 
-    _links =
+    _allLinks =
         (data['edges'] as List? ?? [])
             .where(
               (edge) =>
@@ -318,7 +550,8 @@ class GraphViewModel with ChangeNotifier {
             .toList();
 
     _statusMessage =
-        _nodes.isEmpty ? '표시할 노트가 없습니다.' : '${_nodes.length}개의 노트와 관계';
+        _allNodes.isEmpty ? '표시할 노트가 없습니다.' : '${_allNodes.length}개의 노트와 관계';
+    _applyFilter();
   }
 
   Future<void> loadGraphFromEmbeddingsFile() async {
@@ -333,8 +566,9 @@ class GraphViewModel with ChangeNotifier {
         _buildAiGraphFromData(data);
       } else {
         _statusMessage = '임베딩 파일이 없습니다. 우측 상단 버튼을 눌러 생성해주세요.';
-        _nodes = [];
-        _links = [];
+        _allNodes = [];
+        _allLinks = [];
+        _applyFilter();
       }
     } catch (e) {
       _statusMessage = '그래프 파일 로딩 중 오류 발생: $e';
@@ -362,5 +596,12 @@ class GraphViewModel with ChangeNotifier {
       }
     }
     return mdFiles;
+  }
+
+  @override
+  void dispose() {
+    stopWatching();
+    _saveDebounce?.cancel();
+    super.dispose();
   }
 }

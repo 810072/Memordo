@@ -145,9 +145,13 @@ class ForceGraphView extends StatefulWidget {
   final List<GraphLink> links;
   final Size canvasSize;
   final Widget Function(BuildContext, GraphNode, Offset) nodeBuilder;
-  // ✨ [추가] 초기 위치와 레이아웃 안정화 콜백 파라미터
   final Map<String, Map<String, double>>? initialPositions;
   final Function(Map<String, Offset>)? onLayoutStabilized;
+
+  // ✨ [추가] 연결선 커스터마이징 파라미터
+  final Color linkColor;
+  final double linkOpacity;
+  final double linkWidth;
 
   const ForceGraphView({
     Key? key,
@@ -157,6 +161,9 @@ class ForceGraphView extends StatefulWidget {
     required this.nodeBuilder,
     this.initialPositions,
     this.onLayoutStabilized,
+    this.linkColor = Colors.grey,
+    this.linkOpacity = 0.4,
+    this.linkWidth = 1.5,
   }) : super(key: key);
 
   @override
@@ -182,7 +189,6 @@ class _ForceGraphViewState extends State<ForceGraphView>
         });
       } else {
         _ticker.stop();
-        // ✨ [추가] 시뮬레이션이 멈추면, 최종 위치를 저장하도록 콜백 호출
         if (widget.onLayoutStabilized != null) {
           final finalPositions = {
             for (var node in _simulation!.nodes) node.id: node.position,
@@ -242,7 +248,6 @@ class _ForceGraphViewState extends State<ForceGraphView>
 
     final forceNodes =
         widget.nodes.map((n) {
-          // ✨ [수정] ViewModel로부터 받은 초기 위치를 사용하도록 변경
           final initialPosition = widget.initialPositions?[n.id];
           return ForceNode(
             id: n.id,
@@ -286,7 +291,6 @@ class _ForceGraphViewState extends State<ForceGraphView>
     final random = Random();
     final forceNodes =
         widget.nodes.map((n) {
-          // ✨ [수정] ViewModel로부터 받은 초기 위치를 사용하도록 변경
           final initialPosition = widget.initialPositions?[n.id];
           return ForceNode(
             id: n.id,
@@ -350,7 +354,13 @@ class _ForceGraphViewState extends State<ForceGraphView>
       maxScale: 4.0,
       child: CustomPaint(
         size: widget.canvasSize,
-        painter: _LinkPainter(links: _simulation!.links),
+        // ✨ [수정] 연결선 색상 커스터마이징 전달
+        painter: _LinkPainter(
+          links: _simulation!.links,
+          linkColor: widget.linkColor,
+          linkOpacity: widget.linkOpacity,
+          linkWidth: widget.linkWidth,
+        ),
         child: Stack(
           children:
               _simulation!.nodes.map((forceNode) {
@@ -404,17 +414,26 @@ class _ForceGraphViewState extends State<ForceGraphView>
   }
 }
 
+// ✨ [수정] 연결선 색상 커스터마이징 적용
 class _LinkPainter extends CustomPainter {
   final List<ForceLink> links;
+  final Color linkColor;
+  final double linkOpacity;
+  final double linkWidth;
 
-  _LinkPainter({required this.links});
+  _LinkPainter({
+    required this.links,
+    required this.linkColor,
+    required this.linkOpacity,
+    required this.linkWidth,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
     final paint =
         Paint()
-          ..color = Colors.grey.withOpacity(0.4)
-          ..strokeWidth = 1.5;
+          ..color = linkColor.withOpacity(linkOpacity)
+          ..strokeWidth = linkWidth;
 
     for (var link in links) {
       canvas.drawLine(link.source.position, link.target.position, paint);
