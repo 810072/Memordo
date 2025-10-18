@@ -64,6 +64,7 @@ dependencies:
   super_editor_markdown: ^0.1.0-dev.11
   watcher: ^1.1.4
   flutter_colorpicker: ^1.1.0
+  flutter_launcher_icons: ^0.13.1 # 최신 버전 확인 후 추가
 
 dev_dependencies:
   flutter_test:
@@ -83,7 +84,7 @@ dev_dependencies:
 flutter:
   assets: 
    - assets/.env
-   - assets/logo.png
+   - assets/app_icon.png
    - assets/google_logo.png
    - assets/codemirror/
    - assets/codemirror/editor_integration.js  # 이 줄 추가
@@ -91,6 +92,27 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+flutter_launcher_icons:
+  # === 공통 설정 ===
+  image_path: "assets/app_icon.png" # <<< 실제 아이콘 파일 경로로 수정하세요
+  min_sdk_android: 21 # 안드로이드 최소 SDK (데스크톱만 대상이면 생략 가능)
+
+  # === Windows 설정 ===
+  windows:
+    generate: true # Windows 아이콘 생성 활성화
+    image_path: "assets/app_icon.png" # Windows용 아이콘 경로 (공통과 같으면 생략 가능)
+    icon_size: 256 # 필요시 특정 아이콘 크기 지정 (기본값으로도 충분)
+
+  # === macOS 설정 ===
+  macos:
+    generate: true # macOS 아이콘 생성 활성화
+    image_path: "assets/app_icon.png" # macOS용 아이콘 경로 (공통과 같으면 생략 가능)
+
+  # # === Linux 설정 (필요한 경우) ===
+  # linux:
+  #   generate: true
+  #   image_path: "assets/icon/app_icon.png"
 
   # To add assets to your application, add an assets section, like this:
   # assets:

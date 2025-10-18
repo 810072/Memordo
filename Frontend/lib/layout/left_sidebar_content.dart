@@ -33,70 +33,101 @@ class LeftSidebarContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.transparent,
-      child: Container(
-        padding: EdgeInsets.zero,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            _sideBarItem(
-              context,
-              Icons.description_outlined,
-              '메모 작성',
-              PageType.home,
-              () => onPageSelected(PageType.home),
+      color: Colors.transparent, // 변경 없음
+      child: Column(
+        // ✨ [수정] 전체를 Column으로 감싸기
+        children: [
+          // ✨ [추가] 상단 아이콘 영역
+          Container(
+            height: 39,
+            width: double.infinity, // 너비 채우기
+            // color: Colors.blue.withOpacity(0.1), // 영역 확인용 임시 배경색
+            padding: const EdgeInsets.all(8.0), // 아이콘 주변 여백
+            child: Center(
+              // 아이콘을 가운데 정렬
+              child: Image.asset(
+                'assets/app_icon.png', // <<< 앱 아이콘 경로 (실제 경로로 수정 필요)
+                fit: BoxFit.contain, // 비율 유지하며 채우기
+                height: 35, // 아이콘 높이 조절 (40보다 작게)
+              ),
             ),
-            _sideBarItem(
-              context,
-              Icons.history_outlined,
-              '방문 기록',
-              PageType.history,
-              () => onPageSelected(PageType.history),
+          ),
+          // ✨ [추가] 구분선
+          Divider(
+            height: 1, // 구분선 높이
+            thickness: 1, // 구분선 두께
+            color: Theme.of(context).dividerColor, // 테마 색상 사용
+          ),
+          // ✨ [수정] 기존 내용을 Expanded로 감싸 남은 공간 채우기
+          Expanded(
+            child: Container(
+              padding: EdgeInsets.zero, // 기존 패딩은 유지
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  _sideBarItem(
+                    context,
+                    Icons.description_outlined,
+                    '메모 작성',
+                    PageType.home,
+                    () => onPageSelected(PageType.home),
+                  ),
+                  _sideBarItem(
+                    context,
+                    Icons.history_outlined,
+                    '방문 기록',
+                    PageType.history,
+                    () => onPageSelected(PageType.history),
+                  ),
+                  _sideBarItem(
+                    context,
+                    Icons.lan_outlined,
+                    '그래프',
+                    PageType.graph,
+                    () => onPageSelected(PageType.graph),
+                  ),
+                  _sideBarItem(
+                    context,
+                    Icons.calendar_today_outlined,
+                    '달력',
+                    PageType.calendar,
+                    () => onPageSelected(PageType.calendar),
+                  ),
+                  _sideBarItem(
+                    context,
+                    Icons.search_outlined,
+                    '검색',
+                    PageType.search,
+                    () => onPageSelected(PageType.search),
+                  ),
+                  // _sideBarItem(
+                  //   context,
+                  //   Icons.forum_outlined,
+                  //   '챗봇',
+                  //   null,
+                  //   _openChatbotWindow,
+                  //   alwaysEnabled: true,
+                  // ),
+                  const Spacer(),
+                  _buildUserProfileIcon(context),
+                  _sideBarItem(
+                    context,
+                    Icons.settings_outlined,
+                    '설정',
+                    PageType.settings,
+                    () => onPageSelected(PageType.settings),
+                  ),
+                ],
+              ),
             ),
-            _sideBarItem(
-              context,
-              Icons.lan_outlined,
-              '그래프',
-              PageType.graph,
-              () => onPageSelected(PageType.graph),
-            ),
-            _sideBarItem(
-              context,
-              Icons.calendar_today_outlined,
-              '달력',
-              PageType.calendar,
-              () => onPageSelected(PageType.calendar),
-            ),
-            _sideBarItem(
-              context,
-              Icons.search_outlined,
-              '검색',
-              PageType.search,
-              () => onPageSelected(PageType.search),
-            ),
-            // _sideBarItem(
-            //   context,
-            //   Icons.forum_outlined,
-            //   '챗봇',
-            //   null,
-            //   _openChatbotWindow,
-            //   alwaysEnabled: true,
-            // ),
-            const Spacer(),
-            _buildUserProfileIcon(context),
-            _sideBarItem(
-              context,
-              Icons.settings_outlined,
-              '설정',
-              PageType.settings,
-              () => onPageSelected(PageType.settings),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
+  // _buildUserProfileIcon, _buildUserProfileMenuItems, _sideBarItem 메서드는 변경 없음
+  // ... (기존 메서드 코드) ...
   Widget _buildUserProfileIcon(BuildContext context) {
     return Consumer<TokenStatusProvider>(
       builder: (context, tokenProvider, child) {

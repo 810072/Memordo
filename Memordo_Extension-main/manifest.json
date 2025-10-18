@@ -6,19 +6,19 @@
   "action": {
     "default_popup": "popup/index.html",
     "default_icon": {
-      "16": "icons/logo_final_16.png",
-      "32": "icons/logo_final_32.png",
-      "48": "icons/logo_final_48.png",
-      "128": "icons/logo_final_128.png"
+      "16": "icons/app_icon_16.png",
+      "32": "icons/app_icon_32.png",
+      "48": "icons/app_icon_48.png",
+      "128": "icons/app_icon_128.png"
     },
     "default_title": "memordo"
   },
   "icons": {
-    "16": "icons/logo_final_16.png",
-    "32": "icons/logo_final_32.png",
-    "48": "icons/logo_final_48.png",
-    "128": "icons/logo_final_128.png",
-    "512": "icons/logo_final_512.png"
+    "16": "icons/app_icon_16.png",
+    "32": "icons/app_icon_32.png",
+    "48": "icons/app_icon_48.png",
+    "128": "icons/app_icon_128.png",
+    "512": "icons/app_icon_512.png"
   },
   "background": {
     "service_worker": "background/background.js"
