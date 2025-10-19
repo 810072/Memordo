@@ -2,16 +2,12 @@ import os
 import json
 import datetime
 import traceback
-# from dotenv import load_dotenv # .env 파일을 더 이상 직접 사용하지 않으므로 제거합니다.
 import google.generativeai as genai
 
 # --- 1. 초기 설정 (동적 초기화 방식 유지) ---
-# API 키와 AI 클라이언트 관련 변수를 전역으로 선언하고 None으로 초기화합니다.
-# 이 모듈의 함수들은 initialize_ai_client()가 호출된 후에만 정상 작동합니다.
 GEMINI_API_KEY = None
-LLM_CLIENT = None # 생성 모델 클라이언트를 저장하여 재사용하기 위한 변수
+LLM_CLIENT = None
 
-# 기본 모델명은 상수로 유지합니다.
 DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
 EMBEDDING_MODEL = "models/text-embedding-004"
 
@@ -19,7 +15,6 @@ EMBEDDING_MODEL = "models/text-embedding-004"
 def initialize_ai_client(api_key: str) -> bool:
     """
     [핵심] API 키를 외부에서 받아 Gemini 클라이언트를 초기화하고 전역 변수에 저장합니다.
-    이 함수가 성공적으로 호출되어야 다른 AI 기능들을 사용할 수 있습니다.
     """
     global GEMINI_API_KEY, LLM_CLIENT
     
@@ -28,13 +23,8 @@ def initialize_ai_client(api_key: str) -> bool:
         return False
         
     try:
-        # genai 라이브러리 전체에 API 키를 설정합니다.
         genai.configure(api_key=api_key)
-        
-        # [통합] 생성 모델 클라이언트를 미리 만들어 전역 변수에 저장합니다. (효율성 증대)
         LLM_CLIENT = genai.GenerativeModel(DEFAULT_GEMINI_MODEL)
-        
-        # API 키를 전역 변수에 저장하여 다른 함수(예: 임베딩)에서 사용할 수 있도록 합니다.
         GEMINI_API_KEY = api_key
         
         print(f"✅ Gemini AI 클라이언트 초기화 성공 (API 키: {api_key[:5]}...).")
@@ -101,9 +91,9 @@ def get_embeddings_batch(texts: list[str], model_name: str = EMBEDDING_MODEL, ta
 def query_gemini(prompt: str, model_name: str = DEFAULT_GEMINI_MODEL) -> str:
     """
     초기화된 전역 생성 모델 클라이언트를 사용하여 프롬프트를 보내고 응답을 받습니다.
+    대화 기록 없이 단일 프롬프트만 처리합니다.
     """
     global LLM_CLIENT, GEMINI_API_KEY
-    # [수정] 멀티 프로세스 환경을 위해 LLM_CLIENT가 없으면 재초기화 시도
     if not LLM_CLIENT:
         api_key = GEMINI_API_KEY or os.getenv("GOOGLE_API_KEY")
         if api_key:
@@ -116,7 +106,6 @@ def query_gemini(prompt: str, model_name: str = DEFAULT_GEMINI_MODEL) -> str:
         raise ValueError("AI client could not be initialized.")
 
     try:
-        # [통합] 매번 모델을 생성하는 대신, 초기화 때 만들어 둔 LLM_CLIENT를 사용합니다. (효율성 증대)
         response = LLM_CLIENT.generate_content(prompt)
         
         if response.parts:
@@ -134,8 +123,74 @@ def query_gemini(prompt: str, model_name: str = DEFAULT_GEMINI_MODEL) -> str:
         traceback.print_exc()
         return f"Error: {error_msg}"
 
+
+def query_gemini_with_history(current_input: str, messages: list, model_name: str = DEFAULT_GEMINI_MODEL) -> str:
+    """
+    ✨ [새 함수] 대화 기록을 포함하여 Gemini에 요청합니다.
+    
+    Args:
+        current_input: 현재 사용자 입력
+        messages: 대화 기록 [{'role': 'user'/'assistant', 'content': '...'}]
+        model_name: 사용할 모델명
+    
+    Returns:
+        AI 응답 텍스트
+    """
+    global LLM_CLIENT, GEMINI_API_KEY
+    if not LLM_CLIENT:
+        api_key = GEMINI_API_KEY or os.getenv("GOOGLE_API_KEY")
+        if api_key:
+            print("[정보] LLM_CLIENT가 없어 재초기화를 시도합니다.")
+            initialize_ai_client(api_key)
+        else:
+            raise ValueError("AI client has not been initialized and no API key found.")
+
+    if not LLM_CLIENT:
+        raise ValueError("AI client could not be initialized.")
+
+    try:
+        # Gemini Chat API를 위한 메시지 형식 변환
+        chat_history = []
+        for msg in messages:
+            role = msg.get('role', 'user')
+            content = msg.get('content', '')
+            
+            # Gemini는 'user'와 'model'만 지원 (assistant -> model)
+            gemini_role = 'model' if role == 'assistant' else 'user'
+            chat_history.append({
+                'role': gemini_role,
+                'parts': [content]
+            })
+        
+        # 현재 입력 추가
+        chat_history.append({
+            'role': 'user',
+            'parts': [current_input]
+        })
+        
+        print(f"[DEBUG] 대화 기록 포함 요청 - 메시지 수: {len(chat_history)}")
+        
+        # Chat 세션 생성 및 응답 받기
+        chat = LLM_CLIENT.start_chat(history=chat_history[:-1])  # 마지막 메시지 제외
+        response = chat.send_message(current_input)
+        
+        if response.parts:
+            return response.text.strip()
+        elif response.prompt_feedback and response.prompt_feedback.block_reason:
+            error_msg = f"콘텐츠 생성 차단됨. 이유: {response.prompt_feedback.block_reason}"
+            print(f"[오류] {error_msg}")
+            return f"Error: {error_msg}"
+        else:
+            return "Error: Gemini API로부터 비어있는 응답을 받았습니다."
+
+    except Exception as e:
+        error_msg = f"Gemini API (with history) 호출 중 예외 발생: {type(e).__name__} - {e}"
+        print(f"[오류] {error_msg}")
+        traceback.print_exc()
+        return f"Error: {error_msg}"
+
+
 # --- 3. 작업별 유틸리티 함수 (변경 없음) ---
-# 아래 함수들은 내부적으로 query_gemini를 호출하므로, 자동으로 새로운 방식을 따릅니다.
 task_prompts = {
     "summarize": "다음 텍스트를 핵심 내용 중심으로 세 문장으로 간결하게 요약해주세요:\n\n\"\"\"\n[TEXT]\n\"\"\"",
     "memo": "다음 내용을 바탕으로 핵심 아이디어와 결정 사항을 강조하는 글머리 기호(불렛 포인트) 형식으로 정리해주세요:\n\n\"\"\"\n[TEXT]\n\"\"\"",
@@ -167,35 +222,19 @@ def execute_simple_task(task_type: str, text: str) -> str:
 if __name__ == '__main__':
     print("--- gemini_ai.py 모듈 테스트 시작 ---")
 
-    # API 키를 동적으로 받아야 하므로, 테스트를 위해서는 직접 키를 입력해야 합니다.
     test_api_key = input("테스트를 위한 Gemini API 키를 입력하세요: ")
 
     if initialize_ai_client(test_api_key):
         print("\n[테스트] AI 클라이언트 초기화 성공!")
-        sample_text = """
-        플러터는 구글이 개발한 오픈소스 UI 소프트웨어 개발 키트입니다. 
-        하나의 코드베이스로 안드로이드, iOS, 웹, 데스크톱용 네이티브 애플리케이션을 개발할 수 있습니다.
-        핫 리로드 기능을 통해 개발자는 코드 변경 사항을 앱에 즉시 반영하여 빠르게 프로토타이핑하고 반복 작업을 수행할 수 있습니다.
-        이는 개발 생산성을 크게 향상시키는 주요 요인 중 하나입니다.
-        """
-
-        # 1. 임베딩 기능 테스트
-        print("\n[1. 임베딩 테스트]")
-        embedding_vector = get_embedding_for_text("회의록 요약")
-        if embedding_vector:
-            print(f"임베딩 벡터 차원: {len(embedding_vector)}, 벡터 앞 5개 값: {embedding_vector[:5]}")
-        else:
-            print("임베딩 테스트 실패.")
-
-        # 2. 요약 기능 테스트
-        print("\n[2. 요약 기능 테스트]")
-        summary_result = execute_simple_task("summarize", sample_text)
-        print(f"요약 결과:\n{summary_result}")
         
-        # [통합] 팀원 코드에 있던 키워드 추출 테스트를 추가하여 테스트 범위를 넓힙니다.
-        print("\n[3. 키워드 추출 테스트]")
-        keyword_result = execute_simple_task("keyword", sample_text)
-        print(f"키워드 추출 결과:\n{keyword_result}")
+        # 대화 기록 테스트
+        print("\n[대화 기록 테스트]")
+        test_history = [
+            {'role': 'user', 'content': '안녕! 내 이름은 철수야.'},
+            {'role': 'assistant', 'content': '안녕하세요 철수님! 반갑습니다.'},
+        ]
+        response = query_gemini_with_history('내 이름이 뭐였지?', test_history)
+        print(f"응답: {response}")
 
     else:
         print("\n[테스트] AI 클라이언트 초기화 실패. 테스트를 종료합니다.")

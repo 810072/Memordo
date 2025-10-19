@@ -10,14 +10,11 @@ import json
 import asyncio
 
 # --- 1. 초기 설정 (수정됨) ---
-# .env 파일을 더 이상 직접 사용하지 않으므로 load_dotenv 관련 코드를 제거합니다.
 LOG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "log")
 
 # --- 2. AI 모듈 및 워크플로우 임포트 (수정됨) ---
-# GEMINI_API_KEY를 직접 로드하는 대신, 동적 초기화를 위해 필요한 함수를 import 합니다.
 try:
-    # [통합] API 키를 받아 AI 클라이언트를 초기화하는 함수를 import 합니다.
-    from gemini_ai import initialize_ai_client, get_embedding_for_text, get_embeddings_batch, query_gemini, execute_simple_task, DEFAULT_GEMINI_MODEL
+    from gemini_ai import initialize_ai_client, get_embedding_for_text, get_embeddings_batch, query_gemini, query_gemini_with_history, execute_simple_task, DEFAULT_GEMINI_MODEL
     print("'gemini_ai.py' 모듈 로드 성공.")
     
     from rag_workflow import build_rag_workflow
@@ -54,10 +51,7 @@ def initialize_ai():
     if not api_key:
         return jsonify({'error': 'api_key가 필요합니다.'}), 400
     
-    # --- 수정된 부분 ---
-    # LangChain과 같은 다른 라이브러리가 키를 찾을 수 있도록 환경 변수로 설정합니다.
     os.environ['GOOGLE_API_KEY'] = api_key
-    # --- 여기까지 수정 ---
         
     success = initialize_ai_client(api_key)
     
@@ -79,10 +73,15 @@ def rag_chat():
 
     try:
         rag_app = build_rag_workflow()
+        
+        # ✨ messages(대화 기록) 추출
+        messages = data.get('messages', [])
+        
         inputs = {
             "question": data['query'],
             "notes": data['notes'],
             "edges": data['edges'],
+            "messages": messages,  # ✨ 대화 기록 추가
         }
         result = rag_app.invoke(inputs)
         
@@ -139,20 +138,28 @@ def api_execute_task():
         data = request.get_json()
         task_type = data.get('task_type')
         user_input_ko = data.get('text')
+        messages = data.get('messages', [])  # ✨ 대화 기록 추출
+        
         if not task_type or user_input_ko is None:
             return jsonify({"error": "필수 파라미터 누락"}), 400
+        
         if task_type == 'chat':
-            result_text = query_gemini(user_input_ko)
+            # ✨ 대화 기록이 있으면 query_gemini_with_history 사용
+            if messages:
+                result_text = query_gemini_with_history(user_input_ko, messages)
+            else:
+                result_text = query_gemini(user_input_ko)
         elif task_type in ['summarize', 'memo', 'keyword']:
             result_text = execute_simple_task(task_type, user_input_ko)
         else:
             return jsonify({"error": f"지원하지 않는 task_type: {task_type}"}), 400
+        
         return jsonify({"result": result_text})
     except Exception as e:
         import traceback
-        print(f"'/api/execute_task'에서 에러 발생: {e}") # 어떤 에러인지 출력
-        traceback.print_exc() # 에러의 전체 호출 스택을 출력
-    return jsonify({"error": "서버 내부 오류 발생"}), 500
+        print(f"'/api/execute_task'에서 에러 발생: {e}")
+        traceback.print_exc()
+        return jsonify({"error": "서버 내부 오류 발생"}), 500
 
 @app.route('/api/generate-graph-data', methods=['POST'])
 def generate_graph_data():

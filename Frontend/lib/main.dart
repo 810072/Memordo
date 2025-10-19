@@ -31,6 +31,7 @@ import 'viewmodels/history_viewmodel.dart';
 import 'viewmodels/calendar_viewmodel.dart';
 import 'viewmodels/graph_viewmodel.dart';
 import 'providers/status_bar_provider.dart';
+import 'providers/chat_session_provider.dart'; // ✨ [추가]
 import 'viewmodels/calendar_sidebar_viewmodel.dart';
 import 'viewmodels/graph_customization_settings.dart'; // ✨ 추가
 
@@ -104,6 +105,9 @@ Future<void> main(List<String> args) async {
           ChangeNotifierProvider(
             create: (context) => CalendarSidebarViewModel(),
           ),
+          ChangeNotifierProvider(
+            create: (context) => ChatSessionProvider(),
+          ), // ✨ [추가]
         ],
         child: const MyApp(),
       ),

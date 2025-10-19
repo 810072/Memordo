@@ -1,11 +1,12 @@
 // lib/utils/ai_service.dart
 
 import 'dart:convert'; // JSON 인코딩/디코딩
-import 'dart:io'; // [추가됨] File I/O를 위해 임포트
+import 'dart:io'; // File I/O
 import 'package:http/http.dart' as http; // HTTP 요청
-import 'package:flutter_dotenv/flutter_dotenv.dart'; // .env 파일 로드 (백엔드 URL 등)
+import 'package:flutter_dotenv/flutter_dotenv.dart'; // .env 파일 로드
 import 'package:html/parser.dart' as parser; // HTML 파싱
-import 'package:path/path.dart' as p; // [추가됨] 경로 처리를 위해 임포트
+import 'package:path/path.dart' as p; // 경로 처리
+import '../model/chat_message_model.dart'; // ✨ [추가] ChatMessage 모델 임포트
 
 // --- 환경 설정 ---
 final String _pythonBackendBaseUrl =
@@ -14,22 +15,44 @@ final String _pythonBackendBaseUrl =
 // === Python 백엔드 API 호출 함수 ===
 
 /// 범용 작업을 Python 백엔드에 요청합니다. (요약, 메모, 키워드, 일반 채팅 등)
+// ✨ [수정] history 매개변수 추가
 Future<String?> callBackendTask({
   required String taskType,
-  required String text,
+  required String text, // 현재 사용자 입력
+  List<ChatMessage> history = const [], // ✨ 대화 기록 (기본값: 빈 리스트)
   String? model,
 }) async {
   final Uri url = Uri.parse('$_pythonBackendBaseUrl/api/execute_task');
   final Map<String, String> headers = {'Content-Type': 'application/json'};
-  final Map<String, dynamic> body = {'task_type': taskType, 'text': text};
+
+  // ✨ [수정] body에 history를 포함하도록 변경
+  final Map<String, dynamic> body = {
+    'task_type': taskType,
+    'text': text, // 현재 사용자 입력은 text 필드로 유지
+    // ✨ 대화 기록을 AI가 이해하는 형식으로 변환
+    'messages':
+        history.map((msg) {
+          // ChatMessage의 "> " 접두사 제거
+          final content =
+              msg.isUser && msg.text.startsWith("> ")
+                  ? msg.text.substring(2)
+                  : msg.text;
+          return {
+            'role': msg.isUser ? 'user' : 'assistant',
+            'content': content,
+          };
+        }).toList(),
+  };
+
   if (model != null) {
     body['model'] = model;
   }
 
   print('[AI_SERVICE] Backend Task Request: ${url.toString()}');
   print(
-    '[AI_SERVICE] Task Type: $taskType, Text (간략히): ${text.substring(0, text.length > 50 ? 50 : text.length)}...',
+    '[AI_SERVICE] Task Type: $taskType, Current Text: ${text.substring(0, text.length > 50 ? 50 : text.length)}...',
   );
+  print('[AI_SERVICE] History length: ${history.length}'); // ✨ 기록 길이 로깅
 
   try {
     final response = await http
@@ -65,7 +88,6 @@ Future<String?> callBackendTask({
 }
 
 // === 웹 크롤링 및 요약 기능 ===
-
 String _adjustUrlIfNaverBlog(String url) {
   // ... (기존 코드와 동일)
   final uri = Uri.tryParse(url);
@@ -175,9 +197,11 @@ Future<String?> crawlAndSummarizeUrl(String urlString) async {
               ? extractedText.substring(0, maxLengthForApi)
               : extractedText;
 
+      // 요약에는 history가 필요 없으므로 빈 리스트 전달
       return await callBackendTask(
         taskType: "summarize",
         text: textToSummarize,
+        history: [], // ✨
       );
     } else {
       return "웹 페이지를 가져오는 데 실패했습니다 (상태 코드: ${response.statusCode}).";
@@ -188,7 +212,6 @@ Future<String?> crawlAndSummarizeUrl(String urlString) async {
 }
 
 // === 그래프 및 임베딩 관련 함수 ===
-
 Future<Map<String, dynamic>?> generateGraphData(
   List<Map<String, String>> notes,
 ) async {
@@ -236,9 +259,8 @@ Future<Map<String, dynamic>?> getEmbeddingsForFiles(
 }
 
 // --- RAG 기능 ---
-
-// [추가됨] RAG 기능이 graph_page와 동일한 디렉토리를 참조하도록 헬퍼 함수 추가
 Future<String> _getNotesDirectory() async {
+  // ... (기존 코드와 동일)
   final home =
       Platform.environment['USERPROFILE'] ?? Platform.environment['HOME'];
   if (home == null) throw Exception('홈 디렉토리를 찾을 수 없습니다.');
@@ -247,11 +269,16 @@ Future<String> _getNotesDirectory() async {
       : p.join(home, 'Documents', 'Memordo_Notes');
 }
 
-// [수정됨] RAG 기능이 Map<String, dynamic>을 반환하도록 변경
-Future<Map<String, dynamic>?> callRagTask({required String query}) async {
+// ✨ [수정] history 매개변수 추가
+Future<Map<String, dynamic>?> callRagTask({
+  required String query, // 현재 사용자 입력
+  List<ChatMessage> history = const [], // ✨ 대화 기록 (기본값: 빈 리스트)
+}) async {
   print('[AI_SERVICE] RAG Task Request: $query');
+  print('[AI_SERVICE] RAG History length: ${history.length}'); // ✨ 로깅 추가
+
   try {
-    // 1. 지식 베이스 파일 경로 확인
+    // 1. 지식 베이스 파일 경로 확인 (변경 없음)
     final notesDir = await _getNotesDirectory();
     final embeddingsFile = File(p.join(notesDir, 'embeddings.json'));
 
@@ -262,7 +289,7 @@ Future<Map<String, dynamic>?> callRagTask({required String query}) async {
       };
     }
 
-    // 2. 지식 베이스 파일 로드
+    // 2. 지식 베이스 파일 로드 (변경 없음)
     final cacheData = jsonDecode(await embeddingsFile.readAsString());
     final List<dynamic> nodes = cacheData['nodes'] ?? [];
     final List<dynamic> edges = cacheData['edges'] ?? [];
@@ -271,7 +298,7 @@ Future<Map<String, dynamic>?> callRagTask({required String query}) async {
       return {'error': "지식 베이스에 문서가 없습니다."};
     }
 
-    // 3. 지식 베이스 노트의 최신 내용 읽기
+    // 3. 지식 베이스 노트의 최신 내용 읽기 (변경 없음)
     List<Map<String, String>> notesData = [];
     for (var node in nodes) {
       final fileName = node['id'];
@@ -285,10 +312,25 @@ Future<Map<String, dynamic>?> callRagTask({required String query}) async {
     // 4. 백엔드 RAG API 호출
     final Uri url = Uri.parse('$_pythonBackendBaseUrl/api/rag_chat');
     final Map<String, String> headers = {'Content-Type': 'application/json'};
+
+    // ✨ [수정] body에 history 포함
     final Map<String, dynamic> body = {
-      'query': query,
-      'notes': notesData,
-      'edges': edges,
+      'query': query, // 현재 사용자 입력
+      'notes': notesData, // 검색 대상 문서들
+      'edges': edges, // 문서 관계 정보
+      // ✨ 대화 기록을 AI가 이해하는 형식으로 변환
+      'messages':
+          history.map((msg) {
+            // ChatMessage의 "> " 접두사 제거
+            final content =
+                msg.isUser && msg.text.startsWith("> ")
+                    ? msg.text.substring(2)
+                    : msg.text;
+            return {
+              'role': msg.isUser ? 'user' : 'assistant',
+              'content': content,
+            };
+          }).toList(),
     };
 
     final response = await http
@@ -297,7 +339,6 @@ Future<Map<String, dynamic>?> callRagTask({required String query}) async {
 
     if (response.statusCode == 200) {
       final data = jsonDecode(utf8.decode(response.bodyBytes));
-      // 성공 시, 전체 데이터 맵 반환
       return data;
     } else {
       final errorData = jsonDecode(utf8.decode(response.bodyBytes));
