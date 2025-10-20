@@ -150,7 +150,7 @@ class _BottomChatbotViewState extends State<BottomChatbotView>
               VerticalDivider(
                 width: 1,
                 thickness: 1,
-                color: theme.dividerColor.withOpacity(0.5),
+                color: theme.dividerColor.withOpacity(1.0),
               ),
               // --- 3. 우측 세션 목록 영역 ---
               // color 속성을 제거하여 부모 위젯의 색상을 상속받도록 합니다.
@@ -375,7 +375,7 @@ class _BottomChatbotViewState extends State<BottomChatbotView>
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.bold,
-                  color: theme.textTheme.bodySmall?.color?.withOpacity(0.8),
+                  color: theme.textTheme.bodySmall?.color?.withOpacity(1.0),
                   letterSpacing: 0.5,
                 ),
               ),

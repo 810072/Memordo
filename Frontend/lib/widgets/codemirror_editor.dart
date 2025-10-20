@@ -500,35 +500,91 @@ class CodeMirrorEditorState extends State<CodeMirrorEditor> {
       color: #3498db; 
       text-decoration: underline; 
       cursor: pointer; 
-      transition: color 0.2s ease; /* ✨ 부드러운 색상 전환 */
+      transition: color 0.2s ease;
     }
     .cm-link:hover, .cm-url:hover {
-      color: #2980b9; /* ✨ 호버 시 어두운 파란색 */
+      color: #2980b9;
       text-decoration: underline;
     }
     
-    /* 문법 숨김 클래스 */
-    .hide-formatting .cm-formatting { 
-      font-size: 0 !important; 
-      color: transparent !important; 
+    /* ✨ 위키링크 브래킷은 항상 표시 */
+    .cm-wikilink-bracket {
+      color: #3498db;
+      font-weight: bold;
     }
-    .CodeMirror-activeline .cm-formatting { 
-      font-size: inherit !important; 
-      color: inherit !important; 
+    
+    /* ✨ 수정된 문법 숨김/표시 CSS */
+    /* 기본: 모든 문법 기호 보임 */
+    .cm-formatting { 
+      display: inline;
+      font-size: inherit;
+      color: inherit;
+    }
+    
+    /* 링크 URL 전체 숨김 */
+    .cm-formatting-link-url {
+      display: inline;
+      font-size: inherit;
+      color: inherit;
+    }
+    
+    /* hide-formatting 모드: 문법 숨김 */
+    .hide-formatting .cm-formatting { 
+      position: absolute;
+      width: 0;
+      height: 0;
+      overflow: hidden;
+      font-size: 0 !important;
+      line-height: 0 !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+    }
+    
+    /* hide-formatting 모드: 링크 URL 완전히 숨김 */
+    .hide-formatting .cm-formatting-link-url {
+      position: absolute;
+      width: 0;
+      height: 0;
+      overflow: hidden;
+      font-size: 0 !important;
+      line-height: 0 !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+    }
+    
+    /* ✨ 현재 라인에서는 표시 (JavaScript에서 추가하는 클래스 사용) */
+    .hide-formatting .active-line-formatting .cm-formatting { 
+      position: static !important;
+      width: auto !important;
+      height: auto !important;
+      overflow: visible !important;
+      font-size: inherit !important;
+      line-height: inherit !important;
+      opacity: 1 !important;
+      pointer-events: auto !important;
+    }
+    
+    /* ✨ 현재 라인에서도 링크 URL은 숨김 유지 */
+    .hide-formatting .active-line-formatting .cm-formatting-link-url {
+      position: absolute !important;
+      width: 0 !important;
+      height: 0 !important;
+      overflow: hidden !important;
+      font-size: 0 !important;
+      line-height: 0 !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
     }
   </style>
 </head>
 <body>
   <textarea id="editor"></textarea>
   
-  <!-- CodeMirror 라이브러리 -->
   <script>$jsCodemirror</script>
   <script>$jsOverlay</script>
   <script>$jsXml</script>
   <script>$jsMarkdown</script>
   <script>$jsGfm</script>
-  
-  <!-- 통합 스크립트 -->
   <script>$jsIntegration</script>
 </body>
 </html>

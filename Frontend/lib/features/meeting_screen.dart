@@ -93,7 +93,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
   final Map<String, GlobalKey<CodeMirrorEditorState>> _editorKeys = {};
   final GlobalKey _editorAreaKey = GlobalKey();
 
-  bool _showMarkdownSyntax = false;
+  bool _showMarkdownSyntax = true; // 기본값을 true로 설정
 
   // ✨ [추가] 검색 캐시
   final FileSearchCache _searchCache = FileSearchCache();
@@ -640,7 +640,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
                                         : Colors.black87,
                               ),
                               const SizedBox(width: 8),
-                              const Text('문법 표기'),
+                              Text(_showMarkdownSyntax ? '문법 표기' : '문법 표기'),
                             ],
                           ),
                         ),

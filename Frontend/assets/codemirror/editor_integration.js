@@ -10,9 +10,9 @@
   let suggestionCount = 0;
   let isUpdatingFromJs = false;
   let editor = null;
+  let currentActiveLine = -1; // ✨ 현재 활성 라인 추적
 
   // PostMessage API (Windows vs 크로스플랫폼)
-  // 이 부분은 HTML 빌드 시 교체됩니다
   const postMessage = typeof window.chrome !== 'undefined' && 
                       typeof window.chrome.webview !== 'undefined'
     ? window.chrome.webview.postMessage
@@ -53,29 +53,125 @@
     }
   }
 
-  // ✨ [추가] 볼드 토글 함수
+  // ✨ [수정] 활성 라인 스타일 업데이트
+  function updateActiveLineFormatting() {
+    if (!editor) return;
+    
+    const cursor = editor.getCursor();
+    const newActiveLine = cursor.line;
+    
+    // 라인이 변경되었을 때만 업데이트
+    if (newActiveLine !== currentActiveLine) {
+      currentActiveLine = newActiveLine;
+      
+      // 모든 라인의 active 클래스 제거
+      const allLines = document.querySelectorAll('.CodeMirror-line');
+      allLines.forEach(line => {
+        line.classList.remove('active-line-formatting');
+      });
+      
+      // 현재 라인에 클래스 추가
+      const lineElement = editor.getLineHandle(newActiveLine);
+      if (lineElement && lineElement.text !== undefined) {
+        // CodeMirror의 실제 DOM 라인 찾기
+        const wrapper = editor.getWrapperElement();
+        const lines = wrapper.querySelectorAll('.CodeMirror-line');
+        if (lines[newActiveLine]) {
+          lines[newActiveLine].classList.add('active-line-formatting');
+        }
+      }
+    }
+  }
+
+  // ✨ [수정] 마크다운 문법 기호를 감지하는 커스텀 Overlay
+  CodeMirror.defineMode("markdown-formatting", function(config, parserConfig) {
+    const markdownConfig = CodeMirror.getMode(config, "gfm");
+    
+    const overlay = {
+      token: function(stream, state) {
+        // 볼드: **text**
+        if (stream.match(/\*\*/)) {
+          return "formatting formatting-strong";
+        }
+        
+        // 이탤릭: *text* 또는 _text_ (볼드가 아닐 때만)
+        if (stream.match(/(?<!\*)\*(?!\*)/)) {
+          return "formatting formatting-em";
+        }
+        if (stream.match(/_/)) {
+          return "formatting formatting-em";
+        }
+        
+        // 헤더: # ## ###
+        if (stream.sol() && stream.match(/^#{1,6}\s/)) {
+          return "formatting formatting-header";
+        }
+        
+        // ✨ [수정] 위키링크는 formatting 제외 (항상 보임)
+        if (stream.match(/\[\[/)) {
+          return "wikilink-bracket";
+        }
+        if (stream.match(/\]\]/)) {
+          return "wikilink-bracket";
+        }
+        
+        // ✨ [수정] 마크다운 링크의 URL 부분만 숨김
+        // [텍스트](URL) 패턴 감지
+        if (stream.match(/\[/)) {
+          return "formatting formatting-link";
+        }
+        // ]( 부분과 URL, ) 모두 숨김
+        if (stream.match(/\]\([^)]*\)/)) {
+          return "formatting formatting-link-url";
+        }
+        
+        // 코드: `code`
+        if (stream.match(/`/)) {
+          return "formatting formatting-code";
+        }
+        
+        // 리스트: - * +
+        if (stream.sol() && stream.match(/^[\-\*\+]\s/)) {
+          return "formatting formatting-list";
+        }
+        
+        // 인용: >
+        if (stream.sol() && stream.match(/^>\s?/)) {
+          return "formatting formatting-quote";
+        }
+        
+        // 취소선: ~~text~~
+        if (stream.match(/~~/)) {
+          return "formatting formatting-strikethrough";
+        }
+        
+        stream.next();
+        return null;
+      }
+    };
+    
+    return CodeMirror.overlayMode(markdownConfig, overlay);
+  });
+
+  // 볼드 토글 함수
   function toggleBold(cm) {
     const selection = cm.getSelection();
     const cursor = cm.getCursor();
     
     if (selection) {
-      // 선택 영역이 있으면
       if (selection.startsWith('**') && selection.endsWith('**')) {
-        // 이미 볼드면 제거
         cm.replaceSelection(selection.slice(2, -2));
       } else {
-        // 볼드 추가
         cm.replaceSelection('**' + selection + '**');
       }
     } else {
-      // 선택 영역이 없으면 커서 위치에 템플릿 삽입
       cm.replaceSelection('****');
       cm.setCursor({ line: cursor.line, ch: cursor.ch + 2 });
     }
     cm.focus();
   }
 
-  // ✨ [추가] 이탤릭 토글 함수
+  // 이탤릭 토글 함수
   function toggleItalic(cm) {
     const selection = cm.getSelection();
     const cursor = cm.getCursor();
@@ -83,10 +179,8 @@
     if (selection) {
       if (selection.startsWith('*') && selection.endsWith('*') && 
           !selection.startsWith('**')) {
-        // 이미 이탤릭이면 제거
         cm.replaceSelection(selection.slice(1, -1));
       } else {
-        // 이탤릭 추가
         cm.replaceSelection('*' + selection + '*');
       }
     } else {
@@ -102,31 +196,20 @@
     const lineText = cm.getLine(cursor.line);
     const textBeforeCursor = lineText.substring(0, cursor.ch);
     
-    // [[...]] 패턴 매칭 (닫는 브래킷이 없는 경우)
     const match = textBeforeCursor.match(/\[\[([^\]\[\]]*)$/);
     
     if (match) {
       const query = match[1];
       const textAfterCursor = lineText.substring(cursor.ch);
       
-      // 닫는 브래킷이 없으면 제안 박스 표시
       if (!textAfterCursor.includes(']]')) {
-        // 1. [[의 시작 위치 계산
         const startOfLink = textBeforeCursor.lastIndexOf('[[');
         const startPos = { line: cursor.line, ch: startOfLink };
-
-        // 2. 페이지 좌표로 변환 (스크롤 자동 반영)
         const coords = cm.charCoords(startPos, 'page');
-
-        // 3. CodeMirror 컨테이너의 화면 상 위치 얻기
         const wrapper = cm.getWrapperElement();
         const wrapperRect = wrapper.getBoundingClientRect();
-
-        // 4. 컨테이너 기준 상대 좌표로 변환
         const relativeX = coords.left - wrapperRect.left;
         const relativeY = coords.bottom - wrapperRect.top;
-
-        // 5. 스크롤 정보도 함께 전달
         const scrollInfo = cm.getScrollInfo();
 
         sendMessage({
@@ -134,7 +217,6 @@
           query: query,
           x: relativeX,
           y: relativeY,
-          // 추가 정보
           scrollTop: scrollInfo.top,
           scrollLeft: scrollInfo.left,
           wrapperTop: wrapperRect.top,
@@ -146,7 +228,6 @@
       }
     }
     
-    // 패턴이 없으면 제안 박스 숨김
     if (isSuggestionBoxVisible) {
       sendMessage({ type: 'hide-wikilink' });
       isSuggestionBoxVisible = false;
@@ -154,14 +235,13 @@
     }
   }
 
-  // ✨ [수정] 개선된 링크 클릭 핸들러
+  // 링크 클릭 핸들러
   function handleLinkClick(event) {
     if (!event.ctrlKey && !event.metaKey) return;
     
     const target = event.target;
     const cm = editor;
     
-    // 1. 일반 URL 처리 (.cm-url 클래스)
     if (target.classList.contains('cm-url')) {
       event.preventDefault();
       const url = target.innerText.trim();
@@ -171,11 +251,9 @@
       return;
     }
     
-    // 2. 링크 처리 (.cm-link 클래스)
     if (target.classList.contains('cm-link')) {
       event.preventDefault();
       
-      // 클릭 위치의 좌표를 CodeMirror 좌표로 변환
       const rect = cm.getWrapperElement().getBoundingClientRect();
       const pos = cm.coordsChar({
         left: event.clientX - rect.left,
@@ -185,7 +263,6 @@
       const line = cm.getLine(pos.line);
       if (!line) return;
       
-      // 위키링크 패턴 찾기 [[파일명]]
       const wikiLinkRegex = /\[\[([^\]]+)\]\]/g;
       let wikiMatch;
       
@@ -193,15 +270,13 @@
         const startIndex = wikiMatch.index;
         const endIndex = startIndex + wikiMatch[0].length;
         
-        // 클릭 위치가 이 위키링크 안에 있는지 확인
         if (pos.ch >= startIndex && pos.ch <= endIndex) {
-          const fileName = wikiMatch[1]; // [[파일명]] → 파일명
+          const fileName = wikiMatch[1];
           sendMessage({ type: 'open-wikilink', fileName: fileName });
           return;
         }
       }
       
-      // 마크다운 링크 패턴 찾기 [텍스트](URL)
       const markdownLinkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
       let mdMatch;
       
@@ -209,9 +284,8 @@
         const startIndex = mdMatch.index;
         const endIndex = startIndex + mdMatch[0].length;
         
-        // 클릭 위치가 이 마크다운 링크 안에 있는지 확인
         if (pos.ch >= startIndex && pos.ch <= endIndex) {
-          const url = mdMatch[2]; // [텍스트](URL) → URL
+          const url = mdMatch[2];
           sendMessage({ type: 'open-url', url: url });
           return;
         }
@@ -261,7 +335,6 @@
       return CodeMirror.Pass;
     },
     
-    // ✨ [수정] 직접 구현한 함수 사용
     "Ctrl-B": toggleBold,
     "Ctrl-I": toggleItalic,
     "Tab": "indentMore",
@@ -278,36 +351,46 @@
       }
 
       editor = CodeMirror.fromTextArea(textarea, {
-        mode: 'gfm',
+        mode: 'markdown-formatting',
         lineWrapping: true,
         theme: 'default',
         autofocus: true,
         placeholder: '메모를 시작하세요...',
-        styleActiveLine: { nonEmpty: true },
+        styleActiveLine: false, // ✨ 비활성화 (직접 관리)
         indentUnit: 2,
         tabSize: 2,
         extraKeys: extraKeys
       });
 
-      // 이벤트 리스너 등록
+      // ✨ 이벤트 리스너 등록
       editor.on('cursorActivity', (cm) => {
+        updateActiveLineFormatting(); // 활성 라인 업데이트
         sendStateToFlutter();
         handleWikiLinkSuggestions(cm);
       });
 
       editor.on('change', () => {
         sendStateToFlutter();
+        // 변경 후에도 활성 라인 업데이트
+        setTimeout(() => updateActiveLineFormatting(), 10);
       });
 
       // 링크 클릭 이벤트
       editor.getWrapperElement().addEventListener('mousedown', handleLinkClick);
 
-      // 초기 상태: 문법 숨김
-      editor.getWrapperElement().classList.add('hide-formatting');
-
       // Flutter에 준비 완료 알림
       setTimeout(() => {
         sendTextMessage('READY');
+        console.log('✅ 에디터 초기화 완료 - 커스텀 formatting 모드');
+        
+        // 초기 활성 라인 설정
+        updateActiveLineFormatting();
+        
+        // 디버깅: formatting 요소 확인
+        setTimeout(() => {
+          const formattings = document.querySelectorAll('.cm-formatting');
+          console.log('📊 cm-formatting 요소 수:', formattings.length);
+        }, 500);
       }, 200);
 
     } catch (e) {
@@ -329,6 +412,7 @@
       editor.setValue(text);
       isUpdatingFromJs = false;
       editor.setCursor(cursor);
+      updateActiveLineFormatting(); // ✨ 텍스트 설정 후 업데이트
     } catch (e) {
       console.error('setText 오류:', e);
       isUpdatingFromJs = false;
@@ -357,11 +441,31 @@
     
     try {
       const wrapper = editor.getWrapperElement();
+      
+      console.log('toggleFormatting 호출:', show ? '문법 표시' : '문법 숨김');
+      
       if (show) {
         wrapper.classList.remove('hide-formatting');
+        console.log('✅ 문법 표시 모드');
       } else {
         wrapper.classList.add('hide-formatting');
+        console.log('✅ 문법 숨김 모드 (현재 라인만 표시)');
       }
+      
+      // 디버깅
+      setTimeout(() => {
+        const formattings = wrapper.querySelectorAll('.cm-formatting');
+        console.log('📊 formatting 요소 수:', formattings.length);
+        if (formattings.length > 0) {
+          const computed = window.getComputedStyle(formattings[0]);
+          console.log('  - font-size:', computed.fontSize);
+          console.log('  - opacity:', computed.opacity);
+        }
+      }, 100);
+      
+      editor.refresh();
+      updateActiveLineFormatting(); // ✨ 토글 후 업데이트
+      
     } catch (e) {
       console.error('toggleFormatting 오류:', e);
     }
@@ -418,7 +522,8 @@
       initialized: !!editor,
       suggestionBoxVisible: isSuggestionBoxVisible,
       highlightedIndex: highlightedIndex,
-      suggestionCount: suggestionCount
+      suggestionCount: suggestionCount,
+      currentActiveLine: currentActiveLine
     };
   };
 

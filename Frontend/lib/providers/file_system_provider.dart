@@ -178,6 +178,10 @@ class FileSystemProvider extends ChangeNotifier {
     List<FileSystemEntry> currentDirChildren = [];
     for (var entity in entities) {
       final name = p.basename(entity.path);
+      // ✨ [추가] 'chroma_db' 폴더를 숨기기 위한 필터
+      if (name == 'chroma_db') {
+        continue;
+      }
       if (entity is Directory) {
         final List<FileSystemEntry> dirChildren = [];
         await _buildDirectoryTree(entity, dirChildren);
