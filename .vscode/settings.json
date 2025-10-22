@@ -1,4 +1,5 @@
 {
     "cmake.ignoreCMakeListsMissing": true,
-    "sqltools.useNodeRuntime": true
+    "sqltools.useNodeRuntime": true,
+    "terminal.integrated.defaultProfile.windows": "Command Prompt"
 }

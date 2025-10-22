@@ -7,6 +7,8 @@ import 'package:flutter_dotenv/flutter_dotenv.dart'; // .env 파일 로드
 import 'package:html/parser.dart' as parser; // HTML 파싱
 import 'package:path/path.dart' as p; // 경로 처리
 import '../model/chat_message_model.dart'; // ✨ [추가] ChatMessage 모델 임포트
+import '../services/auth_token.dart'; // <<< authorizedRequest 임포트
+import 'package:flutter/material.dart'; // <<< BuildContext 사용 위해 추가
 
 // --- 환경 설정 ---
 final String _pythonBackendBaseUrl =
@@ -353,5 +355,109 @@ Future<Map<String, dynamic>?> callRagTask({
   } catch (e) {
     print('[AI_SERVICE] ❌ Exception during RAG Task: $e');
     return {'error': "RAG 작업 중 예외가 발생했습니다: $e"};
+  }
+}
+
+/// 백엔드에서 방문 기록 통계를 가져옵니다.
+Future<Map<String, dynamic>?> fetchHistoryStats(
+  BuildContext context, {
+  String? period,
+  String? startDate,
+  String? endDate,
+}) async {
+  // URL 파라미터 구성
+  final queryParams = <String, String>{};
+  if (period != null) queryParams['period'] = period;
+  if (startDate != null) queryParams['start_date'] = startDate;
+  if (endDate != null) queryParams['end_date'] = endDate;
+
+  final Uri url = Uri.parse(
+    '$_pythonBackendBaseUrl/api/history/stats',
+  ).replace(queryParameters: queryParams.isNotEmpty ? queryParams : null);
+
+  print('[AI_SERVICE] Fetching History Stats: ${url.toString()}');
+
+  try {
+    // === 중요: 인증된 요청 사용 ===
+    // authorizedRequest 함수는 Access Token을 자동으로 포함하고, 만료 시 Refresh Token으로 갱신 시도
+    final response = await authorizedRequest(
+      url,
+      context: context, // 토큰 만료 시 로그아웃 처리를 위해 BuildContext 전달
+      method: 'GET', // GET 요청 명시
+    ).timeout(const Duration(seconds: 45)); // 타임아웃 45초
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(utf8.decode(response.bodyBytes));
+      print('[AI_SERVICE] History Stats Loaded Successfully.');
+      return data;
+    } else {
+      final errorData = jsonDecode(utf8.decode(response.bodyBytes));
+      print(
+        '[AI_SERVICE] ❌ Fetch History Stats Failed (${response.statusCode}): ${errorData['error'] ?? 'Unknown error'}',
+      );
+      // 사용자에게 보여줄 에러 메시지 반환 또는 예외 발생
+      return {
+        "error":
+            "통계 로드 실패 (${response.statusCode}): ${errorData['error'] ?? '알 수 없는 오류'}",
+      };
+    }
+  } catch (e) {
+    print('[AI_SERVICE] ❌ Exception during Fetch History Stats: $e');
+    // 사용자에게 보여줄 에러 메시지 반환 또는 예외 발생
+    return {"error": "통계 로드 중 통신 오류 발생: $e"};
+  }
+}
+
+/// 백엔드에서 키워드로 방문 기록을 검색합니다.
+Future<Map<String, dynamic>?> searchHistory(
+  BuildContext context,
+  String query, {
+  int page = 1,
+  int limit = 50,
+}) async {
+  if (query.trim().isEmpty) {
+    return {"error": "검색어를 입력해주세요."};
+  }
+
+  // URL 파라미터 구성
+  final queryParams = <String, String>{
+    'q': query,
+    'page': page.toString(),
+    'limit': limit.toString(),
+  };
+
+  final Uri url = Uri.parse(
+    '$_pythonBackendBaseUrl/api/history/search',
+  ).replace(queryParameters: queryParams);
+
+  print('[AI_SERVICE] Searching History: ${url.toString()}');
+
+  try {
+    // === 중요: 인증된 요청 사용 ===
+    final response = await authorizedRequest(
+      url,
+      context: context,
+      method: 'GET',
+    ).timeout(const Duration(seconds: 45));
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(utf8.decode(response.bodyBytes));
+      print(
+        '[AI_SERVICE] History Search Successful. Found ${data['results']?.length ?? 0} items.',
+      );
+      return data; // { results: [], page: 1, limit: 50, total_results: 100, total_pages: 2 } 형태
+    } else {
+      final errorData = jsonDecode(utf8.decode(response.bodyBytes));
+      print(
+        '[AI_SERVICE] ❌ History Search Failed (${response.statusCode}): ${errorData['error'] ?? 'Unknown error'}',
+      );
+      return {
+        "error":
+            "검색 실패 (${response.statusCode}): ${errorData['error'] ?? '알 수 없는 오류'}",
+      };
+    }
+  } catch (e) {
+    print('[AI_SERVICE] ❌ Exception during History Search: $e');
+    return {"error": "검색 중 통신 오류 발생: $e"};
   }
 }

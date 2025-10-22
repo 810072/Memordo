@@ -12,44 +12,46 @@
     </header>
 
     <div id="main-section" style="display: block;">
-      <div class="card user-card">
-        <span id="user-email">2jh1230@naver.com</span>
-        <button id="logout-button" class="btn-logout">로그아웃</button>
-      </div>
-
-      <div class="card tracking-card">
-        <div class="tracking-info">
-          <span class="card-title">방문기록 추적</span>
-          <p class="card-subtitle">웹사이트 방문 기록을 자동으로 저장합니다</p>
+        <div class="card user-card">
+            <span id="user-email">email</span> <button id="logout-button" class="btn-logout">로그아웃</button>
         </div>
-        <label class="switch">
-          <input type="checkbox" id="tracking-toggle" checked>
-          <span class="slider"></span>
-        </label>
-      </div>
-
-      <div class="action-buttons">
-        <button id="upload-button" class="btn btn-primary">
-          <span class="icon-drive"></span>
-          Drive 업로드
-        </button>
-        <button id="view-history-button" class="btn btn-secondary">
-          <span class="icon-history">&#x1F553;</span>
-          방문 기록 보기
-        </button>
-      </div>
+        <div class="card tracking-card">
+            <div class="tracking-info">
+                <span class="card-title">방문기록 추적</span>
+                <p class="card-subtitle">웹사이트 방문 기록을 자동으로 저장합니다</p>
+            </div>
+            <label class="switch">
+                <input type="checkbox" id="tracking-toggle" checked>
+                <span class="slider"></span>
+            </label>
+        </div>
+        <div class="action-buttons">
+            <button id="upload-button" class="btn btn-primary">
+                <span class="icon-drive"></span>
+                Drive 업로드
+            </button>
+            <button id="view-history-button" class="btn btn-secondary">
+                <span class="icon-history">&#x1F553;</span>
+                방문 기록 보기
+            </button>
+        </div>
     </div>
-    
+
     <div id="login-section" style="display: none;">
         <input type="email" id="email-input" placeholder="이메일" class="login-input">
         <input type="password" id="password-input" placeholder="비밀번호" class="login-input">
         <button id="login-button" class="btn btn-primary" style="width: 100%; margin-top: 10px;">로그인</button>
+
+        <div style="text-align: center; margin: 12px 0; color: var(--subtitle-color);">또는</div>
+        <button id="google-login-button" class="btn btn-secondary" style="width: 100%;">
+            <img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTgiIGhlaWdodD0iMTgiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGcgZmlsbD0ibm9uZSIgZmlsbC1ydWxlPSJldmVub2RkIj48cGF0aCBkPSJNMTcuNiA5LjJsLS4xLTEuOEg5djMuNGg0LjhDMTMuNiAxMi4yIDEzIDEzIDEyIDEzLjdjLTEuMS0uNy0yLjMtMS0zLjYtMS0yLjYgMC00LjggMi4yLTQuOCA0LjhzMi4yIDQuOCA0LjggNC44YzEuNCAwIDIuNi0uNiAzLjYtMS42TDE4IDE2YzEuMiAxLjUgMy4xIDIuNSA1LjQgMi41IDIuMyAwIDQuMy0uOCA1LjktMi4yIDEuNi0xLjQgMi41LTMuNiAyLjUtNi4yIDAtLjUtLjEtLjkuMS0xLjRoLTkuNnoiIGZpbGw9IiM0Mjg1RjQiIGZpbGwtcnVsZT0ibm9uemVybyIvPjxwYXRoIGQ9Ik05IDE4YzIuNCAwIDQuNS0uOCA2LTIuMmwtMy4yLTIuNWMtLjggLjUtMS44LjktMy4xLjktMS44IDAtMy40LTEuMS00LTYuNmwtMy40IDIuNkMxLjYgMTUuOCA1IDE4IDkgMTh6IiBmaWxsPSIjMzRBODUzIiBmaWxsLXJ1bGU9Im5vbnplcm8iLz48cGF0aCBkPSJNNCAxMC43Yy0uMi0uNS0uMy0xLjEtLjMtMS43cy4xLTEuMi4zLTEuN0wzLjggMy40QzMuMyA0LjUgMyA1LjcgMyA3cy4zIDIuNS44IDMuN0w0IDEwLjd6IiBmaWxsPSIjRkJCQzA1IiBmaWxsLXJ1bGU9Im5vbnplcm8iLz48cGF0aCBkPSJNMTggM2MtMS40IDAtMi43LjUtMy42IDEuNmwtMy4yIDIuNUMxMC45IDQuNCA5LjggNCA4IDRIM3Y1LjRoNmwtMS43LTF6IiBmaWxsPSIjRUE0MzM1IiBmaWxsLXJ1bGU9Im5vbnplcm8iLz48cGF0aCBkPSJNMCAwaDE4djE4SDB6Ii8+PC9nPjwvc3ZnPg==" alt="Google logo" style="width: 16px; height: 16px; margin-right: 8px;">
+            Google 계정으로 로그인
+        </button>
         <div id="login-status" class="status-message"></div>
     </div>
 
     <footer class="footer">
-        버전 1.2.0
-    </footer>
+        버전 1.0 </footer>
   </div>
   <script type="module" src="popup.js"></script>
 </body>
