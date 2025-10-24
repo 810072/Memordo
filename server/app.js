@@ -29,7 +29,7 @@ app.use('/api/m/', emailAuthRouter_DG);
 
 app.use('/memo/api', authRoutes_MEMO);
 app.use('/memo/api/m/', emailAuthRouter_MEMO);
-app.use('/memo/api', historyRoutes_MEMO); // 방문 기록 라우트 추가
+app.use('/memo/api/h/', historyRoutes_MEMO); // 방문 기록 라우트 추가
 
 // 서버 상태 확인을 위한 기본 GET 엔드포인트
 app.get('/', (req, res) => {

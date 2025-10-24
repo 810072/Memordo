@@ -201,4 +201,52 @@ router.get('/history/search', verifyToken, async (req, res) => {
     return res.status(500).json({ message: '서버 오류 발생' });
   }
 });
-module.exports = router;
+
+// --- ✨ 새로운 GET 엔드포인트 추가 ---
+// GET /memo/api/h/history/list (모든 기록 조회)
+router.get('/history/list', verifyToken, async (req, res) => {
+  const userId = req.user.id;
+  const page = parseInt(req.query.page || '1', 10);
+  const limit = parseInt(req.query.limit || '100', 10); // 한 번에 가져올 개수 (조절 가능)
+
+  if (isNaN(page) || page < 1 || isNaN(limit) || limit < 1) {
+    return res.status(400).json({ message: 'page와 limit은 1 이상의 숫자여야 합니다.' });
+  }
+
+  const offset = (page - 1) * limit;
+
+  try {
+    // 사용자의 모든 방문 기록 조회 (최신순)
+    const [results] = await db.query(
+      `SELECT url, title, timestamp
+       FROM visit_history
+       WHERE user_id = ?
+       ORDER BY timestamp DESC
+       LIMIT ? OFFSET ?`,
+      [userId, limit, offset]
+    );
+
+    // 전체 결과 수 조회 (페이지네이션 용)
+    const [[{ total }]] = await db.query(
+      `SELECT COUNT(*) as total
+       FROM visit_history
+       WHERE user_id = ?`,
+      [userId]
+    );
+
+    return res.status(200).json({
+      results: results,
+      page: page,
+      limit: limit,
+      total_results: total,
+      total_pages: Math.ceil(total / limit)
+    });
+
+  } catch (err) {
+    console.error('History List API Error:', err.message);
+    return res.status(500).json({ message: '서버 오류 발생' });
+  }
+});
+// --- ✨ 추가 끝 ---
+
+module.exports = router; // 이 줄은 파일 맨 끝에 있어야 합니다.

@@ -114,7 +114,7 @@ async function sendHistoryToBackend(historyData) {
   console.log(`[Memordo] Sending ${historyData.length} history entries to backend...`);
 
   try {
-    const response = await fetch(`${BACKEND_API_URL}/memo/api/history/collect`, {
+    const response = await fetch(`${BACKEND_API_URL}/memo/api/h/history/collect`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -127,15 +127,20 @@ async function sendHistoryToBackend(historyData) {
     if (!response.ok) {
       // 오류 응답 처리
       let errorDetails = `Status: ${response.status}`;
+      
+      // 1. 응답 본문을 텍스트로 *딱 한 번만* 읽습니다.
+      const errorText = await response.text(); 
+      
       try {
-        const errorJson = await response.json();
-        errorDetails += `, Message: ${errorJson.error || 'Unknown error'}`;
+        // 2. 읽어온 텍스트를 JSON으로 파싱 시도합니다.
+        const errorJson = JSON.parse(errorText); 
+        errorDetails += `, Message: ${errorJson.error || errorJson.message || 'Unknown error'}`;
       } catch (e) {
-        const errorText = await response.text();
+        // 3. 파싱에 실패하면 그냥 텍스트를 그대로 사용합니다.
         errorDetails += `, Response: ${errorText.substring(0, 100)}`;
       }
       console.error(`[Memordo] History send failed: ${errorDetails}`);
-      // TODO: 전송 실패 시 재시도 로직 또는 로컬 임시 저장 강화
+      
     } else {
       // 성공 응답 처리
       const result = await response.json();

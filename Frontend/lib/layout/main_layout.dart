@@ -339,7 +339,7 @@ class _MainLayoutState extends State<MainLayout> with TickerProviderStateMixin {
                   onPressed:
                       viewModel.isLoading || !tokenProvider.isAuthenticated
                           ? null
-                          : () => viewModel.loadVisitHistory(),
+                          : () => viewModel.loadVisitHistory(context),
                 ),
                 IconButton(
                   icon: const Icon(Icons.auto_awesome_outlined, size: 20),

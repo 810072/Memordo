@@ -37,7 +37,7 @@ class _HistoryViewState extends State<HistoryView> {
       _wasAuthenticated = tokenProvider.isAuthenticated;
 
       if (_wasAuthenticated && historyViewModel.filteredHistory.isEmpty) {
-        historyViewModel.loadVisitHistory();
+        historyViewModel.loadVisitHistory(context);
       }
     });
   }
@@ -49,7 +49,7 @@ class _HistoryViewState extends State<HistoryView> {
 
     if (tokenProvider.isAuthenticated && !_wasAuthenticated) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        viewModel.loadVisitHistory();
+        viewModel.loadVisitHistory(context);
       });
     }
     _wasAuthenticated = tokenProvider.isAuthenticated;

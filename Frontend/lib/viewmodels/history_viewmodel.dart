@@ -26,6 +26,12 @@ class HistoryViewModel with ChangeNotifier {
   Set<String> _selectedTags = {};
   SortOrder _sortOrder = SortOrder.latest;
 
+  // ✨ [추가] 페이지네이션 관련 변수
+  int _currentPage = 1;
+  int _totalPages = 1;
+  int _totalResults = 0;
+  static const int _pageSize = 100; // 한 번에 가져올 개수
+
   List<Map<String, dynamic>> get filteredHistory => _filteredHistory;
   String get status => _status;
   bool get isLoading => _isLoading;
@@ -35,8 +41,13 @@ class HistoryViewModel with ChangeNotifier {
       _selectedPeriod != null ||
       _selectedDomains.isNotEmpty ||
       _selectedTags.isNotEmpty;
-  // ✨ [추가] View에서 정렬 순서를 알 수 있도록 getter 추가
   SortOrder get sortOrder => _sortOrder;
+
+  // ✨ [추가] 페이지네이션 정보 Getter
+  int get currentPage => _currentPage;
+  int get totalPages => _totalPages;
+  int get totalResults => _totalResults;
+  bool get hasMorePages => _currentPage < _totalPages;
 
   @override
   void dispose() {
@@ -59,7 +70,6 @@ class HistoryViewModel with ChangeNotifier {
     notifyListeners();
   }
 
-  // ✨ [수정] 필터링 후 정렬 로직 제거 (View에서 처리하도록 변경)
   void applyFilters({
     String? query,
     DateFilterPeriod? period,
@@ -145,90 +155,122 @@ class HistoryViewModel with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> loadVisitHistory() async {
+  /// ✨ [새로운 함수] 서버에서 방문 기록 불러오기
+  Future<void> loadVisitHistory(
+    BuildContext context, {
+    bool loadMore = false,
+  }) async {
     if (_isLoading) return;
 
     _isLoading = true;
-    _status = '방문 기록 불러오는 중...';
-    _selectedUniqueKeys.clear();
-    _visitHistory.clear();
-    _filteredHistory.clear();
+
+    // 초기 로드인 경우에만 상태 초기화
+    if (!loadMore) {
+      _status = '방문 기록 불러오는 중...';
+      _selectedUniqueKeys.clear();
+      _visitHistory.clear();
+      _filteredHistory.clear();
+      _currentPage = 1;
+    } else {
+      // 더 불러오기인 경우 페이지 증가
+      _currentPage++;
+    }
+
     notifyListeners();
 
     try {
-      final googleAccessToken = await _getValidGoogleAccessToken();
-      if (googleAccessToken == null) {
-        throw Exception('Google 인증이 필요합니다.');
-      }
+      // ✨ 서버 API 호출 (authorizedRequest 사용)
+      final url = Uri.parse(
+        'https://aidoctorgreen.com/memo/api/h/history/list',
+      ).replace(
+        queryParameters: {
+          'page': _currentPage.toString(),
+          'limit': _pageSize.toString(),
+        },
+      );
 
-      const folderName = 'memordo';
-      final folderId = await _getFolderIdByName(folderName, googleAccessToken);
-      if (folderId == null) {
-        _visitHistory = [];
-        _filteredHistory = [];
-        _status = "'memordo' 폴더를 찾을 수 없습니다. 확장 프로그램에서 폴더를 생성해주세요.";
-      } else {
-        final url = Uri.parse(
-          'https://www.googleapis.com/drive/v3/files?q=%27$folderId%27+in+parents+and+name+contains+%27.jsonl%27&orderBy=createdTime+desc&fields=nextPageToken,files(id,name,createdTime,modifiedTime)',
-        );
+      print('[HistoryViewModel] 서버에서 방문 기록 요청: $url');
 
-        final allFiles = await _fetchAllDriveFiles(url, googleAccessToken);
+      final response = await authorizedRequest(
+        url,
+        context: context,
+        method: 'GET',
+      ).timeout(const Duration(seconds: 45));
 
-        if (allFiles.isEmpty) {
-          _visitHistory = [];
-          _filteredHistory = [];
-          _status = '방문 기록 파일(.jsonl)이 없습니다.';
+      if (response.statusCode == 200) {
+        final data = jsonDecode(utf8.decode(response.bodyBytes));
+        final List<dynamic> results = data['results'] ?? [];
+
+        // 페이지네이션 정보 업데이트
+        _totalPages = data['total_pages'] ?? 1;
+        _totalResults = data['total_results'] ?? 0;
+
+        // 서버 응답 데이터를 기존 형식으로 변환
+        final List<Map<String, dynamic>> newHistory =
+            results.map((item) {
+              return {
+                'url': item['url'],
+                'title': item['title'] ?? 'No Title',
+                'timestamp': item['timestamp'],
+              };
+            }).toList();
+
+        if (loadMore) {
+          // 더 불러오기: 기존 데이터에 추가
+          _visitHistory.addAll(newHistory);
         } else {
-          final List<Map<String, dynamic>> allHistory = [];
-          await Future.wait(
-            allFiles.map((file) async {
-              final historyPart = await _downloadAndParseJsonl(
-                googleAccessToken,
-                file['id'],
-              );
-              allHistory.addAll(historyPart);
-            }),
-          );
-
-          final uniqueKeys = <String>{};
-          final List<Map<String, dynamic>> uniqueHistory = [];
-          for (var item in allHistory) {
-            final timestamp =
-                item['timestamp'] ?? item['visitTime']?.toString() ?? '';
-            final urlValue = item['url']?.toString() ?? '';
-            final uniqueKey = '$timestamp-$urlValue';
-
-            if (uniqueKeys.add(uniqueKey)) {
-              uniqueHistory.add(item);
-            }
-          }
-
-          uniqueHistory.sort((a, b) {
-            final at = a['timestamp'] ?? a['visitTime']?.toString() ?? '';
-            final bt = b['timestamp'] ?? b['visitTime']?.toString() ?? '';
-            return bt.compareTo(at);
-          });
-
-          _visitHistory = uniqueHistory;
-          _filteredHistory = List.from(_visitHistory);
-          _status =
-              _visitHistory.isEmpty
-                  ? '방문 기록이 없습니다.'
-                  : '총 ${_visitHistory.length}개의 방문 기록을 불러왔습니다.';
+          // 초기 로드: 전체 교체
+          _visitHistory = newHistory;
         }
+
+        // 중복 제거 (uniqueKey 기준)
+        final uniqueKeys = <String>{};
+        final List<Map<String, dynamic>> uniqueHistory = [];
+        for (var item in _visitHistory) {
+          final timestamp = item['timestamp'] ?? '';
+          final urlValue = item['url']?.toString() ?? '';
+          final uniqueKey = '$timestamp-$urlValue';
+
+          if (uniqueKeys.add(uniqueKey)) {
+            uniqueHistory.add(item);
+          }
+        }
+
+        _visitHistory = uniqueHistory;
+        _filteredHistory = List.from(_visitHistory);
+
+        _status =
+            _visitHistory.isEmpty
+                ? '방문 기록이 없습니다.'
+                : '총 ${_totalResults}개의 방문 기록 중 ${_visitHistory.length}개 로드됨.';
+
+        print(
+          '[HistoryViewModel] 로드 완료: ${_visitHistory.length}개 (${_currentPage}/$_totalPages 페이지)',
+        );
+      } else {
+        final errorData = jsonDecode(utf8.decode(response.bodyBytes));
+        throw Exception(
+          '서버 오류 (${response.statusCode}): ${errorData['message'] ?? 'Unknown error'}',
+        );
       }
     } catch (e) {
       _status = '오류 발생: ${e.toString()}';
       _visitHistory = [];
       _filteredHistory = [];
+      print('[HistoryViewModel] ❌ 로드 실패: $e');
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
 
+  /// ✨ [새로운 함수] 다음 페이지 불러오기
+  Future<void> loadMoreHistory(BuildContext context) async {
+    if (!hasMorePages || _isLoading) return;
+    await loadVisitHistory(context, loadMore: true);
+  }
+
   Future<void> summarizeSelection(BuildContext context) async {
-    // ... (기존과 동일)
     final bottomController = context.read<BottomSectionController>();
     final statusBar = context.read<StatusBarProvider>();
 
@@ -248,7 +290,6 @@ class HistoryViewModel with ChangeNotifier {
 
       if (selectedUrl != null && selectedUrl.isNotEmpty) {
         bottomController.setActiveTab(2);
-
         bottomController.setIsLoading(true);
         bottomController.updateSummary('URL 요약 중...\n$selectedUrl');
 
@@ -285,108 +326,5 @@ class HistoryViewModel with ChangeNotifier {
         type: StatusType.info,
       );
     }
-  }
-
-  Future<List<dynamic>> _fetchAllDriveFiles(
-    Uri initialUrl,
-    String token,
-  ) async {
-    // ... (기존과 동일)
-    List<dynamic> allFiles = [];
-    String? nextPageToken;
-
-    do {
-      final urlWithToken =
-          nextPageToken == null
-              ? initialUrl
-              : initialUrl.replace(
-                queryParameters: {
-                  ...initialUrl.queryParameters,
-                  'pageToken': nextPageToken,
-                },
-              );
-
-      final res = await http.get(
-        urlWithToken,
-        headers: {'Authorization': 'Bearer $token'},
-      );
-      if (res.statusCode != 200) {
-        throw Exception('파일 목록 조회 실패 (${res.statusCode})');
-      }
-
-      final data = jsonDecode(res.body);
-      allFiles.addAll(data['files'] as List);
-      nextPageToken = data['nextPageToken'];
-    } while (nextPageToken != null);
-
-    return allFiles;
-  }
-
-  Future<String?> _getValidGoogleAccessToken() async {
-    // ... (기존과 동일)
-    var googleAccessToken = await getStoredGoogleAccessToken();
-    if (googleAccessToken == null || googleAccessToken.isEmpty) {
-      await refreshGoogleAccessTokenIfNeeded();
-      googleAccessToken = await getStoredGoogleAccessToken();
-    }
-    return googleAccessToken;
-  }
-
-  Future<String?> _getFolderIdByName(String folderName, String token) async {
-    // ... (기존과 동일)
-    final url = Uri.parse(
-      'https://www.googleapis.com/drive/v3/files'
-      '?q=mimeType=%27application/vnd.google-apps.folder%27+and+name=%27$folderName%27'
-      '&fields=files(id,name)'
-      '&pageSize=1',
-    );
-
-    final res = await http.get(
-      url,
-      headers: {'Authorization': 'Bearer $token'},
-    );
-
-    if (res.statusCode == 200) {
-      final data = jsonDecode(res.body);
-      final files = data['files'] as List;
-      return files.isNotEmpty ? files[0]['id'] as String : null;
-    }
-    return null;
-  }
-
-  Future<List<Map<String, dynamic>>> _downloadAndParseJsonl(
-    String token,
-    String fileId,
-  ) async {
-    // ... (기존과 동일)
-    final url = Uri.parse(
-      'https://www.googleapis.com/drive/v3/files/$fileId?alt=media',
-    );
-    final res = await http.get(
-      url,
-      headers: {'Authorization': 'Bearer $token'},
-    );
-
-    if (res.statusCode != 200) {
-      if (res.statusCode == 404) {
-        print('⚠️ 파일을 찾을 수 없습니다 (404): $fileId');
-        return [];
-      }
-      throw Exception('파일 다운로드 실패 (상태: ${res.statusCode})');
-    }
-
-    final lines = const LineSplitter().convert(utf8.decode(res.bodyBytes));
-    return lines
-        .where((line) => line.trim().isNotEmpty)
-        .map<Map<String, dynamic>>((line) {
-          try {
-            return jsonDecode(line);
-          } catch (e) {
-            print('JSON 파싱 오류: $line');
-            return {};
-          }
-        })
-        .where((item) => item.isNotEmpty)
-        .toList();
   }
 }
