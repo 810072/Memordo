@@ -26,3 +26,15 @@ CREATE TABLE login_logs (
   ip_address VARCHAR(45),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
+
+CREATE TABLE visit_history (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT NOT NULL, 
+    url TEXT NOT NULL,
+    title TEXT,
+    timestamp DATETIME NOT NULL, 
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX (user_id, timestamp), 
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE(user_id, url(255), timestamp) 
+);

@@ -2,7 +2,7 @@
 
 // --- 상단 ---
 // 백엔드 API 주소 (실제 배포 시 HTTPS 주소로 변경)
-const BACKEND_API_URL = 'http://localhost:5001'; // 또는 https://your-backend-domain.com
+const BACKEND_API_URL = 'https://aidoctorgreen.com'; // 웹 서버 주소로 변경
 
 // 확장 프로그램 설치 시 초기 설정 (visitedUrls 초기화 유지)
 chrome.runtime.onInstalled.addListener(() => {
@@ -114,7 +114,7 @@ async function sendHistoryToBackend(historyData) {
   console.log(`[Memordo] Sending ${historyData.length} history entries to backend...`);
 
   try {
-    const response = await fetch(`${BACKEND_API_URL}/api/history/collect`, {
+    const response = await fetch(`${BACKEND_API_URL}/memo/api/history/collect`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -273,7 +273,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // 1. 일반 로그인 처리
   if (message.action === 'login') {
     const { email, password } = message.data;
-    const backendUrl = `${BACKEND_API_URL}/api/login`;
+    const backendUrl = `${BACKEND_API_URL}/memo/api/login`;
     console.log(`[Background] 일반 로그인 시도: ${email}`);
     fetch(backendUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) })
     .then(response => { if (!response.ok) throw new Error('Login failed'); return response.json(); }) // 간략화
@@ -298,7 +298,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     getAuthToken(async (googleToken) => {
         if (!googleToken) { sendResponse({ success: false, message: 'Google 인증 실패' }); return; }
         console.log('[Memordo] Google 인증 토큰 획득, 백엔드 전송 시도...');
-        const backendUrl = `${BACKEND_API_URL}/api/google-login`;
+        const backendUrl = `${BACKEND_API_URL}/memo/api/google-login`;
         try {
             const response = await fetch(backendUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ googleAccessToken: googleToken }) });
             if (!response.ok) { throw new Error('Server auth failed'); }

@@ -7,7 +7,7 @@ const authRoutes_DG = require('./auth_DG');
 const emailAuthRouter_DG = require('./email_auth_DG');
 const authRoutes_MEMO = require('./auth_MEMO'); 
 const emailAuthRouter_MEMO = require('./email_auth_MEMO');
-
+const historyRoutes_MEMO = require('./history_MEMO'); // 새 라우트 파일 임포트
 const app = express();
 
 // --- CORS 설정 ---
@@ -29,7 +29,7 @@ app.use('/api/m/', emailAuthRouter_DG);
 
 app.use('/memo/api', authRoutes_MEMO);
 app.use('/memo/api/m/', emailAuthRouter_MEMO);
-
+app.use('/memo/api', historyRoutes_MEMO); // 방문 기록 라우트 추가
 
 // 서버 상태 확인을 위한 기본 GET 엔드포인트
 app.get('/', (req, res) => {
