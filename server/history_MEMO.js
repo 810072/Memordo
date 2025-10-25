@@ -247,6 +247,57 @@ router.get('/history/list', verifyToken, async (req, res) => {
     return res.status(500).json({ message: '서버 오류 발생' });
   }
 });
-// --- ✨ 추가 끝 ---
 
+// --- ✨ 새로운 DELETE 엔드포인트 추가 ---
+// POST /memo/api/h/history/delete (POST를 사용해 body로 삭제 목록을 받음)
+router.post('/history/delete', verifyToken, async (req, res) => {
+  const userId = req.user.id;
+  const itemsToDelete = req.body; // [{url, timestamp}, ...]
+
+  if (!Array.isArray(itemsToDelete) || itemsToDelete.length === 0) {
+    return res.status(400).json({ message: '삭제할 항목 배열이 필요합니다.' });
+  }
+
+  const connection = await db.getConnection();
+  let deletedCount = 0;
+  let errorCount = 0;
+
+  try {
+    await connection.beginTransaction();
+
+    for (const item of itemsToDelete) {
+      const { url, timestamp } = item;
+      if (!url || !timestamp) {
+        errorCount++;
+        continue;
+      }
+      
+      // 서버 DB는 'YYYY-MM-DD HH:MM:SS' 형식이므로 변환 불필요
+      const [result] = await connection.query(
+        `DELETE FROM visit_history 
+         WHERE user_id = ? AND url = ? AND timestamp = ?`,
+        [userId, url, timestamp]
+      );
+
+      if (result.affectedRows > 0) {
+        deletedCount++;
+      }
+    }
+
+    await connection.commit();
+
+    return res.status(200).json({
+      message: `삭제 완료. 성공: ${deletedCount}, 실패/건너뜀: ${errorCount}`,
+      deletedCount,
+    });
+
+  } catch (err) {
+    await connection.rollback();
+    console.error('History Delete API Error:', err.message);
+    return res.status(500).json({ message: '서버 오류 발생' });
+  } finally {
+    connection.release();
+  }
+});
+// --- ✨ 추가 끝 ---
 module.exports = router; // 이 줄은 파일 맨 끝에 있어야 합니다.

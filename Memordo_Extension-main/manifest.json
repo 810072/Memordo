@@ -25,18 +25,11 @@
   },
   "permissions": [
     "tabs",
-    "storage",
-    "identity"
+    "storage"
   ],
-  "oauth2": {
-    "client_id": "608441152139-vsd5c67k4ep8s208fja9s7q3dsum84ls.apps.googleusercontent.com",
-    "scopes": [
-      "https://www.googleapis.com/auth/drive.file"
-    ]
-  },
   "host_permissions": [
     "<all_urls>",
-    "https://www.googleapis.com/"
+    "https://aidoctorgreen.com/"
   ],
   "web_accessible_resources": [
     {

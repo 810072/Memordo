@@ -7,6 +7,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const filterBookmarksButton = document.getElementById('filter-bookmarks');
   let currentFilter = 'all';
 
+  const BACKEND_API_URL = 'https://aidoctorgreen.com';
+
   function showToast(message) {
     const existingToast = document.querySelector('.toast-notification');
     if (existingToast) {
@@ -47,9 +49,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const groupedByDate = dataToRender.reduce((groups, entry) => {
       if (!entry || !entry.timestamp) return groups;
-      const dateKey = new Date(entry.timestamp).toISOString().split('T')[0];
+      
+      const normalizedTimestampStr = entry.timestamp.includes('T') 
+          ? entry.timestamp 
+          : entry.timestamp.replace(' ', 'T');
+      
+      const entryDate = new Date(normalizedTimestampStr); 
+
+      const year = entryDate.getFullYear();
+      const month = (entryDate.getMonth() + 1).toString().padStart(2, '0');
+      const day = entryDate.getDate().toString().padStart(2, '0');
+      const dateKey = `${year}-${month}-${day}`;
+      
       if (!groups[dateKey]) {
-        groups[dateKey] = { date: new Date(entry.timestamp), entries: [] };
+        groups[dateKey] = { date: entryDate, entries: [] };
       }
       groups[dateKey].entries.push(entry);
       return groups;
@@ -57,32 +70,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const sortedDateKeys = Object.keys(groupedByDate).sort((a, b) => new Date(b) - new Date(a));
 
-    // ==========================================================
-    // <<<<<<< 각 날짜 그룹별로 헤더와 목록을 생성하도록 수정 >>>>>>>
-    // ==========================================================
     sortedDateKeys.forEach(dateKey => {
       const group = groupedByDate[dateKey];
       
-      // 1. 날짜 그룹을 감싸는 div 생성
       const dateDiv = document.createElement('div');
       dateDiv.className = 'date-group';
       
-      // 2. 날짜 헤더 생성
       const dateHeader = document.createElement('div');
       dateHeader.className = 'date-header';
       const options = { year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short' };
       dateHeader.textContent = group.date.toLocaleDateString('ko-KR', options);
-      dateDiv.appendChild(dateHeader); // 그룹에 날짜 헤더 추가
+      dateDiv.appendChild(dateHeader); 
 
-      // 3. 방문 기록 목록(ul) 생성
       const ul = document.createElement('ul');
       group.entries
-        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+        .sort((a, b) => {
+           const timeA = new Date(a.timestamp.replace(' ', 'T'));
+           const timeB = new Date(b.timestamp.replace(' ', 'T'));
+           return timeB - timeA;
+        })
         .forEach(entry => {
           const li = document.createElement('li');
-          const timeString = new Date(entry.timestamp).toLocaleTimeString('ko-KR', { hour: 'numeric', minute: '2-digit', hour12: true });
+          
+          const entryTimestampStr = entry.timestamp.includes('T') ? entry.timestamp : entry.timestamp.replace(' ', 'T');
+          const timeString = new Date(entryTimestampStr).toLocaleTimeString('ko-KR', { hour: 'numeric', minute: '2-digit', hour12: true });
+          
+          // ==========================================================
+          // <<<<<<< (수정) 체크박스에 data-url 추가 >>>>>>>
+          // ==========================================================
           li.innerHTML = `
-            <input type="checkbox" class="history-item-checkbox" data-timestamp="${entry.timestamp}">
+            <input type="checkbox" class="history-item-checkbox" 
+                   data-timestamp="${entry.timestamp}" 
+                   data-url="${entry.url}">
             <div class="entry-details">
               <div class="entry-line-1">
                 <span class="entry-title" title="${entry.title || ''}">${entry.title || entry.url}</span>
@@ -93,18 +112,57 @@ document.addEventListener('DOMContentLoaded', () => {
           `;
           ul.appendChild(li);
         });
-      dateDiv.appendChild(ul); // 그룹에 목록 추가
-
-      historyList.appendChild(dateDiv); // 최종적으로 historyList에 그룹 추가
+      dateDiv.appendChild(ul); 
+      historyList.appendChild(dateDiv);
     });
     updateHeaderActions();
   }
 
+
   function loadAndRenderHistory() {
-    chrome.storage.local.get(['visitedUrls', 'bookmarkedUrls'], (data) => {
-      const visited = Array.isArray(data.visitedUrls) ? data.visitedUrls : [];
+    chrome.storage.local.get(['bookmarkedUrls', 'accessToken'], (data) => {
       const bookmarked = Array.isArray(data.bookmarkedUrls) ? data.bookmarkedUrls : [];
-      renderHistory(visited, bookmarked);
+      const token = data.accessToken;
+
+      if (!token) {
+        historyList.innerHTML = `<p class="empty-message">서버 기록을 보려면 로그인이 필요합니다.</p>`;
+        updateHeaderActions();
+        if (currentFilter === 'bookmarks') {
+          renderHistory([], bookmarked); 
+        }
+        return;
+      }
+
+      fetch(`${BACKEND_API_URL}/memo/api/h/history/list?page=1&limit=1000`, { 
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      .then(response => {
+        if (response.status === 403) {
+          chrome.runtime.sendMessage({ action: 'logout' }); 
+          throw new Error('로그인 토큰이 만료되었습니다. 팝업에서 다시 로그인해주세요.');
+        }
+        
+        if (!response.ok) {
+          throw new Error(`서버 오류 발생 (${response.status})`);
+        }
+        return response.json();
+      })
+      .then(apiData => {
+        const visitedFromServer = apiData.results || []; 
+        renderHistory(visitedFromServer, bookmarked);
+      })
+      .catch(error => {
+        console.error('Failed to fetch server history:', error);
+        historyList.innerHTML = `<p class="empty-message">기록을 불러오는 데 실패했습니다: ${error.message}</p>`;
+        updateHeaderActions();
+        if (currentFilter === 'bookmarks') {
+          renderHistory([], bookmarked);
+        }
+      });
     });
   }
 
@@ -114,23 +172,49 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // ==========================================================
+  // <<<<<<< (수정) deleteButton 클릭 이벤트 수정 >>>>>>>
+  // ==========================================================
   deleteButton.addEventListener('click', () => {
     const checkedBoxes = historyList.querySelectorAll('.history-item-checkbox:checked');
     if (checkedBoxes.length === 0) return;
-    const timestampsToDelete = Array.from(checkedBoxes).map(box => box.getAttribute('data-timestamp'));
-    
-    chrome.storage.local.get(['visitedUrls', 'bookmarkedUrls'], (data) => {
-      let visited = data.visitedUrls || [];
-      let bookmarked = data.bookmarkedUrls || [];
-      let updatedVisited = visited.filter(entry => !timestampsToDelete.includes(entry.timestamp));
-      let updatedBookmarked = bookmarked.filter(entry => !timestampsToDelete.includes(entry.timestamp));
-      
-      chrome.storage.local.set({ visitedUrls: updatedVisited, bookmarkedUrls: updatedBookmarked }, () => {
-        showToast(`${timestampsToDelete.length}개의 항목을 삭제했습니다.`);
-        loadAndRenderHistory();
+
+    if (currentFilter === 'all') {
+      // --- '전체 기록' (서버) 탭일 경우 ---
+      const itemsToDelete = Array.from(checkedBoxes).map(box => {
+        return {
+          url: box.getAttribute('data-url'),
+          timestamp: box.getAttribute('data-timestamp')
+        };
       });
-    });
+
+      // background.js에 서버 삭제 요청
+      chrome.runtime.sendMessage({ action: 'deleteHistoryFromServer', data: itemsToDelete }, (response) => {
+        if (response && response.success) {
+          showToast(response.message || '서버에서 삭제되었습니다.');
+          loadAndRenderHistory(); // 목록 새로고침
+        } else {
+          showToast(`삭제 실패: ${response?.message || '알 수 없는 오류'}`);
+        }
+      });
+
+    } else {
+      // --- '북마크' (로컬) 탭일 경우 (기존 로직) ---
+      const timestampsToDelete = Array.from(checkedBoxes).map(box => box.getAttribute('data-timestamp'));
+      
+      chrome.storage.local.get(['bookmarkedUrls'], (data) => {
+        let bookmarked = data.bookmarkedUrls || [];
+        let updatedBookmarked = bookmarked.filter(entry => !timestampsToDelete.includes(entry.timestamp));
+        
+        chrome.storage.local.set({ bookmarkedUrls: updatedBookmarked }, () => {
+          showToast(`${timestampsToDelete.length}개의 항목을 (북마크에서) 삭제했습니다.`);
+          loadAndRenderHistory();
+        });
+      });
+    }
   });
+  // ==========================================================
+
 
   bookmarkButton.addEventListener('click', () => {
     const checkedBoxes = historyList.querySelectorAll('.history-item-checkbox:checked');
@@ -140,7 +224,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return {
         url: li.querySelector('a').href,
         title: li.querySelector('.entry-title').textContent,
-        timestamp: box.getAttribute('data-timestamp')
+        timestamp: box.getAttribute('data-timestamp') 
       };
     });
 
@@ -190,7 +274,6 @@ document.addEventListener('DOMContentLoaded', () => {
           groupHasVisibleItems = true;
         }
       });
-      // 검색 결과가 없는 날짜 그룹은 숨김
       group.style.display = groupHasVisibleItems ? 'block' : 'none';
     });
   });
