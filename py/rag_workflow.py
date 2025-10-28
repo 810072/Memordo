@@ -43,10 +43,7 @@ class GraphState(TypedDict):
     # 노드 실행 결과로 채워지는 값
     documents: List[Document]
     vectorstore: Chroma
-    connected_nodes: set
-    isolated_nodes: set
     top_docs: List[Document]
-    expanded_docs: List[Document]
     final_context: str
     answer: str
     sources: List[str]
@@ -82,8 +79,73 @@ PROMPT_TEMPLATES = {
         질문: {question}
 
         답변:"""
+    ),
+    "validate_documents": ChatPromptTemplate.from_template(
+        """당신은 주어진 문서가 사용자의 질문에 답변하는 데 도움이 될지 평가하는 전문가입니다.
+        아래 "질문"과 "문서 목록"을 검토해주세요.
+
+        "질문"에 답변하는 데 도움이 될 것이라고 생각하는 모든 '문서 번호'를 쉼표로 구분하여 나열해주세요.
+        도움이 되는 문서가 하나도 없다면 'None'이라고만 답변해주세요.
+        다른 설명은 절대 추가하지 마세요.
+
+        --- 질문 ---
+        {question}
+
+        --- 문서 목록 ---
+        {documents}
+
+        --- 도움이 되는 문서 번호 ---
+        """
     )
 }
+
+def validate_retrieved_documents(state: GraphState) -> dict:
+    print("--- (Node 4) 검색된 문서 유효성 검증 ---")
+    question = state['question']
+    top_docs = state['top_docs']
+    
+    # 검증할 문서가 없으면 바로 종료
+    if not top_docs:
+        print("     - 유효성을 검증할 문서가 없습니다.")
+        return {"top_docs": []}
+
+    # 상위 4개 문서만 선택
+    docs_to_validate = top_docs[:4]
+    
+    validation_model_name = "gemini-2.5-flash-lite" 
+    llm = ChatGoogleGenerativeAI(model=validation_model_name, temperature=0)
+    prompt = PROMPT_TEMPLATES["validate_documents"]
+    chain = prompt | llm | StrOutputParser()
+    
+    # LLM에 전달할 형식으로 문서 포맷팅
+    formatted_docs = []
+    for i, doc in enumerate(docs_to_validate):
+        formatted_docs.append(f"문서 번호: {i}\n내용: {doc.page_content}\n---")
+    documents_str = "\n".join(formatted_docs)
+    
+    try:
+        response = chain.invoke({"question": question, "documents": documents_str})
+        print(f"     - 유효성 검증 모델 응답: '{response}'")
+        
+        if response.strip().lower() == 'none':
+            print("     - 모든 문서가 질문과 관련이 없는 것으로 판단되었습니다.")
+            return {"top_docs": []}
+        
+        # 유효한 문서 인덱스 파싱
+        valid_indices = [int(i.strip()) for i in response.split(',') if i.strip().isdigit()]
+        
+        # 유효한 인덱스에 해당하는 문서만 필터링
+        validated_docs = [docs_to_validate[i] for i in valid_indices if 0 <= i < len(docs_to_validate)]
+        
+        validated_sources = [doc.metadata['source'] for doc in validated_docs]
+        print(f"     - 유효성 검증 통과 문서: {validated_sources}")
+        
+        return {"top_docs": validated_docs}
+            
+    except Exception as e:
+        print(f"     - 문서 유효성 검증 중 오류 발생: {e}. 모든 문서를 유효한 것으로 간주합니다.")
+        # 오류 발생 시에는 상위 4개 문서를 그대로 반환하여 답변 생성 시도
+        return {"top_docs": docs_to_validate}
 
 def expand_short_notes(state: GraphState) -> dict:
     print("--- (Node 0) 짧은 메모 보강 시작 ---")
@@ -165,12 +227,7 @@ def prepare_retrieval(state: GraphState) -> dict:
             vectorstore.add_documents(documents=docs_to_add, ids=ids_to_add)
             print(f"     - 신규 메모 {len(notes_to_add)}개를 총 {len(all_chunks)}개의 청크로 분할하여 ChromaDB에 추가했습니다.")
     
-    # 연결 정보 계산
-    connected_nodes = {edge['from'] for edge in edges} | {edge['to'] for edge in edges}
-    isolated_nodes = all_note_ids - connected_nodes
-    print(f"     - 연결된 노드: {len(connected_nodes)}개, 고립된 노드: {len(isolated_nodes)}개")
-    
-    return {"vectorstore": vectorstore, "connected_nodes": connected_nodes, "isolated_nodes": isolated_nodes}
+    return {"vectorstore": vectorstore}
 
 def first_pass_retrieval(state: GraphState) -> dict:
     print("--- (Node 3) 1차 검색 수행 ---")
@@ -187,53 +244,12 @@ def first_pass_retrieval(state: GraphState) -> dict:
     print(f"     - 1차 검색 결과 (상위 {len(top_docs)}개): {[doc.metadata['source'] for doc in top_docs]}")
     return {"top_docs": top_docs}
 
-def analyze_and_branch(state: GraphState) -> str:
-    print("--- (Node 4) 분기 결정 ---")
-    if not state['top_docs']:
-        print("     -> 1차 검색 결과 없음. 바로 답변 생성으로 이동합니다.")
-        return "generate_answer_direct"
-
-    top_doc_source = state['top_docs'][0].metadata['source']
-    connected_nodes = state['connected_nodes']
-    
-    if top_doc_source in connected_nodes:
-        print(f"     -> '{top_doc_source}'는 연결된 노드. 2차 검색으로 확장합니다.")
-        return "expand_context"
-    else:
-        print(f"     -> '{top_doc_source}'는 고립된 노드. 바로 답변 생성으로 이동합니다.")
-        return "generate_answer_direct"
-
-def second_pass_retrieval(state: GraphState) -> dict:
-    print("--- (Node 5a) 2차 검색 (문맥 확장) ---")
-    question = state['question']
-    vectorstore = state['vectorstore']
-    top_doc_source = state['top_docs'][0].metadata['source']
-    edges = state['edges']
-    
-    neighbors = {edge['to'] for edge in edges if edge['from'] == top_doc_source}
-    neighbors.update({edge['from'] for edge in edges if edge['to'] == top_doc_source})
-            
-    print(f"     - '{top_doc_source}'의 이웃 노드 {len(neighbors)}개를 대상으로 추가 검색...")
-    
-    if not neighbors:
-        return {"expanded_docs": []}
-
-    retriever = vectorstore.as_retriever(
-        search_kwargs={"k": 2, "filter": {"source": {"$in": list(neighbors)}}}
-    )
-    expanded_docs = retriever.invoke(question)
-    
-    print(f"     - 2차 검색 결과: {[doc.metadata['source'] for doc in expanded_docs]}")
-    return {"expanded_docs": expanded_docs}
-
 def generate_answer(state: GraphState) -> dict:
     print("--- (Node 6) 최종 답변 생성 ---")
     question = state['question']
     top_docs = state.get('top_docs', [])
-    expanded_docs = state.get('expanded_docs', [])
 
-    combined_docs = top_docs + expanded_docs
-    unique_docs_map = {(doc.metadata['source'], doc.page_content): doc for doc in combined_docs}
+    unique_docs_map = {(doc.metadata['source'], doc.page_content): doc for doc in top_docs}
     final_docs = list(unique_docs_map.values())
 
     if not final_docs:
@@ -271,24 +287,15 @@ def build_rag_workflow():
     workflow.add_node("expand_question", expand_question)
     workflow.add_node("prepare", prepare_retrieval)
     workflow.add_node("first_retrieval", first_pass_retrieval)
-    workflow.add_node("expand_retrieval", second_pass_retrieval)
+    workflow.add_node("validate_documents", validate_retrieved_documents)
     workflow.add_node("generate", generate_answer)
 
     workflow.set_entry_point("expand_notes")
     workflow.add_edge("expand_notes", "expand_question")
     workflow.add_edge("expand_question", "prepare")
     workflow.add_edge("prepare", "first_retrieval")
-    
-    workflow.add_conditional_edges(
-        "first_retrieval",
-        analyze_and_branch,
-        {
-            "expand_context": "expand_retrieval",
-            "generate_answer_direct": "generate"
-        }
-    )
-    
-    workflow.add_edge("expand_retrieval", "generate")
+    workflow.add_edge("first_retrieval", "validate_documents")
+    workflow.add_edge("validate_documents", "generate")
     workflow.add_edge("generate", END)
 
     return workflow.compile()
