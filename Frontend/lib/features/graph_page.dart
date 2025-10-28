@@ -462,6 +462,33 @@ class _GraphPageState extends State<GraphPage> {
                         ),
                       ),
                     ),
+                  Positioned(
+                    top: 10,
+                    right: 16,
+                    child: Tooltip(
+                      message: 'AI로 노트 관계 분석 및 추가',
+                      child: IconButton(
+                        icon:
+                            viewModel.isLoading
+                                ? const SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.5,
+                                  ),
+                                )
+                                : const Icon(Icons.auto_awesome_outlined),
+                        onPressed:
+                            viewModel.isLoading
+                                ? null
+                                : () {
+                                  context
+                                      .read<GraphViewModel>()
+                                      .generateAndMergeAiGraphData(context);
+                                },
+                      ),
+                    ),
+                  ),
                 ],
               ),
             );

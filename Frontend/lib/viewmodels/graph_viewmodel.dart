@@ -114,20 +114,6 @@ class GraphViewModel with ChangeNotifier {
     notifyListeners();
   }
 
-  void setGraphView(bool isAiView) {
-    if (_isAiGraphView != isAiView) {
-      _isAiGraphView = isAiView;
-      _filterMode = GraphFilterMode.all;
-      if (isAiView) {
-        stopWatching(); // AI 뷰에서는 감시 중단
-        loadGraphFromEmbeddingsFile();
-      } else {
-        buildUserGraph();
-        startWatching(); // 사용자 뷰에서만 감시 시작
-      }
-    }
-  }
-
   // ✨ [추가] 파일 감시 시작
   Future<void> startWatching() async {
     if (_isWatching || _isAiGraphView) return;
@@ -414,7 +400,7 @@ class GraphViewModel with ChangeNotifier {
             }
           }
         }
-
+        await _loadAndMergeAiGraphData();
         _statusMessage = '${_allNodes.length}개의 노드, ${_allLinks.length}개의 링크';
       }
       _applyFilter();
@@ -470,13 +456,12 @@ class GraphViewModel with ChangeNotifier {
     });
   }
 
-  Future<void> triggerEmbeddingProcess(BuildContext context) async {
+  Future<void> generateAndMergeAiGraphData(BuildContext context) async {
     if (_isLoading) return;
-    if (!_isAiGraphView) setGraphView(true);
 
     final statusBar = context.read<StatusBarProvider>();
     _isLoading = true;
-    _statusMessage = '로컬 노트 파일 스캔 중...';
+    _statusMessage = 'AI 관계 분석을 위해 노트 파일을 스캔 중...';
     statusBar.showStatusMessage(_statusMessage, type: StatusType.info);
     notifyListeners();
 
@@ -485,39 +470,73 @@ class GraphViewModel with ChangeNotifier {
       final localFiles = await _getAllMarkdownFiles(Directory(notesDir));
 
       if (localFiles.isEmpty) {
-        _statusMessage = '노트 폴더에 분석할 .md 파일이 없습니다.';
-        _allNodes = [];
-        _allLinks = [];
-        _applyFilter();
-        statusBar.showStatusMessage(_statusMessage, type: StatusType.error);
-      } else {
-        _statusMessage = '${localFiles.length}개 노트의 관계 분석을 AI 서버에 요청합니다...';
+        _statusMessage = '분석할 노트 파일이 없습니다.';
         statusBar.showStatusMessage(_statusMessage, type: StatusType.info);
-        notifyListeners();
-
-        List<Map<String, String>> notesData = [];
-        for (var file in localFiles) {
-          notesData.add({
-            'fileName': p.relative(file.path, from: notesDir),
-            'content': await file.readAsString(),
-          });
-        }
-        final graphData = await ai_service.generateGraphData(notesData);
-
-        if (graphData == null || graphData.containsKey('error')) {
-          throw Exception('백엔드 API 오류: ${graphData?['error'] ?? '알 수 없는 오류'}');
-        }
-
-        final embeddingsFile = File(p.join(notesDir, 'embeddings.json'));
-        await embeddingsFile.writeAsString(jsonEncode(graphData));
-
-        statusBar.showStatusMessage('그래프 생성 완료!', type: StatusType.success);
-        _buildAiGraphFromData(graphData);
+        return;
       }
-    } catch (e) {
-      _statusMessage = '오류가 발생했습니다.';
+
+      _statusMessage = '${localFiles.length}개 노트의 관계 분석을 AI 서버에 요청합니다...';
+      statusBar.showStatusMessage(_statusMessage, type: StatusType.info);
+      notifyListeners();
+
+      List<Map<String, String>> notesData = [];
+      for (var file in localFiles) {
+        notesData.add({
+          'fileName': _normalizePath(p.relative(file.path, from: notesDir)),
+          'content': await file.readAsString(),
+        });
+      }
+
+      final graphData = await ai_service.generateGraphData(notesData);
+
+      if (graphData == null || graphData.containsKey('error')) {
+        throw Exception('백엔드 API 오류: ${graphData?['error'] ?? '알 수 없는 오류'}');
+      }
+
+      final newLinks =
+          (graphData['edges'] as List? ?? [])
+              .map(
+                (edge) => GraphLink(
+                  sourceId: edge['from'],
+                  targetId: edge['to'],
+                  strength: (edge['similarity'] as num?)?.toDouble() ?? 0.0,
+                ),
+              )
+              .toList();
+
+      if (newLinks.isEmpty) {
+        statusBar.showStatusMessage(
+          'AI가 새로운 관계를 찾지 못했습니다.',
+          type: StatusType.info,
+        );
+        return;
+      }
+
+      final existingLinksSet =
+          _allLinks.map((e) => '${e.sourceId}|${e.targetId}').toSet();
+      int addedCount = 0;
+
+      for (final link in newLinks) {
+        if (!existingLinksSet.contains('${link.sourceId}|${link.targetId}') &&
+            !existingLinksSet.contains('${link.targetId}|${link.sourceId}')) {
+          _allLinks.add(link);
+          addedCount++;
+        }
+      }
+
+      await _saveAiGraphData(_allLinks);
+
+      _statusMessage =
+          '${_allNodes.length}개의 노드, ${_allLinks.length}개의 링크 ($addedCount개 추가됨)';
       statusBar.showStatusMessage(
-        '그래프 생성 중 오류 발생: ${e.toString()}',
+        'AI 관계 분석 완료! $addedCount개의 새로운 링크를 추가했습니다.',
+        type: StatusType.success,
+      );
+      _applyFilter();
+    } catch (e) {
+      _statusMessage = 'AI 관계 분석 중 오류 발생';
+      statusBar.showStatusMessage(
+        '오류: ${e.toString().replaceAll("Exception: ", "")}',
         type: StatusType.error,
       );
     } finally {
@@ -526,55 +545,61 @@ class GraphViewModel with ChangeNotifier {
     }
   }
 
-  void _buildAiGraphFromData(Map<String, dynamic> data) {
-    const similarityThreshold = 0.8;
-
-    _allNodes =
-        (data['nodes'] as List? ?? [])
-            .map((nodeJson) => GraphNode(id: nodeJson['id']))
-            .toList();
-
-    _allLinks =
-        (data['edges'] as List? ?? [])
-            .where(
-              (edge) =>
-                  (edge['similarity'] as num).toDouble() >= similarityThreshold,
-            )
-            .map(
-              (edgeJson) => GraphLink(
-                sourceId: edgeJson['from'],
-                targetId: edgeJson['to'],
-                strength: (edgeJson['similarity'] as num).toDouble(),
-              ),
-            )
-            .toList();
-
-    _statusMessage =
-        _allNodes.isEmpty ? '표시할 노트가 없습니다.' : '${_allNodes.length}개의 노트와 관계';
-    _applyFilter();
-  }
-
-  Future<void> loadGraphFromEmbeddingsFile() async {
-    _isLoading = true;
-    _statusMessage = '저장된 임베딩 파일을 찾는 중...';
-    notifyListeners();
+  Future<void> _saveAiGraphData(List<GraphLink> links) async {
     try {
       final notesDir = await getNotesDirectory();
-      final embeddingsFile = File(p.join(notesDir, 'embeddings.json'));
-      if (await embeddingsFile.exists()) {
-        final data = jsonDecode(await embeddingsFile.readAsString());
-        _buildAiGraphFromData(data);
-      } else {
-        _statusMessage = '임베딩 파일이 없습니다. 우측 상단 버튼을 눌러 생성해주세요.';
-        _allNodes = [];
-        _allLinks = [];
-        _applyFilter();
+      final aiGraphFile = File(p.join(notesDir, 'ai_graph_data.json'));
+      final data =
+          links
+              .map(
+                (e) => {
+                  'from': e.sourceId,
+                  'to': e.targetId,
+                  'similarity': e.strength,
+                },
+              )
+              .toList();
+      await aiGraphFile.writeAsString(jsonEncode({'edges': data}));
+    } catch (e) {
+      debugPrint('AI 그래프 데이터 저장 실패: $e');
+    }
+  }
+
+  Future<void> _loadAndMergeAiGraphData() async {
+    try {
+      final notesDir = await getNotesDirectory();
+      final aiGraphFile = File(p.join(notesDir, 'ai_graph_data.json'));
+
+      if (await aiGraphFile.exists()) {
+        final content = await aiGraphFile.readAsString();
+        final data = jsonDecode(content);
+        final loadedLinks =
+            (data['edges'] as List? ?? [])
+                .map(
+                  (edge) => GraphLink(
+                    sourceId: edge['from'],
+                    targetId: edge['to'],
+                    strength: (edge['similarity'] as num?)?.toDouble() ?? 0.0,
+                  ),
+                )
+                .toList();
+
+        final existingLinksSet =
+            _allLinks.map((e) => '${e.sourceId}|${e.targetId}').toSet();
+        int addedCount = 0;
+        for (final link in loadedLinks) {
+          if (!existingLinksSet.contains('${link.sourceId}|${link.targetId}') &&
+              !existingLinksSet.contains('${link.targetId}|${link.sourceId}')) {
+            _allLinks.add(link);
+            addedCount++;
+          }
+        }
+        if (addedCount > 0) {
+          debugPrint('$addedCount개의 저장된 AI 링크를 그래프에 추가했습니다.');
+        }
       }
     } catch (e) {
-      _statusMessage = '그래프 파일 로딩 중 오류 발생: $e';
-    } finally {
-      _isLoading = false;
-      notifyListeners();
+      debugPrint('AI 그래프 데이터 로드 실패: $e');
     }
   }
 
