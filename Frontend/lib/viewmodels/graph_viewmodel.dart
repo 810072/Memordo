@@ -28,10 +28,15 @@ class UserGraphNodeInfo {
 class GraphViewModel with ChangeNotifier {
   bool _isLoading = false;
   String _statusMessage = '그래프를 생성하려면 우측 상단의 버튼을 눌러주세요.';
+  // --- ✨ [수정] 현재 뷰 상태 (false: User, true: AI) ---
   bool _isAiGraphView = false;
 
   List<GraphNode> _allNodes = [];
-  List<GraphLink> _allLinks = [];
+  // --- ✨ [수정] 링크 목록 분리 ---
+  List<GraphLink> _userLinks = []; // 사용자 정의 링크 저장
+  List<GraphLink> _aiLinks = []; // AI 추천 링크 저장
+  List<GraphLink> _allLinks = []; // 현재 활성화된 링크 목록 ( _userLinks 또는 _aiLinks )
+  // ---
   List<GraphNode> _filteredNodes = [];
   List<GraphLink> _filteredLinks = [];
 
@@ -42,7 +47,6 @@ class GraphViewModel with ChangeNotifier {
   Map<String, Map<String, double>> _nodePositions = {};
   Timer? _saveDebounce;
 
-  // ✨ [추가] FileWatcher 관련
   DirectoryWatcher? _watcher;
   StreamSubscription? _watcherSubscription;
   bool _isWatching = false;
@@ -53,22 +57,35 @@ class GraphViewModel with ChangeNotifier {
   String get statusMessage => _statusMessage;
   bool get isAiGraphView => _isAiGraphView;
   List<GraphNode> get nodes => _filteredNodes;
+  // --- ✨ [수정] getter는 _allLinks 기반 필터링 결과를 반환 ---
   List<GraphLink> get links => _filteredLinks;
+  // ---
   Map<String, Map<String, double>> get nodePositions => _nodePositions;
 
+  // --- getNodeLinkCount 함수 수정 ---
   int getNodeLinkCount(String nodeId) {
+    // 현재 활성화된 링크(_allLinks) 기준으로 계산
+    final currentLinks = _allLinks;
+    return currentLinks
+        .where((l) => l.sourceId == nodeId || l.targetId == nodeId)
+        .length;
+    /* // 이전 로직 주석 처리
     if (_isAiGraphView) {
+      // AI 뷰일 때는 _aiLinks 또는 _allLinks 기준 (현재는 _allLinks 사용)
       return _allLinks
           .where((l) => l.sourceId == nodeId || l.targetId == nodeId)
           .length;
     } else {
+      // 사용자 뷰일 때는 _userGraphData 기준
       final key = _userGraphData.keys.firstWhere(
         (k) => k.toLowerCase() == nodeId.toLowerCase(),
         orElse: () => '',
       );
       return _userGraphData[key]?.totalLinks ?? 0;
     }
+    */
   }
+  // ---
 
   double getNodeSize(GraphNode node) {
     final linkCount = getNodeLinkCount(node.id);
@@ -90,10 +107,12 @@ class GraphViewModel with ChangeNotifier {
     }
 
     final Set<String> connectedNodeIds = {};
+    // --- ✨ [수정] 현재 활성화된 _allLinks 사용 ---
     for (final link in _allLinks) {
       connectedNodeIds.add(link.sourceId);
       connectedNodeIds.add(link.targetId);
     }
+    // ---
 
     switch (_filterMode) {
       case GraphFilterMode.all:
@@ -114,9 +133,8 @@ class GraphViewModel with ChangeNotifier {
     notifyListeners();
   }
 
-  // ✨ [추가] 파일 감시 시작
   Future<void> startWatching() async {
-    if (_isWatching || _isAiGraphView) return;
+    if (_isWatching || _isAiGraphView) return; // AI 뷰에서는 감시 안 함
 
     try {
       final notesDir = await getNotesDirectory();
@@ -127,10 +145,7 @@ class GraphViewModel with ChangeNotifier {
           debugPrint(
             '📂 File event: ${event.type} - ${p.basename(event.path)}',
           );
-
-          // 변경 사항을 모아서 처리 (디바운싱)
           _pendingChanges.add(event.path);
-
           _processingDebounce?.cancel();
           _processingDebounce = Timer(const Duration(milliseconds: 500), () {
             _processPendingChanges();
@@ -145,32 +160,31 @@ class GraphViewModel with ChangeNotifier {
     }
   }
 
-  // ✨ [추가] 누적된 변경사항 처리
   Future<void> _processPendingChanges() async {
-    if (_pendingChanges.isEmpty) return;
+    if (_pendingChanges.isEmpty || _isAiGraphView) return; // AI 뷰에서는 처리 안 함
 
     final changesToProcess = Set<String>.from(_pendingChanges);
     _pendingChanges.clear();
-
     debugPrint('🔄 Processing ${changesToProcess.length} file changes...');
-
     for (final filePath in changesToProcess) {
       await _handleFileChange(filePath);
     }
+    // 변경 처리 후 UI 업데이트 보장
+    _applyFilter();
+    notifyListeners();
   }
 
-  // ✨ [추가] 개별 파일 변경 처리
   Future<void> _handleFileChange(String filePath) async {
+    // AI 뷰에서는 파일 변경 무시
+    if (_isAiGraphView) return;
     try {
       final notesDir = await getNotesDirectory();
       final fileName = _normalizePath(p.relative(filePath, from: notesDir));
       final file = File(filePath);
 
       if (await file.exists()) {
-        // 파일이 존재 -> 추가 또는 수정
         await _addOrUpdateNote(fileName, file);
       } else {
-        // 파일이 없음 -> 삭제
         await _removeNote(fileName);
       }
     } catch (e) {
@@ -178,61 +192,43 @@ class GraphViewModel with ChangeNotifier {
     }
   }
 
-  // ✨ [추가] 노트 추가/수정 (증분 업데이트)
   Future<void> _addOrUpdateNote(String fileName, File file) async {
     try {
       final content = await file.readAsString();
       final links = _parseWikiLinks(content);
-
-      // 기존 링크 정보 백업
       final oldNodeInfo = _userGraphData[fileName];
       final oldOutgoingLinks = oldNodeInfo?.outgoingLinks ?? [];
 
-      // 새 정보로 업데이트
       _userGraphData[fileName] = UserGraphNodeInfo(
         fileName: fileName,
         outgoingLinks: links,
       );
-
-      // 영향받는 incoming 링크 재계산
       _recalculateIncomingLinks(fileName, oldOutgoingLinks, links);
-
-      // 노드/링크 리스트 재구성
-      _rebuildNodesAndLinks();
-
+      // 노드/링크 리스트 재구성 (사용자 링크만)
+      _rebuildUserNodesAndLinks();
       debugPrint('✅ Updated: $fileName (${links.length} outgoing links)');
     } catch (e) {
       debugPrint('❌ Error adding/updating note: $e');
     }
   }
 
-  // ✨ [추가] 노트 삭제 (증분 업데이트)
   Future<void> _removeNote(String fileName) async {
     final oldNodeInfo = _userGraphData.remove(fileName);
-
     if (oldNodeInfo != null) {
-      // 이 노트가 가리키던 링크들의 incoming 링크 제거
       _recalculateIncomingLinks(fileName, oldNodeInfo.outgoingLinks, []);
-
-      // 노드 위치 정보도 제거
       _nodePositions.remove(fileName);
-
-      // 노드/링크 리스트 재구성
-      _rebuildNodesAndLinks();
-
+      // 노드/링크 리스트 재구성 (사용자 링크만)
+      _rebuildUserNodesAndLinks();
       debugPrint('🗑️ Removed: $fileName');
     }
   }
 
-  // ✨ [추가] Incoming 링크 재계산
   void _recalculateIncomingLinks(
     String sourceFileName,
     List<String> oldLinks,
     List<String> newLinks,
   ) {
     final fileNameToPathLookup = _buildFileNameLookup();
-
-    // 제거된 링크 처리
     for (final oldLink in oldLinks) {
       if (!newLinks.contains(oldLink)) {
         final targetPath = fileNameToPathLookup[oldLink.toLowerCase()];
@@ -241,8 +237,6 @@ class GraphViewModel with ChangeNotifier {
         }
       }
     }
-
-    // 추가된 링크 처리
     for (final newLink in newLinks) {
       final targetPath = fileNameToPathLookup[newLink.toLowerCase()];
       if (targetPath != null) {
@@ -251,7 +245,6 @@ class GraphViewModel with ChangeNotifier {
     }
   }
 
-  // ✨ [추가] 파일명 -> 경로 매핑 생성
   Map<String, String> _buildFileNameLookup() {
     final Map<String, String> lookup = {};
     for (final fullPath in _userGraphData.keys) {
@@ -261,8 +254,8 @@ class GraphViewModel with ChangeNotifier {
     return lookup;
   }
 
-  // ✨ [추가] 노드와 링크 리스트 재구성
-  void _rebuildNodesAndLinks() {
+  // --- ✨ [수정] 사용자 노드/링크만 재구성하는 함수 ---
+  void _rebuildUserNodesAndLinks() {
     _allNodes =
         _userGraphData.values
             .map(
@@ -272,24 +265,26 @@ class GraphViewModel with ChangeNotifier {
             .toList();
 
     final fileNameToPathLookup = _buildFileNameLookup();
-    _allLinks = [];
-
+    _userLinks = []; // 사용자 링크만 초기화 및 재구성
     for (final nodeInfo in _userGraphData.values) {
       for (final linkName in nodeInfo.outgoingLinks) {
         final targetPath = fileNameToPathLookup[linkName.toLowerCase()];
         if (targetPath != null) {
-          _allLinks.add(
+          _userLinks.add(
             GraphLink(sourceId: nodeInfo.fileName, targetId: targetPath),
           );
         }
       }
     }
-
-    _statusMessage = '${_allNodes.length}개의 노드, ${_allLinks.length}개의 링크';
-    _applyFilter();
+    // AI 뷰가 아니면 활성 링크(_allLinks)도 업데이트
+    if (!_isAiGraphView) {
+      _allLinks = _userLinks;
+    }
+    _statusMessage = '${_allNodes.length}개의 노드, ${_userLinks.length}개의 링크';
+    // applyFilter는 toggleGraphView 또는 buildUserGraph에서 호출되므로 여기서 직접 호출하지 않음
   }
+  // ---
 
-  // ✨ [수정] 파일 감시 중단
   void stopWatching() {
     _watcherSubscription?.cancel();
     _watcherSubscription = null;
@@ -312,21 +307,16 @@ class GraphViewModel with ChangeNotifier {
 
     for (var match in matches) {
       String link = match.group(1)!;
-
       if (link.contains('|')) link = link.split('|')[0];
       if (link.contains('#')) link = link.split('#')[0];
-
       link = link.trim();
-
       if (link.endsWith('.md')) {
         link = link.substring(0, link.length - 3);
       }
-
       link =
           link
               .replaceAll(RegExp(r'[^\p{L}\p{N}\s\-_./]', unicode: true), '')
               .trim();
-
       if (link.isNotEmpty) {
         links.add(link);
       }
@@ -334,10 +324,10 @@ class GraphViewModel with ChangeNotifier {
     return links;
   }
 
-  // ✨ [수정] 초기 빌드 (기존 방식 유지하되 감시 시작)
+  // --- ✨ [수정] 사용자 그래프 빌드 함수 ---
   Future<void> buildUserGraph() async {
     _isLoading = true;
-    _isAiGraphView = false;
+    _isAiGraphView = false; // 사용자 뷰로 명시적 설정
     _statusMessage = '사용자 링크 분석 중...';
     notifyListeners();
 
@@ -349,10 +339,9 @@ class GraphViewModel with ChangeNotifier {
       if (localFiles.isEmpty) {
         _statusMessage = '표시할 노트가 없습니다.';
         _allNodes = [];
-        _allLinks = [];
+        _userLinks = []; // 사용자 링크 초기화
       } else {
         _userGraphData.clear();
-
         for (var file in localFiles) {
           final fileName = _normalizePath(
             p.relative(file.path, from: notesDir),
@@ -366,7 +355,6 @@ class GraphViewModel with ChangeNotifier {
         }
 
         final fileNameToPathLookup = _buildFileNameLookup();
-
         for (final nodeInfo in _userGraphData.values) {
           for (final linkName in nodeInfo.outgoingLinks) {
             final targetFullPath = fileNameToPathLookup[linkName.toLowerCase()];
@@ -377,38 +365,15 @@ class GraphViewModel with ChangeNotifier {
             }
           }
         }
-
-        _allNodes =
-            _userGraphData.values
-                .map(
-                  (info) =>
-                      GraphNode(id: info.fileName, linkCount: info.totalLinks),
-                )
-                .toList();
-
-        _allLinks = [];
-        for (final nodeInfo in _userGraphData.values) {
-          for (final linkName in nodeInfo.outgoingLinks) {
-            final targetFullPath = fileNameToPathLookup[linkName.toLowerCase()];
-            if (targetFullPath != null) {
-              _allLinks.add(
-                GraphLink(
-                  sourceId: nodeInfo.fileName,
-                  targetId: targetFullPath,
-                ),
-              );
-            }
-          }
-        }
-        await _loadAndMergeAiGraphData();
-        _statusMessage = '${_allNodes.length}개의 노드, ${_allLinks.length}개의 링크';
+        // _rebuildUserNodesAndLinks 호출하여 _allNodes와 _userLinks 업데이트
+        _rebuildUserNodesAndLinks();
+        // AI 데이터 로드 함수 호출 제거 (필요 시 loadAiGraph 호출)
+        // await _loadAndMergeAiGraphData();
       }
+      // _allLinks를 _userLinks로 설정
+      _allLinks = _userLinks;
       _applyFilter();
-
-      // ✨ [추가] 빌드 완료 후 감시 시작
-      if (!_isAiGraphView) {
-        startWatching();
-      }
+      startWatching(); // 사용자 뷰이므로 감시 시작
     } catch (e) {
       _statusMessage = '사용자 그래프 생성 중 오류 발생: $e';
     } finally {
@@ -416,6 +381,7 @@ class GraphViewModel with ChangeNotifier {
       notifyListeners();
     }
   }
+  // ---
 
   Future<void> _saveNodePositions() async {
     try {
@@ -456,7 +422,8 @@ class GraphViewModel with ChangeNotifier {
     });
   }
 
-  Future<void> generateAndMergeAiGraphData(BuildContext context) async {
+  // --- ✨ [수정] AI 그래프 로드 함수 (이름 변경 및 로직 수정) ---
+  Future<void> loadAiGraph(BuildContext context) async {
     if (_isLoading) return;
 
     final statusBar = context.read<StatusBarProvider>();
@@ -471,8 +438,13 @@ class GraphViewModel with ChangeNotifier {
 
       if (localFiles.isEmpty) {
         _statusMessage = '분석할 노트 파일이 없습니다.';
+        _aiLinks = []; // AI 링크 초기화
         statusBar.showStatusMessage(_statusMessage, type: StatusType.info);
-        return;
+        // AI 뷰로 전환은 toggleGraphView에서 처리하므로 여기서는 상태만 업데이트
+        _isAiGraphView = true;
+        _allLinks = _aiLinks;
+        _applyFilter();
+        return; // 파일 없으면 여기서 종료
       }
 
       _statusMessage = '${localFiles.length}개 노트의 관계 분석을 AI 서버에 요청합니다...';
@@ -493,7 +465,8 @@ class GraphViewModel with ChangeNotifier {
         throw Exception('백엔드 API 오류: ${graphData?['error'] ?? '알 수 없는 오류'}');
       }
 
-      final newLinks =
+      // 결과를 _aiLinks에 저장 (병합 안 함)
+      _aiLinks =
           (graphData['edges'] as List? ?? [])
               .map(
                 (edge) => GraphLink(
@@ -504,104 +477,47 @@ class GraphViewModel with ChangeNotifier {
               )
               .toList();
 
-      if (newLinks.isEmpty) {
-        statusBar.showStatusMessage(
-          'AI가 새로운 관계를 찾지 못했습니다.',
-          type: StatusType.info,
-        );
-        return;
-      }
+      // AI 노드 정보(_allNodes는 이미 사용자 노트 기준으로 생성되어 있음) 업데이트 불필요
+      // _allNodes = (graphData['nodes'] as List? ?? [])
+      //     .map((node) => GraphNode(id: node['id'], linkCount: node['linkCount'] ?? 0))
+      //     .toList();
 
-      final existingLinksSet =
-          _allLinks.map((e) => '${e.sourceId}|${e.targetId}').toSet();
-      int addedCount = 0;
+      // AI 그래프 데이터 저장 (선택적)
+      // await _saveAiGraphData(_aiLinks); // 저장 필요 시 활성화
 
-      for (final link in newLinks) {
-        if (!existingLinksSet.contains('${link.sourceId}|${link.targetId}') &&
-            !existingLinksSet.contains('${link.targetId}|${link.sourceId}')) {
-          _allLinks.add(link);
-          addedCount++;
-        }
-      }
-
-      await _saveAiGraphData(_allLinks);
-
+      // 활성 링크를 AI 링크로 설정하고 상태 업데이트
+      _allLinks = _aiLinks;
+      _isAiGraphView = true; // AI 뷰 상태로 설정
       _statusMessage =
-          '${_allNodes.length}개의 노드, ${_allLinks.length}개의 링크 ($addedCount개 추가됨)';
+          '${_allNodes.length}개의 노드, ${_aiLinks.length}개의 AI 추천 링크';
       statusBar.showStatusMessage(
-        'AI 관계 분석 완료! $addedCount개의 새로운 링크를 추가했습니다.',
+        'AI 관계 분석 완료! ${_aiLinks.length}개의 관계를 표시합니다.',
         type: StatusType.success,
       );
       _applyFilter();
+      stopWatching(); // AI 뷰에서는 감시 중단
     } catch (e) {
       _statusMessage = 'AI 관계 분석 중 오류 발생';
       statusBar.showStatusMessage(
         '오류: ${e.toString().replaceAll("Exception: ", "")}',
         type: StatusType.error,
       );
+      // 오류 발생 시 AI 뷰 상태를 false로 되돌리고 사용자 링크를 활성화
+      _isAiGraphView = false;
+      _allLinks = _userLinks;
+      _applyFilter();
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
+  // ---
 
-  Future<void> _saveAiGraphData(List<GraphLink> links) async {
-    try {
-      final notesDir = await getNotesDirectory();
-      final aiGraphFile = File(p.join(notesDir, 'ai_graph_data.json'));
-      final data =
-          links
-              .map(
-                (e) => {
-                  'from': e.sourceId,
-                  'to': e.targetId,
-                  'similarity': e.strength,
-                },
-              )
-              .toList();
-      await aiGraphFile.writeAsString(jsonEncode({'edges': data}));
-    } catch (e) {
-      debugPrint('AI 그래프 데이터 저장 실패: $e');
-    }
-  }
+  // AI 그래프 데이터 저장 함수 (필요 시 사용)
+  // Future<void> _saveAiGraphData(List<GraphLink> links) async { ... }
 
-  Future<void> _loadAndMergeAiGraphData() async {
-    try {
-      final notesDir = await getNotesDirectory();
-      final aiGraphFile = File(p.join(notesDir, 'ai_graph_data.json'));
-
-      if (await aiGraphFile.exists()) {
-        final content = await aiGraphFile.readAsString();
-        final data = jsonDecode(content);
-        final loadedLinks =
-            (data['edges'] as List? ?? [])
-                .map(
-                  (edge) => GraphLink(
-                    sourceId: edge['from'],
-                    targetId: edge['to'],
-                    strength: (edge['similarity'] as num?)?.toDouble() ?? 0.0,
-                  ),
-                )
-                .toList();
-
-        final existingLinksSet =
-            _allLinks.map((e) => '${e.sourceId}|${e.targetId}').toSet();
-        int addedCount = 0;
-        for (final link in loadedLinks) {
-          if (!existingLinksSet.contains('${link.sourceId}|${link.targetId}') &&
-              !existingLinksSet.contains('${link.targetId}|${link.sourceId}')) {
-            _allLinks.add(link);
-            addedCount++;
-          }
-        }
-        if (addedCount > 0) {
-          debugPrint('$addedCount개의 저장된 AI 링크를 그래프에 추가했습니다.');
-        }
-      }
-    } catch (e) {
-      debugPrint('AI 그래프 데이터 로드 실패: $e');
-    }
-  }
+  // 저장된 AI 그래프 데이터 로드 함수 (앱 시작 시 또는 필요 시 사용)
+  // Future<void> _loadAiGraphData() async { ... }
 
   Future<String> getNotesDirectory() async {
     final home =
@@ -622,6 +538,38 @@ class GraphViewModel with ChangeNotifier {
     }
     return mdFiles;
   }
+
+  // --- ✨ [추가] 뷰 전환 함수 ---
+  void toggleGraphView(BuildContext context) {
+    if (_isLoading) return; // 로딩 중에는 전환 방지
+
+    _isAiGraphView = !_isAiGraphView; // 상태 전환
+
+    if (_isAiGraphView) {
+      // AI 뷰로 전환
+      if (_aiLinks.isEmpty) {
+        // AI 데이터가 없으면 로드
+        loadAiGraph(context); // AI 데이터 로드 함수 호출
+      } else {
+        // AI 데이터가 있으면 즉시 적용
+        _allLinks = _aiLinks;
+        _statusMessage =
+            '${_allNodes.length}개의 노드, ${_aiLinks.length}개의 AI 추천 링크';
+        stopWatching(); // AI 뷰에서는 감시 중단
+        _applyFilter(); // 필터 재적용 및 UI 갱신
+        notifyListeners(); // 상태 변경 알림
+      }
+    } else {
+      // 사용자 뷰로 전환
+      // 사용자 데이터는 일반적으로 앱 시작 시 로드되므로, 없으면 로드하는 로직은 buildUserGraph에 있음
+      _allLinks = _userLinks; // 활성 링크를 사용자 링크로 설정
+      _statusMessage = '${_allNodes.length}개의 노드, ${_userLinks.length}개의 링크';
+      startWatching(); // 사용자 뷰에서 감시 재시작
+      _applyFilter(); // 필터 재적용 및 UI 갱신
+      notifyListeners(); // 상태 변경 알림
+    }
+  }
+  // ---
 
   @override
   void dispose() {

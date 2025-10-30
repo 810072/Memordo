@@ -35,17 +35,16 @@ class _GraphPageState extends State<GraphPage> {
       final viewModel = context.read<GraphViewModel>();
       final customSettings = context.read<GraphCustomizationSettings>();
 
-      // 설정 로드
       customSettings.loadSettings();
-
-      // 초기 빌드 + 감시 시작
+      // buildUserGraph가 호출되면 내부에서 startWatching()도 호출됨
       viewModel.buildUserGraph();
     });
   }
 
   @override
   void dispose() {
-    context.read<GraphViewModel>().stopWatching();
+    // ViewModel의 dispose에서 stopWatching 호출
+    // context.read<GraphViewModel>().stopWatching();
     super.dispose();
   }
 
@@ -58,20 +57,24 @@ class _GraphPageState extends State<GraphPage> {
     final customSettings = context.read<GraphCustomizationSettings>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    // 선택/호버 상태는 기본 색상 사용
     if (_selectedNodeId == node.id) return Colors.blue.shade400;
     if (_hoveredNodeId == node.id) {
       return isDark ? Colors.white70 : Colors.black87;
     }
 
-    // AI 그래프 뷰는 기본 색상
-    if (viewModel.isAiGraphView) {
-      return isDark ? Colors.grey.shade600 : Colors.grey.shade500;
-    }
-
-    // 사용자 그래프: 커스텀 색상 사용
+    // --- ✨ [수정] AI 그래프 뷰 색상 적용 방식 변경 ---
+    // AI 뷰와 사용자 뷰 모두 연결 개수 기반 색상 사용
     final linkCount = viewModel.getNodeLinkCount(node.id);
     return customSettings.getNodeColorByLinks(linkCount, isDark);
+    /* // 이전 로직 주석 처리
+    if (viewModel.isAiGraphView) {
+      return isDark ? Colors.grey.shade600 : Colors.grey.shade500;
+    } else {
+      final linkCount = viewModel.getNodeLinkCount(node.id);
+      return customSettings.getNodeColorByLinks(linkCount, isDark);
+    }
+    */
+    // ---
   }
 
   Future<void> _triggerAISummary(BuildContext context, GraphNode node) async {
@@ -191,10 +194,14 @@ class _GraphPageState extends State<GraphPage> {
       if (value == 'summarize') {
         _triggerAISummary(context, node);
       } else if (value == 'delete') {
+        // 삭제 후 그래프 뷰 갱신을 위해 ViewModel 함수 호출 고려
         final bool success = await fileSystemProvider.deleteEntry(
           context,
           entry,
         );
+        // if (success) {
+        //   viewModel.buildUserGraph(); // 삭제 성공 시 그래프 다시 빌드
+        // }
       }
     });
   }
@@ -213,7 +220,6 @@ class _GraphPageState extends State<GraphPage> {
 
     final double widgetWidth = 110;
     final double widgetHeight = 65;
-
     final double textTopPosition = (widgetHeight / 2) + (nodeSize / 2) + 3;
 
     return SizedBox(
@@ -295,6 +301,7 @@ class _GraphPageState extends State<GraphPage> {
     final statusBar = context.read<StatusBarProvider>();
     try {
       final notesDir = await viewModel.getNotesDirectory();
+      // filePath는 이미 상대 경로이므로 그대로 사용
       final fullPath = p.join(notesDir, filePath);
       final file = File(fullPath);
 
@@ -321,7 +328,8 @@ class _GraphPageState extends State<GraphPage> {
     return Consumer<GraphViewModel>(
       builder: (context, viewModel, child) {
         final customSettings = context.watch<GraphCustomizationSettings>();
-        if (viewModel.isLoading) {
+        if (viewModel.isLoading && viewModel.nodes.isEmpty) {
+          // 로딩 중인데 노드가 없으면 로딩 표시
           return Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -334,7 +342,8 @@ class _GraphPageState extends State<GraphPage> {
           );
         }
 
-        if (viewModel.nodes.isEmpty) {
+        if (viewModel.nodes.isEmpty && !viewModel.isLoading) {
+          // 로딩 끝났는데 노드 없으면 빈 상태 표시
           return Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -342,7 +351,7 @@ class _GraphPageState extends State<GraphPage> {
                 Icon(Icons.hub_outlined, size: 64, color: Colors.grey),
                 const SizedBox(height: 16),
                 Text(
-                  viewModel.statusMessage,
+                  viewModel.statusMessage, // '표시할 노트가 없습니다.' 등
                   style: Theme.of(context).textTheme.bodyLarge,
                 ),
               ],
@@ -350,15 +359,18 @@ class _GraphPageState extends State<GraphPage> {
           );
         }
 
+        // 노드가 있으면 그래프 표시 (로딩 중에도 기존 그래프는 보여줌)
         return LayoutBuilder(
           builder: (context, constraints) {
             return Container(
-              // ✨ 배경색 적용
               color: customSettings.backgroundColor,
               child: Stack(
                 children: [
+                  // --- ✨ [수정] ForceGraphView에 ValueKey 추가 ---
                   ForceGraphView(
-                    key: ValueKey(viewModel.isAiGraphView),
+                    key: ValueKey(
+                      '${viewModel.isAiGraphView}-${viewModel.nodes.length}-${viewModel.links.length}',
+                    ), // 뷰 상태, 노드/링크 수 변경 시 위젯 재생성
                     nodes: viewModel.nodes,
                     links: viewModel.links,
                     initialPositions: viewModel.nodePositions,
@@ -368,11 +380,13 @@ class _GraphPageState extends State<GraphPage> {
                       constraints.maxHeight,
                     ),
                     nodeBuilder: _buildNodeWidget,
-                    // ✨ 연결선 커스터마이징 전달
                     linkColor: customSettings.linkColor,
                     linkOpacity: customSettings.linkOpacity,
                     linkWidth: customSettings.linkWidth,
                   ),
+                  // ---
+
+                  // --- ✨ [수정] 상단 상태 표시 텍스트 ---
                   Positioned(
                     top: 16,
                     left: 16,
@@ -396,10 +410,13 @@ class _GraphPageState extends State<GraphPage> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            viewModel.isAiGraphView ? 'AI 추천 관계' : '사용자 정의 링크',
+                            viewModel.isAiGraphView
+                                ? 'AI 추천 관계'
+                                : '사용자 정의 링크', // 상태에 따라 텍스트 변경
                             style: Theme.of(context).textTheme.titleSmall
                                 ?.copyWith(fontWeight: FontWeight.bold),
                           ),
+                          // 사용자 뷰일 때만 '실시간' 표시
                           if (!viewModel.isAiGraphView) ...[
                             const SizedBox(width: 8),
                             Icon(
@@ -421,6 +438,9 @@ class _GraphPageState extends State<GraphPage> {
                       ),
                     ),
                   ),
+                  // ---
+
+                  // --- 범례 (사용자 뷰일 때만 표시) ---
                   if (!viewModel.isAiGraphView)
                     Positioned(
                       bottom: 16,
@@ -462,33 +482,73 @@ class _GraphPageState extends State<GraphPage> {
                         ),
                       ),
                     ),
+                  // ---
+
+                  // --- ✨ [수정] 토글 버튼 및 새로고침 버튼 ---
                   Positioned(
                     top: 10,
                     right: 16,
-                    child: Tooltip(
-                      message: 'AI로 노트 관계 분석 및 추가',
-                      child: IconButton(
-                        icon:
-                            viewModel.isLoading
-                                ? const SizedBox(
-                                  width: 24,
-                                  height: 24,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2.5,
-                                  ),
-                                )
-                                : const Icon(Icons.auto_awesome_outlined),
-                        onPressed:
-                            viewModel.isLoading
-                                ? null
-                                : () {
-                                  context
-                                      .read<GraphViewModel>()
-                                      .generateAndMergeAiGraphData(context);
-                                },
-                      ),
+                    child: Column(
+                      // Column으로 묶기
+                      children: [
+                        // 1. 뷰 토글 버튼
+                        Tooltip(
+                          message:
+                              viewModel.isAiGraphView
+                                  ? '사용자 링크 보기'
+                                  : 'AI 추천 관계 보기',
+                          child: IconButton(
+                            icon:
+                                (viewModel.isLoading &&
+                                        !viewModel
+                                            .isAiGraphView) // AI 뷰로 전환 중일 때
+                                    ? const SizedBox(
+                                      width: 24,
+                                      height: 24,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2.5,
+                                      ),
+                                    )
+                                    : Icon(
+                                      viewModel.isAiGraphView
+                                          ? Icons
+                                              .link // 사용자 링크 아이콘
+                                          : Icons
+                                              .auto_awesome_outlined, // AI 추천 아이콘
+                                    ),
+                            onPressed:
+                                viewModel.isLoading
+                                    ? null
+                                    : () => viewModel.toggleGraphView(context),
+                          ),
+                        ),
+                        // 2. AI 뷰일 때만 새로고침 버튼 표시
+                        if (viewModel.isAiGraphView)
+                          Tooltip(
+                            message: 'AI 추천 관계 새로고침',
+                            child: IconButton(
+                              icon:
+                                  (viewModel.isLoading) // AI 뷰에서 로딩 중일 때
+                                      ? const SizedBox(
+                                        width: 24,
+                                        height: 24,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2.5,
+                                        ),
+                                      )
+                                      : const Icon(Icons.refresh), // 새로고침 아이콘
+                              onPressed:
+                                  viewModel.isLoading
+                                      ? null // 로딩 중 비활성화
+                                      : () => viewModel.loadAiGraph(
+                                        context,
+                                      ), // AI 그래프 다시 로드
+                            ),
+                          ),
+                      ],
                     ),
                   ),
+                  // ---
                 ],
               ),
             );
