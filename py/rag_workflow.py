@@ -50,9 +50,11 @@ class GraphState(TypedDict):
 
 PROMPT_TEMPLATES = {
     "expand_note": ChatPromptTemplate.from_template(
-        """다음 메모는 내용이 너무 짧아 문맥이 부족합니다.
-        메모의 핵심 의미를 유지하면서, 이 메모가 어떤 상황에서 작성되었을지 추론하여 내용을 보강해주세요.
-        보강된 내용만 간결하게 답변해주세요.
+        """당신은 사용자의 질문을 '키워드' 중심으로 재구성하여 벡터 검색 성능을 높이는 전문가입니다.
+        질문의 핵심 주제를 파악하고, 그 주제와 관련된 동의어, 연관 개념, 또는 구체적인 하위 주제를 추가하여 검색에 유리한 '키워드 구문'으로 만들어주세요.
+        
+        지시문(예: '알려줘', '설명해줘')이나 문장 형식(예: '...에 대한 설명')은 제거하고, 오직 검색 대상이 되는 명사 위주의 키워드를 나열하거나 짧은 구문으로 재구성해주세요.
+        다른 설명 없이, 재구성된 키워드 구문만 답변해주세요.
         
         --- 원본 메모 ---
         {original_content}
@@ -125,6 +127,8 @@ def validate_retrieved_documents(state: GraphState) -> dict:
     
     try:
         response = chain.invoke({"question": question, "documents": documents_str})
+        print(f"질문: '{question}'")
+        print(f"문서목록: '{documents_str}'")
         print(f"     - 유효성 검증 모델 응답: '{response}'")
         
         if response.strip().lower() == 'none':
@@ -194,55 +198,87 @@ def prepare_retrieval(state: GraphState) -> dict:
     embedding_function = GoogleGenerativeAIEmbeddings(model=EMBEDDING_MODEL, task_type="retrieval_document")
     vectorstore = Chroma(persist_directory=db_path, embedding_function=embedding_function)
     
-    all_note_ids = {note['fileName'] for note in notes}
-    # DB에 이미 존재하는 ID를 확인하여 추가할 노트만 필터링 (청크 ID 기준)
     existing_ids_in_db = set(vectorstore.get()['ids'])
     
     notes_to_add = []
     for note in notes:
-        # 해당 노트의 청크가 하나라도 DB에 없다면 추가 대상으로 간주
-        # (간단한 체크를 위해 첫번째 청크 ID만 확인)
-        potential_chunk_id = f"{note['fileName']}_0"
-        if potential_chunk_id not in existing_ids_in_db:
+        # --- (수정 1) ---
+        # 청크 ID(_0) 대신 노트 파일명 자체로 DB 존재 여부 확인
+        note_id = note['fileName']
+        if note_id not in existing_ids_in_db:
             notes_to_add.append(note)
 
     if notes_to_add:
-        print(f"     - {len(notes_to_add)}개의 신규/업데이트 메모를 발견하여 DB에 추가합니다.")
-        text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
+        print(f"       - {len(notes_to_add)}개의 신규/업데이트 메모를 발견하여 DB에 추가합니다.")
         
-        all_chunks = []
+        # --- (수정 2) ---
+        # TextSplitter 관련 코드 삭제
+        # text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50) # 삭제
+        
+        all_documents = []
+        all_ids = []
+        
+        # --- (수정 3) ---
+        # 청크 분할 루프를 제거하고, 노트 1개를 Document 1개로 매핑
         for note in notes_to_add:
-            chunks = text_splitter.split_text(note['retrieval_content'])
-            for i, chunk_text in enumerate(chunks):
-                chunk_doc = Document(
-                    page_content=chunk_text,
-                    metadata={'source': note['fileName'], 'original_content': note['content']}
-                )
-                chunk_id = f"{note['fileName']}_{i}"
-                all_chunks.append((chunk_id, chunk_doc))
+            doc = Document(
+                # page_content에 (보강된) retrieval_content 전체를 저장
+                page_content=note['retrieval_content'], 
+                metadata={
+                    'source': note['fileName'], 
+                    'original_content': note['content'] # 원본 내용은 메타데이터에 보존
+                }
+            )
+            doc_id = note['fileName'] # ID는 파일명 사용
+            
+            all_documents.append(doc)
+            all_ids.append(doc_id)
 
-        if all_chunks:
-            ids_to_add = [c[0] for c in all_chunks]
-            docs_to_add = [c[1] for c in all_chunks]
-            vectorstore.add_documents(documents=docs_to_add, ids=ids_to_add)
-            print(f"     - 신규 메모 {len(notes_to_add)}개를 총 {len(all_chunks)}개의 청크로 분할하여 ChromaDB에 추가했습니다.")
+        if all_documents:
+            # --- (수정 4) ---
+            # 준비된 문서와 ID 리스트를 DB에 추가
+            vectorstore.add_documents(documents=all_documents, ids=all_ids)
+            print(f"       - 신규 메모 {len(all_documents)}개를 (청크 분할 없이) 통문서로 ChromaDB에 추가했습니다.")
     
     return {"vectorstore": vectorstore}
+
 
 def first_pass_retrieval(state: GraphState) -> dict:
     print("--- (Node 3) 1차 검색 수행 ---")
     question = state['question']
-    vectorstore = state['vectorstore']
+    # vectorstore = state['vectorstore'] # <-- (★수정★) state의 객체를 더 이상 사용하지 않습니다.
+    db_path = _get_db_path() # DB 경로를 직접 가져옵니다.
 
-    if not vectorstore or vectorstore._collection.count() == 0:
-        print("     - 벡터 저장소가 비어있어 검색을 건너뜁니다.")
+    # --- (★수정★) ---
+    # 1. '검색어(Query)' 전용 임베딩 함수를 정의합니다.
+    query_embedding_function = GoogleGenerativeAIEmbeddings(
+        model=EMBEDDING_MODEL, 
+        task_type="retrieval_query"
+    )
+
+    # 2. '검색어용' 임베딩 함수로 새로운 Chroma 클라이언트를 로드합니다.
+    #    이 인스턴스는 오직 '검색(Querying)'에만 사용됩니다.
+    vectorstore_for_query = Chroma(
+        persist_directory=db_path, 
+        embedding_function=query_embedding_function
+    )
+    # ------------------
+
+    if not vectorstore_for_query or vectorstore_for_query._collection.count() == 0:
+        print("       - 벡터 저장소가 비어있어 검색을 건너뜁니다.")
         return {"top_docs": []}
 
-    retriever = vectorstore.as_retriever(search_kwargs={"k": 10})
-    top_docs = retriever.invoke(question)
+    # 3. '검색 전용' 인스턴스로 리트리버를 생성합니다.
+    retriever = vectorstore_for_query.as_retriever(search_kwargs={"k": 10})
     
-    print(f"     - 1차 검색 결과 (상위 {len(top_docs)}개): {[doc.metadata['source'] for doc in top_docs]}")
-    return {"top_docs": top_docs}
+    try:
+        top_docs = retriever.invoke(question)
+        print(f"       - 1차 검색 결과 (상위 {len(top_docs)}개): {[doc.metadata['source'] for doc in top_docs]}")
+        return {"top_docs": top_docs}
+    except Exception as e:
+        print(f"       - 검색 중 치명적 오류 발생: {e}")
+        print("       - 'task_type' 불일치 또는 DB 접근 오류일 수 있습니다.")
+        return {"top_docs": []}
 
 def generate_answer(state: GraphState) -> dict:
     print("--- (Node 6) 최종 답변 생성 ---")
@@ -291,8 +327,12 @@ def build_rag_workflow():
     workflow.add_node("generate", generate_answer)
 
     workflow.set_entry_point("expand_notes")
+
+
+
     workflow.add_edge("expand_notes", "expand_question")
     workflow.add_edge("expand_question", "prepare")
+
     workflow.add_edge("prepare", "first_retrieval")
     workflow.add_edge("first_retrieval", "validate_documents")
     workflow.add_edge("validate_documents", "generate")
