@@ -291,8 +291,14 @@ Future<Map<String, dynamic>?> callRagTask({
       };
     }
 
-    // 2. 지식 베이스 파일 로드 (변경 없음)
-    final cacheData = jsonDecode(await embeddingsFile.readAsString());
+    // 2. 지식 베이스 파일 로드 (수정: 리스트 구조 대응)
+    final fileContent = await embeddingsFile.readAsString();
+    final List<dynamic> decodedList = jsonDecode(fileContent);
+
+    if (decodedList.isEmpty) {
+      return {'error': "오류: 지식 베이스 파일(embeddings.json)이 비어있습니다."};
+    }
+    final Map<String, dynamic> cacheData = decodedList.first;
     final List<dynamic> nodes = cacheData['nodes'] ?? [];
     final List<dynamic> edges = cacheData['edges'] ?? [];
 

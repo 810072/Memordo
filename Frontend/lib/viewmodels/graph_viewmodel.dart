@@ -465,6 +465,56 @@ class GraphViewModel with ChangeNotifier {
         throw Exception('백엔드 API 오류: ${graphData?['error'] ?? '알 수 없는 오류'}');
       }
 
+      // --- ✨ [수정] embeddings.json 파일 저장 로직 (데이터 보존) ---
+      try {
+        final notesDir = await getNotesDirectory();
+        final embeddingsFile = File(p.join(notesDir, 'embeddings.json'));
+
+        // 기존 데이터 읽기
+        Map<String, dynamic> existingData = {};
+        if (await embeddingsFile.exists()) {
+          try {
+            final fileContent = await embeddingsFile.readAsString();
+            if (fileContent.isNotEmpty) {
+              final decodedList = jsonDecode(fileContent) as List<dynamic>;
+              if (decodedList.isNotEmpty) {
+                existingData = decodedList.first as Map<String, dynamic>;
+              }
+            }
+          } catch (e) {
+            debugPrint('⚠️ Could not decode existing embeddings.json: $e');
+            // 파일이 손상되었을 경우를 대비해 초기화
+            existingData = {};
+          }
+        }
+
+        // graphData에서 새로운 AI 데이터 추출
+        final newNodes = graphData['nodes'] ?? [];
+        final newAiEdges = graphData['edges'] ?? [];
+
+        // RAG에서 사용하는 포맷에 맞춰 데이터 구조 생성 (기존 userEdges, userTopics 보존)
+        final dataToSave = {
+          'nodes': newNodes,
+          'edges': newAiEdges, // AI가 생성한 엣지만 업데이트
+          'userEdges': existingData['userEdges'] ?? [], // 기존 데이터 보존
+          'userTopics': existingData['userTopics'] ?? [], // 기존 데이터 보존
+        };
+
+        // JSON으로 변환하여 파일에 쓰기 (리스트 안에 객체를 넣는 형식으로)
+        await embeddingsFile.writeAsString(jsonEncode([dataToSave]));
+        debugPrint(
+          '✅ AI graph data saved to embeddings.json (user data preserved)',
+        );
+      } catch (e) {
+        // 파일 저장 실패는 치명적이지 않으므로 경고만 로깅하고 계속 진행
+        debugPrint('⚠️ Failed to save embeddings.json: $e');
+        statusBar.showStatusMessage(
+          '경고: AI 분석 결과를 파일에 저장하지 못했습니다. RAG 기능이 오래된 정보로 동작할 수 있습니다.',
+          type: StatusType.info,
+        );
+      }
+      // --- 저장 로직 끝 ---
+
       // 결과를 _aiLinks에 저장 (병합 안 함)
       _aiLinks =
           (graphData['edges'] as List? ?? [])
