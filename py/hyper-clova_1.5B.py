@@ -2,26 +2,26 @@ import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer 
 import os
 import datetime # 오늘 날짜를 동적으로 가져오기 위해 추가
+from pathlib import Path # 1. 자동 경로 설정을 위해 임포트
 
 # --- 1. 설정 및 모델 로딩 ---
 
-# 모델이 저장된 로컬 경로
-MODEL_NAME = r"C:\Users\pc\Desktop\Clova_test" 
+# [수정 1] Path.home()을 사용하여 현재 사용자 바탕화면의 폴더 경로를 자동으로 설정
+MODEL_NAME = Path.home() / "Desktop" / "Clova_test" 
 
 print(f"로컬 경로 '{MODEL_NAME}'에서 모델을 로딩 중입니다...")
 
-# [수정 1] torch_dtype -> dtype
-# DeprecationWarning(경고)을 수정합니다.
+# [수정 2 & 3] device_map 제거, torch_dtype 사용, model.to("cuda") 호출
 model = AutoModelForCausalLM.from_pretrained(
     MODEL_NAME,
-    device_map="auto",
-    dtype=torch.float16, # 'torch_dtype' 대신 'dtype' 사용
+    torch_dtype=torch.float16, # 'dtype' 대신 'torch_dtype' 사용
     trust_remote_code=True 
+    # device_map="auto" 제거
 )
-print("모델 로딩 완료.")
+model.to("cuda") # 모델을 GPU(cuda)로 명시적으로 이동
+print("모델을 'cuda' (GPU)로 이동 완료.")
 
-# [수정 2] 불필요한 try-except 블록 제거
-# 성공적으로 로드되므로, 간단하게 바로 로드합니다.
+# [수정] 불필요한 try-except 블록 제거
 tokenizer = AutoTokenizer.from_pretrained(
     MODEL_NAME
 )
@@ -32,7 +32,7 @@ model.eval()
 
 # --- 2. 초기 프롬프트 및 대화 기록 설정 ---
 
-# [수정 3] 날짜를 동적으로 생성
+# [수정] 날짜를 동적으로 생성
 today = datetime.datetime.now()
 days_of_week_ko = ["월", "화", "수", "목", "금", "토", "일"]
 today_str = f"- 오늘은 {today.year}년 {today.month}월 {today.day}일({days_of_week_ko[today.weekday()]})이다."
@@ -68,6 +68,7 @@ def main():
             )
             
             # 입력을 모델과 동일한 장치(GPU/CPU)로 보냄
+            # (model.to("cuda")로 인해 model.device가 'cuda'가 됨)
             inputs = {k: v.to(model.device) for k, v in inputs.items()}
             
             # 추론 시 그래디언트 계산 비활성화 (메모리 절약)
