@@ -25,7 +25,7 @@ Memordo는 사용자의 메모와 웹 브라우징 기록을 활용하여 개인
 
 ## 프로젝트 구조
 
-- **/Frontend**: Flutter 기반의 크로스플랫폼 모바일 앱 코드
+- **/Frontend**: Flutter 기반의 크로스플랫폼
 - **/Memordo_Extension-main**: Chrome 브라우저 확장 프로그램 코드
 - **/server**: 사용자 인증, 데이터 처리 등을 담당하는 Node.js 백엔드 서버
 - **/py**: Gemini AI 모델을 활용하여 RAG 등 AI 기능을 처리하는 Python 서버
